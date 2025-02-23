@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.0</title>
+  <title>yaNote v1.1</title>
   <style>
     body {
       margin: 0;
@@ -43,11 +43,10 @@
       white-space: nowrap;
       cursor: pointer;
       transition: border-color 0.2s;
-      /* ノードは常に接続線より前面に表示 */
       z-index: 300;
       min-height: 30px;
       display: flex;
-      align-items: center; /* 垂直中央 */
+      align-items: center;
       justify-content: flex-start;
     }
     .node.selected {
@@ -60,7 +59,7 @@
     .selected-line {
       stroke: red;
     }
-    /* HTMLハンドルはcanvas内で常に最前面に表示 */
+    /* HTMLハンドル */
     .html-handle {
       position: absolute;
       width: 8px;
@@ -84,547 +83,927 @@
     </svg>
   </div>
   <script>
-    // グローバル変数
-    const canvas = document.getElementById("canvas");
-    const svg = document.getElementById("svg");
-    let moveTimer = null;
-    let selectedNode = null;       // 単体選択
-    let selectedNodes = [];        // 複数選択用
-    let selectedLine = null;       // 選択中の接続線
-    let selectedLines = [];
-    let branchCreationJustHappened = false;
-    // 各接続オブジェクト: { from, to, line, fromCoord, toCoord, startHandle, endHandle }
-    let connections = [];
-
-    /* ---------- 補助関数：矩形と線分の交差判定 ---------- */
-    function segmentsIntersect(p1, p2, p3, p4) {
-      function orientation(a, b, c) {
-        const val = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
-        if (Math.abs(val) < 1e-10) return 0;
-        return (val > 0) ? 1 : 2;
-      }
-      const o1 = orientation(p1, p2, p3);
-      const o2 = orientation(p1, p2, p4);
-      const o3 = orientation(p3, p4, p1);
-      const o4 = orientation(p3, p4, p2);
-      return (o1 !== o2 && o3 !== o4);
-    }
-    function rectIntersectsLine(rect, p1, p2) {
-      if (p1.x >= rect.left && p1.x <= rect.right && p1.y >= rect.top && p1.y <= rect.bottom) return true;
-      if (p2.x >= rect.left && p2.x <= rect.right && p2.y >= rect.top && p2.y <= rect.bottom) return true;
-      const topEdge = [{ x: rect.left, y: rect.top }, { x: rect.right, y: rect.top }];
-      const bottomEdge = [{ x: rect.left, y: rect.bottom }, { x: rect.right, y: rect.bottom }];
-      const leftEdge = [{ x: rect.left, y: rect.top }, { x: rect.left, y: rect.bottom }];
-      const rightEdge = [{ x: rect.right, y: rect.top }, { x: rect.right, y: rect.bottom }];
-      if (segmentsIntersect(p1, p2, topEdge[0], topEdge[1])) return true;
-      if (segmentsIntersect(p1, p2, bottomEdge[0], bottomEdge[1])) return true;
-      if (segmentsIntersect(p1, p2, leftEdge[0], leftEdge[1])) return true;
-      if (segmentsIntersect(p1, p2, rightEdge[0], rightEdge[1])) return true;
-      return false;
-    }
-
-    /* ---------- 基本機能 ---------- */
-    function clearSelection() {
-      if (selectedNode) {
-        selectedNode.classList.remove("selected");
-        selectedNode = null;
-      }
-      if (selectedLine) {
-        selectedLine.classList.remove("selected-line");
-        const conn = connections.find(c => c.line === selectedLine);
-        if (conn) hideHandlesForConnection(conn);
-        selectedLine = null;
-      }
-      selectedNodes.forEach(n => n.classList.remove("selected"));
-      selectedNodes = [];
-      selectedLines.forEach(l => l.classList.remove("selected-line"));
-      selectedLines = [];
-    }
-    function hideAllHandles() {
-      connections.forEach(conn => {
-        if (conn.startHandle || conn.endHandle) {
-          hideHandlesForConnection(conn);
+    (function() {
+      class Utils {
+        static orientation(a, b, c) {
+          const val = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
+          if (Math.abs(val) < 1e-10) return 0;
+          return (val > 0) ? 1 : 2;
         }
-      });
-    }
-    // ノード作成：(x,y) をノードの左下の角に合わせる
-    function createNode(text, x, y) {
-      const node = document.createElement("div");
-      node.className = "node";
-      node.textContent = text;
-      node.style.left = x + "px";
-      node.style.top = y + "px";
-      canvas.appendChild(node);
-      const h = node.offsetHeight;
-      node.style.top = (y - h) + "px";
-      node.addEventListener("mousedown", onNodeMouseDown);
-      return node;
-    }
-    function onNodeMouseDown(e) {
-      e.preventDefault();
-      const node = e.currentTarget;
-      if (selectedLine) {
-        selectedLine.classList.remove("selected-line");
-        const conn = connections.find(c => c.line === selectedLine);
-        if (conn) hideHandlesForConnection(conn);
-        selectedLine = null;
-      }
-      if (e.detail === 2) {
-        if (moveTimer) { clearTimeout(moveTimer); moveTimer = null; }
-        startDoubleClick(e, node);
-        return;
-      }
-      const mouseDownTime = Date.now();
-      moveTimer = setTimeout(() => {
-        startMove(e, node);
-        moveTimer = null;
-      }, 250);
-      function cancelMove(e) {
-        if (Date.now() - mouseDownTime < 250) {
-          clearTimeout(moveTimer);
-          moveTimer = null;
-          clearSelection();
-          selectedNode = node;
-          node.classList.add("selected");
-          selectedNodes.push(node);
-          hideAllHandles();
+        static segmentsIntersect(p1, p2, p3, p4) {
+          const o1 = Utils.orientation(p1, p2, p3);
+          const o2 = Utils.orientation(p1, p2, p4);
+          const o3 = Utils.orientation(p3, p4, p1);
+          const o4 = Utils.orientation(p3, p4, p2);
+          return (o1 !== o2 && o3 !== o4);
         }
-        document.removeEventListener("mouseup", cancelMove);
-      }
-      document.addEventListener("mouseup", cancelMove);
-    }
-    function startMove(e, node) {
-      let group = selectedNodes.length > 0 ? selectedNodes : [node];
-      if (!group.includes(node)) group.push(node);
-      clearSelection();
-      group.forEach(n => n.classList.add("selected"));
-      selectedNodes = group;
-      selectedNode = node;
-      const startX = e.clientX, startY = e.clientY;
-      const initialPositions = new Map();
-      group.forEach(n => {
-        initialPositions.set(n, {
-          left: parseInt(n.style.left, 10),
-          top: parseInt(n.style.top, 10)
-        });
-      });
-      let isDragging = false;
-      function onMouseMove(e) {
-        const dx = e.clientX - startX, dy = e.clientY - startY;
-        if (!isDragging && Math.sqrt(dx*dx+dy*dy) > 5) { isDragging = true; }
-        if (isDragging) {
-          group.forEach(n => {
-            const pos = initialPositions.get(n);
-            n.style.left = (pos.left + dx) + "px";
-            n.style.top = (pos.top + dy) + "px";
-          });
-          updateAllLines();
+        static rectIntersectsLine(rect, p1, p2) {
+          if (p1.x >= rect.left && p1.x <= rect.right && p1.y >= rect.top && p1.y <= rect.bottom) return true;
+          if (p2.x >= rect.left && p2.x <= rect.right && p2.y >= rect.top && p2.y <= rect.bottom) return true;
+          const topEdge = [{ x: rect.left, y: rect.top }, { x: rect.right, y: rect.top }];
+          const bottomEdge = [{ x: rect.left, y: rect.bottom }, { x: rect.right, y: rect.bottom }];
+          const leftEdge = [{ x: rect.left, y: rect.top }, { x: rect.left, y: rect.bottom }];
+          const rightEdge = [{ x: rect.right, y: rect.top }, { x: rect.right, y: rect.bottom }];
+          if (Utils.segmentsIntersect(p1, p2, topEdge[0], topEdge[1])) return true;
+          if (Utils.segmentsIntersect(p1, p2, bottomEdge[0], bottomEdge[1])) return true;
+          if (Utils.segmentsIntersect(p1, p2, leftEdge[0], leftEdge[1])) return true;
+          if (Utils.segmentsIntersect(p1, p2, rightEdge[0], rightEdge[1])) return true;
+          return false;
+        }
+        static computeEndpoint(tcx, tcy, fx, fy, toRect, canvasRect) {
+          const dx = fx - tcx, dy = fy - tcy;
+          let t = 1;
+          const hw = toRect.width / 2, hh = toRect.height / 2;
+          if (dx === 0 && dy === 0) { t = 1; }
+          else if (dx === 0) { t = hh / Math.abs(dy); }
+          else if (dy === 0) { t = hw / Math.abs(dx); }
+          else { t = Math.min(hw / Math.abs(dx), hh / Math.abs(dy)); }
+          const arrowX = tcx + t * dx;
+          const arrowY = tcy + t * dy;
+          return { arrowX, arrowY };
         }
       }
-      function onMouseUp(e) {
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
-      }
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
-    }
-    function startDoubleClick(e, node) {
-      const startX = e.clientX, startY = e.clientY;
-      let branchMode = false;
-      function onDCMouseMove(e) {
-        const dx = e.clientX - startX, dy = e.clientY - startY;
-        if (!branchMode && Math.sqrt(dx*dx+dy*dy) > 10) {
-          branchMode = true;
-          document.removeEventListener("mousemove", onDCMouseMove);
-          document.removeEventListener("mouseup", onDCMouseUp);
-          startBranchCreation(e, node);
-        }
-      }
-      function onDCMouseUp(e) {
-        document.removeEventListener("mousemove", onDCMouseMove);
-        document.removeEventListener("mouseup", onDCMouseUp);
-        if (!branchMode) {
-          startEditing(node);
-        }
-      }
-      document.addEventListener("mousemove", onDCMouseMove);
-      document.addEventListener("mouseup", onDCMouseUp);
-    }
-    function startEditing(node) {
-      clearSelection();
-      selectedNode = node;
-      selectedNodes = [node];
-      node.classList.add("selected");
-      node.contentEditable = "true";
-      node.classList.add("editing");
-      node._enterPressCount = 0;
-      node.focus();
-      const range = document.createRange();
-      range.selectNodeContents(node);
-      // キャレットを末尾に配置（IME候補ウィンドウ位置調整）
-      range.collapse(false);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-      function onKeyDown(e) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          node._enterPressCount = (node._enterPressCount || 0) + 1;
-          if (node._enterPressCount >= 2) {
-            node.blur();
-          }
-        } else {
-          node._enterPressCount = 0;
-        }
-      }
-      function finishEditing() {
-        node.contentEditable = "false";
-        node.classList.remove("editing");
-        node.removeEventListener("keydown", onKeyDown);
-        clearSelection();
-        if (node.textContent.trim() === "") {
-          connections.forEach(conn => {
-            if (conn.from === node) {
-              const rect = node.getBoundingClientRect();
-              const canvasRect = canvas.getBoundingClientRect();
-              conn.fromCoord = { x: rect.left + rect.width/2 - canvasRect.left, y: rect.top + rect.height/2 - canvasRect.top };
-              conn.from = null;
+      
+      class NoteNode {
+        constructor(text, x, y, app, id) {
+          this.app = app;
+          this.element = document.createElement("div");
+          this.element.className = "node";
+          this.element.textContent = text;
+          this.app.canvas.appendChild(this.element);
+          this.setPosition(x, y);
+          this.addEventListeners();
+          if (id !== undefined) {
+            this.id = id;
+            if (id >= NoteNode.nextId) {
+              NoteNode.nextId = id + 1;
             }
-            if (conn.to === node) {
-              const rect = node.getBoundingClientRect();
-              const canvasRect = canvas.getBoundingClientRect();
-              conn.toCoord = { x: rect.left + rect.width/2 - canvasRect.left, y: rect.top + rect.height/2 - canvasRect.top };
-              conn.to = null;
-            }
-          });
-          if (node.parentNode) node.parentNode.removeChild(node);
-          clearSelection();
-          return;
-        }
-        clearSelection();
-        selectedNode = node;
-        selectedNodes = [node];
-        node.classList.add("selected");
-      }
-      node.addEventListener("keydown", onKeyDown);
-      node.addEventListener("blur", finishEditing, { once: true });
-    }
-    function startBranchCreation(e, node) {
-      const canvasRect = canvas.getBoundingClientRect();
-      const nodeRect = node.getBoundingClientRect();
-      const nodeCenterX = nodeRect.left + nodeRect.width/2 - canvasRect.left;
-      const nodeCenterY = nodeRect.top + nodeRect.height/2 - canvasRect.top;
-      const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      tempLine.setAttribute("stroke", "#007bff");
-      tempLine.setAttribute("stroke-width", "2");
-      tempLine.setAttribute("stroke-dasharray", "4");
-      tempLine.setAttribute("x1", nodeCenterX);
-      tempLine.setAttribute("y1", nodeCenterY);
-      tempLine.setAttribute("x2", e.clientX - canvasRect.left);
-      tempLine.setAttribute("y2", e.clientY - canvasRect.top);
-      svg.appendChild(tempLine);
-      function onBCMouseMove(e) {
-        tempLine.setAttribute("x2", e.clientX - canvasRect.left);
-        tempLine.setAttribute("y2", e.clientY - canvasRect.top);
-      }
-      function onBCMouseUp(e) {
-        document.removeEventListener("mousemove", onBCMouseMove);
-        document.removeEventListener("mouseup", onBCMouseUp);
-        svg.removeChild(tempLine);
-        branchCreationJustHappened = true;
-        setTimeout(() => { branchCreationJustHappened = false; }, 300);
-        const dropElem = document.elementFromPoint(e.clientX, e.clientY);
-        const dropNode = dropElem ? dropElem.closest(".node") : null;
-        if (dropNode && dropNode !== node) {
-          createConnectionLine(node, dropNode);
-          clearSelection();
-          selectedNode = dropNode;
-          selectedNodes = [dropNode];
-          dropNode.classList.add("selected");
-        } else {
-          const dropX = e.clientX, dropY = e.clientY;
-          const newNode = createNode("", dropX, dropY);
-          startEditing(newNode);
-          createConnectionLine(node, newNode);
-          clearSelection();
-          selectedNode = newNode;
-          selectedNodes = [newNode];
-          newNode.classList.add("selected");
-        }
-      }
-      document.addEventListener("mousemove", onBCMouseMove);
-      document.addEventListener("mouseup", onBCMouseUp);
-    }
-    function createConnectionLine(fromNode, toNode) {
-      const conn = { from: fromNode, to: toNode, fromCoord: null, toCoord: null, startHandle: null, endHandle: null };
-      const canvasRect = canvas.getBoundingClientRect();
-      const fromRect = fromNode.getBoundingClientRect();
-      const toRect = toNode.getBoundingClientRect();
-      const fx = fromRect.left + fromRect.width/2 - canvasRect.left;
-      const fy = fromRect.top + fromRect.height/2 - canvasRect.top;
-      const tcx = toRect.left + toRect.width/2 - canvasRect.left;
-      const tcy = toRect.top + toRect.height/2 - canvasRect.top;
-      const {arrowX, arrowY} = computeEndpoint(tcx, tcy, fx, fy, toRect, canvasRect);
-      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-      line.setAttribute("x1", fx);
-      line.setAttribute("y1", fy);
-      line.setAttribute("x2", arrowX);
-      line.setAttribute("y2", arrowY);
-      line.setAttribute("stroke", "#000");
-      line.setAttribute("stroke-width", "2");
-      line.setAttribute("marker-end", "url(#arrowhead)");
-      line.style.pointerEvents = "auto";
-      line.addEventListener("click", (e) => {
-        e.stopPropagation();
-        clearSelection();
-        selectedLine = line;
-        selectedLines.push(line);
-        line.classList.add("selected-line");
-        showHandlesForConnection(conn);
-      });
-      svg.appendChild(line);
-      conn.line = line;
-      connections.push(conn);
-      return conn;
-    }
-    function computeEndpoint(tcx, tcy, fx, fy, toRect, canvasRect) {
-      const dx = fx - tcx, dy = fy - tcy;
-      let t = 1;
-      const hw = toRect.width/2, hh = toRect.height/2;
-      if (dx === 0 && dy === 0) { t = 1; }
-      else if (dx === 0) { t = hh / Math.abs(dy); }
-      else if (dy === 0) { t = hw / Math.abs(dx); }
-      else { t = Math.min(hw / Math.abs(dx), hh / Math.abs(dy)); }
-      const arrowX = tcx + t * dx;
-      const arrowY = tcy + t * dy;
-      return { arrowX, arrowY };
-    }
-    function updateConnection(conn) {
-      const canvasRect = canvas.getBoundingClientRect();
-      let fromPoint, toPoint;
-      if (conn.from && document.body.contains(conn.from)) {
-        const rect = conn.from.getBoundingClientRect();
-        const cx = rect.left + rect.width/2 - canvasRect.left;
-        const cy = rect.top + rect.height/2 - canvasRect.top;
-        fromPoint = { x: cx, y: cy };
-      } else if (conn.fromCoord) {
-        fromPoint = conn.fromCoord;
-      }
-      if (conn.to && document.body.contains(conn.to)) {
-        const rect = conn.to.getBoundingClientRect();
-        const cx = rect.left + rect.width/2 - canvasRect.left;
-        const cy = rect.top + rect.height/2 - canvasRect.top;
-        const pt = computeEndpoint(cx, cy, fromPoint.x, fromPoint.y, conn.to.getBoundingClientRect(), canvasRect);
-        toPoint = { x: pt.arrowX, y: pt.arrowY };
-      } else if (conn.toCoord) {
-        toPoint = conn.toCoord;
-      }
-      if (!fromPoint || !toPoint) return;
-      conn.line.setAttribute("x1", fromPoint.x);
-      conn.line.setAttribute("y1", fromPoint.y);
-      conn.line.setAttribute("x2", toPoint.x);
-      conn.line.setAttribute("y2", toPoint.y);
-      if (conn.startHandle) {
-        conn.startHandle.style.left = (fromPoint.x - 4) + "px";
-        conn.startHandle.style.top = (fromPoint.y - 4) + "px";
-      }
-      if (conn.endHandle) {
-        conn.endHandle.style.left = (toPoint.x - 4) + "px";
-        conn.endHandle.style.top = (toPoint.y - 4) + "px";
-      }
-    }
-    function updateAllLines() {
-      connections.forEach(conn => updateConnection(conn));
-    }
-    /* --------------- HTMLハンドル操作 --------------- */
-    function createHtmlHandle() {
-      const handle = document.createElement("div");
-      handle.className = "html-handle";
-      canvas.appendChild(handle);
-      return handle;
-    }
-    function showHandlesForConnection(conn) {
-      hideHandlesForConnection(conn);
-      const fromHandle = createHtmlHandle();
-      const toHandle = createHtmlHandle();
-      const x1 = parseFloat(conn.line.getAttribute("x1"));
-      const y1 = parseFloat(conn.line.getAttribute("y1"));
-      const x2 = parseFloat(conn.line.getAttribute("x2"));
-      const y2 = parseFloat(conn.line.getAttribute("y2"));
-      fromHandle.style.left = (x1 - 4) + "px";
-      fromHandle.style.top = (y1 - 4) + "px";
-      toHandle.style.left = (x2 - 4) + "px";
-      toHandle.style.top = (y2 - 4) + "px";
-      addHandleDrag(fromHandle, conn, "from");
-      addHandleDrag(toHandle, conn, "to");
-      conn.startHandle = fromHandle;
-      conn.endHandle = toHandle;
-    }
-    function hideHandlesForConnection(conn) {
-      if (conn.startHandle && conn.startHandle.parentNode) {
-        conn.startHandle.parentNode.removeChild(conn.startHandle);
-      }
-      conn.startHandle = null;
-      if (conn.endHandle && conn.endHandle.parentNode) {
-        conn.endHandle.parentNode.removeChild(conn.endHandle);
-      }
-      conn.endHandle = null;
-    }
-    function addHandleDrag(handle, conn, which) {
-      handle.addEventListener("mousedown", (e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        const startX = e.clientX;
-        const startY = e.clientY;
-        const initialLeft = parseFloat(handle.style.left);
-        const initialTop = parseFloat(handle.style.top);
-        function onMouseMove(e) {
-          const dx = e.clientX - startX;
-          const dy = e.clientY - startY;
-          handle.style.left = (initialLeft + dx) + "px";
-          handle.style.top = (initialTop + dy) + "px";
-          if (which === "from") {
-            conn.from = null;
-            conn.fromCoord = { x: initialLeft + dx + 4, y: initialTop + dy + 4 };
           } else {
-            conn.to = null;
-            conn.toCoord = { x: initialLeft + dx + 4, y: initialTop + dy + 4 };
+            this.id = NoteNode.nextId++;
           }
-          updateConnection(conn);
         }
-        function onMouseUp(e) {
-          document.removeEventListener("mousemove", onMouseMove);
-          document.removeEventListener("mouseup", onMouseUp);
-          handle.style.display = "none";
-          const dropElem = document.elementFromPoint(e.clientX, e.clientY);
-          handle.style.display = "";
-          const dropNode = dropElem ? dropElem.closest(".node") : null;
-          if (dropNode) {
-            if (which === "from") {
-              conn.from = dropNode;
-              conn.fromCoord = null;
-            } else {
-              conn.to = dropNode;
-              conn.toCoord = null;
+        setPosition(x, y) {
+          this.element.style.left = x + "px";
+          this.element.style.top = y + "px";
+          const h = this.element.offsetHeight;
+          this.element.style.top = (y - h) + "px";
+        }
+        addEventListeners() {
+          this.element.addEventListener("mousedown", (e) => this.onMouseDown(e));
+        }
+        onMouseDown(e) {
+          e.preventDefault();
+          this.app.handleNodeMouseDown(e, this);
+        }
+        startEditing() {
+          this.app.startEditingNode(this);
+        }
+      }
+      NoteNode.nextId = 1;
+      
+      class Connection {
+        constructor(fromNode, toNode, app) {
+          this.app = app;
+          this.fromNode = fromNode; // null許容
+          this.toNode = toNode;
+          this.fromCoord = null;
+          this.toCoord = null;
+          this.startHandle = null;
+          this.endHandle = null;
+          this.line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          this.line.setAttribute("stroke", "#000");
+          this.line.setAttribute("stroke-width", "2");
+          this.line.setAttribute("marker-end", "url(#arrowhead)");
+          this.line.style.pointerEvents = "auto";
+          this.line.addEventListener("click", (e) => {
+            e.stopPropagation();
+            this.app.selectConnection(this);
+          });
+          this.app.svg.appendChild(this.line);
+          this.update();
+        }
+        update() {
+          const canvasRect = this.app.canvas.getBoundingClientRect();
+          let fromPoint, toPoint;
+          if (this.fromNode && document.body.contains(this.fromNode.element)) {
+            const rect = this.fromNode.element.getBoundingClientRect();
+            fromPoint = { x: rect.left + rect.width/2 - canvasRect.left, y: rect.top + rect.height/2 - canvasRect.top };
+          } else if (this.fromCoord && typeof this.fromCoord.x === "number") {
+            fromPoint = this.fromCoord;
+          } else {
+            return;
+          }
+          if (this.toNode && document.body.contains(this.toNode.element)) {
+            const rect = this.toNode.element.getBoundingClientRect();
+            const endpoint = Utils.computeEndpoint(
+              rect.left + rect.width/2 - canvasRect.left,
+              rect.top + rect.height/2 - canvasRect.top,
+              fromPoint.x, fromPoint.y,
+              this.toNode.element.getBoundingClientRect(),
+              canvasRect
+            );
+            toPoint = { x: endpoint.arrowX, y: endpoint.arrowY };
+          } else if (this.toCoord && typeof this.toCoord.x === "number") {
+            toPoint = this.toCoord;
+          } else {
+            return;
+          }
+          this.line.setAttribute("x1", fromPoint.x);
+          this.line.setAttribute("y1", fromPoint.y);
+          this.line.setAttribute("x2", toPoint.x);
+          this.line.setAttribute("y2", toPoint.y);
+          if (this.startHandle) {
+            this.startHandle.style.left = (fromPoint.x - 4) + "px";
+            this.startHandle.style.top = (fromPoint.y - 4) + "px";
+          }
+          if (this.endHandle) {
+            this.endHandle.style.left = (toPoint.x - 4) + "px";
+            this.endHandle.style.top = (toPoint.y - 4) + "px";
+          }
+        }
+        showHandles() {
+          this.hideHandles();
+          this.startHandle = this.app.createHtmlHandle();
+          this.endHandle = this.app.createHtmlHandle();
+          const x1 = parseFloat(this.line.getAttribute("x1"));
+          const y1 = parseFloat(this.line.getAttribute("y1"));
+          const x2 = parseFloat(this.line.getAttribute("x2"));
+          const y2 = parseFloat(this.line.getAttribute("y2"));
+          this.startHandle.style.left = (x1 - 4) + "px";
+          this.startHandle.style.top = (y1 - 4) + "px";
+          this.endHandle.style.left = (x2 - 4) + "px";
+          this.endHandle.style.top = (y2 - 4) + "px";
+          this.app.addHandleDrag(this.startHandle, this, "from");
+          this.app.addHandleDrag(this.endHandle, this, "to");
+        }
+        hideHandles() {
+          if (this.startHandle && this.startHandle.parentNode) {
+            this.startHandle.parentNode.removeChild(this.startHandle);
+          }
+          if (this.endHandle && this.endHandle.parentNode) {
+            this.endHandle.parentNode.removeChild(this.endHandle);
+          }
+          this.startHandle = null;
+          this.endHandle = null;
+        }
+      }
+      
+      class YaNoteApp {
+        constructor() {
+          this.canvas = document.getElementById("canvas");
+          this.svg = document.getElementById("svg");
+          this.nodes = [];
+          this.connections = [];
+          this.selectedNode = null;
+          this.selectedNodes = [];
+          this.selectedConnection = null;
+          this.selectedConnections = [];
+          this.branchCreationJustHappened = false;
+          this.moveTimer = null;
+          this.undoStack = [];
+          this.redoStack = [];
+          this.initEventListeners();
+          this.createNode("中心ノード", window.innerWidth/2 - 50, window.innerHeight/2 - 25);
+          this.saveState();
+        }
+        initEventListeners() {
+          this.canvas.addEventListener("mousedown", (e) => this.onCanvasMouseDown(e));
+          window.addEventListener("resize", () => this.updateAllConnections());
+          document.addEventListener("mousedown", (e) => {
+            if (!e.target.closest(".node") && !e.target.closest(".html-handle") && e.target.tagName.toLowerCase() !== "line") {
+              this.hideAllHandles();
             }
-          }
-          updateConnection(conn);
+          });
+          document.addEventListener("keydown", (e) => {
+            if (document.activeElement && document.activeElement.isContentEditable) return;
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+              e.preventDefault();
+              this.undo();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+              e.preventDefault();
+              this.redo();
+            } else if (e.key === "Backspace" || e.key === "Delete") {
+              e.preventDefault();
+              this.deleteSelection();
+              this.saveState();
+            }
+          });
         }
-        document.addEventListener("mousemove", onMouseMove);
-        document.addEventListener("mouseup", onMouseUp);
-      });
-    }
-    /* --------------- 矩形選択（ラバーバンド） --------------- */
-    canvas.addEventListener("mousedown", function(e) {
-      if (e.target !== canvas) return;
-      clearSelection();
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const selRect = document.createElement("div");
-      selRect.id = "selectionRect";
-      selRect.style.left = startX + "px";
-      selRect.style.top = startY + "px";
-      canvas.appendChild(selRect);
-      function onMouseMove(e) {
-        const x = Math.min(startX, e.clientX);
-        const y = Math.min(startY, e.clientY);
-        const width = Math.abs(e.clientX - startX);
-        const height = Math.abs(e.clientY - startY);
-        selRect.style.left = x + "px";
-        selRect.style.top = y + "px";
-        selRect.style.width = width + "px";
-        selRect.style.height = height + "px";
-      }
-      function onMouseUp(e) {
-        document.removeEventListener("mousemove", onMouseMove);
-        document.removeEventListener("mouseup", onMouseUp);
-        const selBox = selRect.getBoundingClientRect();
-        document.querySelectorAll(".node").forEach(node => {
-          const nodeBox = node.getBoundingClientRect();
-          if (!(nodeBox.right < selBox.left || nodeBox.left > selBox.right ||
-                nodeBox.bottom < selBox.top || nodeBox.top > selBox.bottom)) {
-            selectedNodes.push(node);
-            node.classList.add("selected");
+        onCanvasMouseDown(e) {
+          if (e.target.closest(".node")) return;
+          if (e.detail === 1) {
+            this.clearSelection();
+            const startX = e.clientX, startY = e.clientY;
+            const selRect = document.createElement("div");
+            selRect.id = "selectionRect";
+            selRect.style.left = startX + "px";
+            selRect.style.top = startY + "px";
+            this.canvas.appendChild(selRect);
+            const onMouseMove = (e) => {
+              const x = Math.min(startX, e.clientX);
+              const y = Math.min(startY, e.clientY);
+              const width = Math.abs(e.clientX - startX);
+              const height = Math.abs(e.clientY - startY);
+              selRect.style.left = x + "px";
+              selRect.style.top = y + "px";
+              selRect.style.width = width + "px";
+              selRect.style.height = height + "px";
+            };
+            const onMouseUp = (e) => {
+              document.removeEventListener("mousemove", onMouseMove);
+              document.removeEventListener("mouseup", onMouseUp);
+              const selBox = selRect.getBoundingClientRect();
+              this.nodes.forEach(node => {
+                const nodeBox = node.element.getBoundingClientRect();
+                if (!(nodeBox.right < selBox.left || nodeBox.left > selBox.right ||
+                      nodeBox.bottom < selBox.top || nodeBox.top > selBox.bottom)) {
+                  this.selectedNodes.push(node);
+                  node.element.classList.add("selected");
+                }
+              });
+              this.connections.forEach(conn => {
+                const x1 = parseFloat(conn.line.getAttribute("x1"));
+                const y1 = parseFloat(conn.line.getAttribute("y1"));
+                const x2 = parseFloat(conn.line.getAttribute("x2"));
+                const y2 = parseFloat(conn.line.getAttribute("y2"));
+                const p1 = { x: x1, y: y1 }, p2 = { x: x2, y: y2 };
+                const rect = { left: selBox.left, top: selBox.top, right: selBox.right, bottom: selBox.bottom };
+                if (Utils.rectIntersectsLine(rect, p1, p2)) {
+                  this.selectedConnections.push(conn);
+                  conn.line.classList.add("selected-line");
+                  conn.showHandles();
+                }
+              });
+              this.canvas.removeChild(selRect);
+              this.saveState();
+            };
+            document.addEventListener("mousemove", onMouseMove);
+            document.addEventListener("mouseup", onMouseUp);
+          } else if (e.detail === 2) {
+            this.startBlankDoubleClick(e);
           }
-        });
-        connections.forEach(conn => {
-          const x1 = parseFloat(conn.line.getAttribute("x1"));
-          const y1 = parseFloat(conn.line.getAttribute("y1"));
-          const x2 = parseFloat(conn.line.getAttribute("x2"));
-          const y2 = parseFloat(conn.line.getAttribute("y2"));
-          const p1 = { x: x1, y: y1 };
-          const p2 = { x: x2, y: y2 };
-          const rect = { left: selBox.left, top: selBox.top, right: selBox.right, bottom: selBox.bottom };
-          if (rectIntersectsLine(rect, p1, p2)) {
-            selectedLines.push(conn.line);
-            conn.line.classList.add("selected-line");
-            showHandlesForConnection(conn);
+          // e.detail === 3 は何もしない
+        }
+        handleNodeMouseDown(e, node) {
+          if (this.selectedConnection) {
+            this.selectedConnection.line.classList.remove("selected-line");
+            this.selectedConnection.hideHandles();
+            this.selectedConnection = null;
           }
-        });
-        canvas.removeChild(selRect);
-      }
-      document.addEventListener("mousemove", onMouseMove);
-      document.addEventListener("mouseup", onMouseUp);
-    });
-    /* --------------- 削除機能 --------------- */
-    document.addEventListener("keydown", (e) => {
-      if (document.activeElement && document.activeElement.isContentEditable) {
-        return;
-      }
-      if (e.key === "Backspace" || e.key === "Delete") {
-        e.preventDefault();
-        if (selectedLines.length > 0) {
-          selectedLines.forEach(line => {
-            connections = connections.filter(conn => {
-              if (conn.line === line) {
-                if (conn.line.parentNode) conn.line.parentNode.removeChild(conn.line);
-                hideHandlesForConnection(conn);
+          if (e.detail === 2) {
+            if (this.moveTimer) { clearTimeout(this.moveTimer); this.moveTimer = null; }
+            this.startDoubleClick(e, node);
+            return;
+          }
+          const mouseDownTime = Date.now();
+          this.moveTimer = setTimeout(() => {
+            this.startMove(e, node);
+            this.moveTimer = null;
+          }, 250);
+          const cancelMove = (e) => {
+            if (Date.now() - mouseDownTime < 250) {
+              clearTimeout(this.moveTimer);
+              this.moveTimer = null;
+              this.clearSelection();
+              this.selectNode(node);
+              this.hideAllHandles();
+            }
+            document.removeEventListener("mouseup", cancelMove);
+          };
+          document.addEventListener("mouseup", cancelMove);
+        }
+        startDoubleClick(e, node) {
+          const startX = e.clientX, startY = e.clientY;
+          let branchMode = false;
+          const onDCMouseMove = (e) => {
+            const dx = e.clientX - startX, dy = e.clientY - startY;
+            if (!branchMode && Math.sqrt(dx*dx+dy*dy) > 10) {
+              branchMode = true;
+              document.removeEventListener("mousemove", onDCMouseMove);
+              document.removeEventListener("mouseup", onDCMouseUp);
+              this.startBranchCreation(e, node);
+            }
+          };
+          const onDCMouseUp = (e) => {
+            document.removeEventListener("mousemove", onDCMouseMove);
+            document.removeEventListener("mouseup", onDCMouseUp);
+            if (!branchMode) {
+              this.startEditingNode(node);
+            }
+          };
+          document.addEventListener("mousemove", onDCMouseMove);
+          document.addEventListener("mouseup", onDCMouseUp);
+        }
+        startBranchCreation(e, node) {
+          const canvasRect = this.canvas.getBoundingClientRect();
+          const nodeRect = node.element.getBoundingClientRect();
+          const nodeCenterX = nodeRect.left + nodeRect.width/2 - canvasRect.left;
+          const nodeCenterY = nodeRect.top + nodeRect.height/2 - canvasRect.top;
+          const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          tempLine.setAttribute("stroke", "#007bff");
+          tempLine.setAttribute("stroke-width", "2");
+          tempLine.setAttribute("stroke-dasharray", "4");
+          tempLine.setAttribute("x1", nodeCenterX);
+          tempLine.setAttribute("y1", nodeCenterY);
+          tempLine.setAttribute("x2", e.clientX - canvasRect.left);
+          tempLine.setAttribute("y2", e.clientY - canvasRect.top);
+          this.svg.appendChild(tempLine);
+          const onBCMouseMove = (e) => {
+            tempLine.setAttribute("x2", e.clientX - canvasRect.left);
+            tempLine.setAttribute("y2", e.clientY - canvasRect.top);
+          };
+          const onBCMouseUp = (e) => {
+            document.removeEventListener("mousemove", onBCMouseMove);
+            document.removeEventListener("mouseup", onBCMouseUp);
+            this.svg.removeChild(tempLine);
+            this.branchCreationJustHappened = true;
+            setTimeout(() => { this.branchCreationJustHappened = false; }, 300);
+            const dropElem = document.elementFromPoint(e.clientX, e.clientY);
+            const dropNodeElem = dropElem ? dropElem.closest(".node") : null;
+            let dropNode = this.nodes.find(n => n.element === dropNodeElem);
+            if (dropNode && dropNode !== node) {
+              this.createConnection(node, dropNode);
+              this.clearSelection();
+              this.selectNode(dropNode);
+            } else {
+              const newNode = this.createNode("", e.clientX, e.clientY);
+              this.startEditingNode(newNode);
+              this.createConnection(node, newNode);
+              this.clearSelection();
+              this.selectNode(newNode);
+            }
+            this.saveState();
+          };
+          document.addEventListener("mousemove", onBCMouseMove);
+          document.addEventListener("mouseup", onBCMouseUp);
+        }
+        // 修正：終点が空白の場合はノードを作成せず線のみ描画する
+        startBlankDoubleClick(e) {
+          const canvasRect = this.canvas.getBoundingClientRect();
+          const startX = e.clientX, startY = e.clientY;
+          let isLineMode = false;
+          let fromCoord = null;
+          let tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          tempLine.setAttribute("stroke", "#007bff");
+          tempLine.setAttribute("stroke-width", "2");
+          tempLine.setAttribute("stroke-dasharray", "4");
+          tempLine.setAttribute("x1", startX - canvasRect.left);
+          tempLine.setAttribute("y1", startY - canvasRect.top);
+          tempLine.setAttribute("x2", startX - canvasRect.left);
+          tempLine.setAttribute("y2", startY - canvasRect.top);
+          const that = this;
+          const onDCMouseMove = (e) => {
+            const dx = e.clientX - startX, dy = e.clientY - startY;
+            if (!isLineMode && Math.sqrt(dx*dx+dy*dy) > 10) {
+              isLineMode = true;
+              fromCoord = { x: startX - canvasRect.left, y: startY - canvasRect.top };
+              that.svg.appendChild(tempLine);
+            }
+            if (isLineMode) {
+              tempLine.setAttribute("x2", e.clientX - canvasRect.left);
+              tempLine.setAttribute("y2", e.clientY - canvasRect.top);
+            }
+          };
+          const onDCMouseUp = (e) => {
+            document.removeEventListener("mousemove", onDCMouseMove);
+            document.removeEventListener("mouseup", onDCMouseUp);
+            if (isLineMode) {
+              that.svg.removeChild(tempLine);
+              const dropElem = document.elementFromPoint(e.clientX, e.clientY);
+              const dropNodeElem = dropElem ? dropElem.closest(".node") : null;
+              if (dropNodeElem) {
+                const targetNode = that.nodes.find(n => n.element === dropNodeElem);
+                const conn = that.createConnection(null, targetNode);
+                conn.fromCoord = fromCoord;
+                conn.update();
+              } else {
+                // 終点にノードが無い場合は、toCoordにドラッグ終了位置を設定
+                const conn = that.createConnection(null, null);
+                conn.fromCoord = fromCoord;
+                conn.toCoord = { x: e.clientX - canvasRect.left, y: e.clientY - canvasRect.top };
+                conn.update();
+              }
+              that.saveState();
+            } else {
+              const newNode = that.createNode("", e.clientX, e.clientY);
+              that.startEditingNode(newNode);
+              that.selectNode(newNode);
+              that.saveState();
+            }
+          };
+          document.addEventListener("mousemove", onDCMouseMove);
+          document.addEventListener("mouseup", onDCMouseUp);
+        }
+        createHtmlHandle() {
+          const handle = document.createElement("div");
+          handle.className = "html-handle";
+          this.canvas.appendChild(handle);
+          return handle;
+        }
+        addHandleDrag(handle, connection, which) {
+          handle.addEventListener("mousedown", (e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const startX = e.clientX;
+            const startY = e.clientY;
+            const initialLeft = parseFloat(handle.style.left);
+            const initialTop = parseFloat(handle.style.top);
+            const onMouseMove = (e) => {
+              const dx = e.clientX - startX;
+              const dy = e.clientY - startY;
+              handle.style.left = (initialLeft + dx) + "px";
+              handle.style.top = (initialTop + dy) + "px";
+              if (which === "from") {
+                connection.fromNode = null;
+                connection.fromCoord = { x: initialLeft + dx + 4, y: initialTop + dy + 4 };
+              } else {
+                connection.toNode = null;
+                connection.toCoord = { x: initialLeft + dx + 4, y: initialTop + dy + 4 };
+              }
+              connection.update();
+            };
+            const onMouseUp = (e) => {
+              document.removeEventListener("mousemove", onMouseMove);
+              document.removeEventListener("mouseup", onMouseUp);
+              handle.style.display = "none";
+              const dropElem = document.elementFromPoint(e.clientX, e.clientY);
+              handle.style.display = "";
+              const dropNodeElem = dropElem ? dropElem.closest(".node") : null;
+              const dropNode = this.nodes.find(n => n.element === dropNodeElem);
+              if (dropNode) {
+                if (which === "from") {
+                  connection.fromNode = dropNode;
+                  connection.fromCoord = null;
+                } else {
+                  connection.toNode = dropNode;
+                  connection.toCoord = null;
+                }
+              }
+              connection.update();
+              this.saveState();
+            };
+            document.addEventListener("mousemove", onMouseMove);
+            document.addEventListener("mouseup", onMouseUp);
+          });
+        }
+        captureState() {
+          return {
+            nodes: this.nodes.map(node => ({
+              id: node.id,
+              text: node.element.textContent,
+              left: node.element.style.left,
+              top: node.element.style.top
+            })),
+            connections: this.connections.map(conn => ({
+              fromId: conn.fromNode ? conn.fromNode.id : null,
+              toId: conn.toNode ? conn.toNode.id : null,
+              fromCoord: conn.fromCoord,
+              toCoord: conn.toCoord
+            }))
+          };
+        }
+        saveState() {
+          const snapshot = this.captureState();
+          this.undoStack.push(snapshot);
+          this.redoStack = [];
+        }
+        restoreState(state) {
+          this.nodes.forEach(node => {
+            if (node.element.parentNode) node.element.parentNode.removeChild(node.element);
+          });
+          this.connections.forEach(conn => {
+            if (conn.line.parentNode) conn.line.parentNode.removeChild(conn.line);
+            conn.hideHandles();
+          });
+          this.nodes = [];
+          this.connections = [];
+          const nodeMap = {};
+          state.nodes.forEach(nodeData => {
+            const node = new NoteNode(nodeData.text, parseInt(nodeData.left), parseInt(nodeData.top), this, nodeData.id);
+            node.element.style.left = nodeData.left;
+            node.element.style.top = nodeData.top;
+            this.nodes.push(node);
+            nodeMap[nodeData.id] = node;
+          });
+          state.connections.forEach(connData => {
+            let fromNode = connData.fromId in nodeMap ? nodeMap[connData.fromId] : null;
+            let toNode = connData.toId in nodeMap ? nodeMap[connData.toId] : null;
+            const conn = new Connection(fromNode, toNode, this);
+            conn.fromCoord = connData.fromCoord;
+            conn.toCoord = connData.toCoord;
+            conn.update();
+            this.connections.push(conn);
+          });
+          this.updateAllConnections();
+        }
+        undo() {
+          if (this.undoStack.length > 1) {
+            const currentState = this.undoStack.pop();
+            this.redoStack.push(currentState);
+            const previousState = this.undoStack[this.undoStack.length - 1];
+            this.restoreState(previousState);
+          }
+        }
+        redo() {
+          if (this.redoStack.length > 0) {
+            const nextState = this.redoStack.pop();
+            this.undoStack.push(nextState);
+            this.restoreState(nextState);
+          }
+        }
+        createNode(text, x, y) {
+          const node = new NoteNode(text, x, y, this);
+          this.nodes.push(node);
+          return node;
+        }
+        createConnection(fromNode, toNode) {
+          const connection = new Connection(fromNode, toNode, this);
+          this.connections.push(connection);
+          return connection;
+        }
+        updateAllConnections() {
+          this.connections.forEach(conn => conn.update());
+        }
+        clearSelection() {
+          if (this.selectedNode) {
+            this.selectedNode.element.classList.remove("selected");
+            this.selectedNode = null;
+          }
+          if (this.selectedConnection) {
+            this.selectedConnection.line.classList.remove("selected-line");
+            this.selectedConnection.hideHandles();
+            this.selectedConnection = null;
+          }
+          this.selectedNodes.forEach(n => n.element.classList.remove("selected"));
+          this.selectedNodes = [];
+          this.selectedConnections.forEach(conn => {
+            conn.line.classList.remove("selected-line");
+            conn.hideHandles();
+          });
+          this.selectedConnections = [];
+        }
+        hideAllHandles() {
+          this.connections.forEach(conn => conn.hideHandles());
+        }
+        selectNode(node) {
+          this.clearSelection();
+          this.selectedNode = node;
+          this.selectedNodes = [node];
+          node.element.classList.add("selected");
+        }
+        selectConnection(connection) {
+          this.clearSelection();
+          this.selectedConnection = connection;
+          this.selectedConnections = [connection];
+          connection.line.classList.add("selected-line");
+          connection.showHandles();
+        }
+        startEditingNode(node) {
+          this.clearSelection();
+          this.selectedNode = node;
+          this.selectedNodes = [node];
+          node.element.classList.add("selected");
+          node.element.contentEditable = "true";
+          node.element.classList.add("editing");
+          node._enterPressCount = 0;
+          node.element.focus();
+          const range = document.createRange();
+          range.selectNodeContents(node.element);
+          range.collapse(false);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          const onKeyDown = (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              node._enterPressCount = (node._enterPressCount || 0) + 1;
+              if (node._enterPressCount >= 2) {
+                node.element.blur();
+              }
+            } else {
+              node._enterPressCount = 0;
+            }
+          };
+          const finishEditing = () => {
+            node.element.contentEditable = "false";
+            node.element.classList.remove("editing");
+            node.element.removeEventListener("keydown", onKeyDown);
+            this.clearSelection();
+            if (node.element.textContent.trim() === "") {
+              this.connections = this.connections.filter(conn => {
+                if (conn.fromNode === node || conn.toNode === node) {
+                  if (conn.line.parentNode) conn.line.parentNode.removeChild(conn.line);
+                  return false;
+                }
+                return true;
+              });
+              if (node.element.parentNode) node.element.parentNode.removeChild(node.element);
+              this.clearSelection();
+              this.saveState();
+              return;
+            }
+            this.selectNode(node);
+            this.saveState();
+          };
+          node.element.addEventListener("keydown", onKeyDown);
+          node.element.addEventListener("blur", finishEditing, { once: true });
+        }
+        startMove(e, node) {
+          let group;
+          if (this.selectedNodes.length > 0 && this.selectedNodes.includes(node)) {
+            group = this.selectedNodes;
+          } else {
+            group = [node];
+          }
+          this.clearSelection();
+          group.forEach(n => n.element.classList.add("selected"));
+          this.selectedNodes = group;
+          this.selectedNode = node;
+          const startX = e.clientX, startY = e.clientY;
+          const initialPositions = new Map();
+          group.forEach(n => {
+            initialPositions.set(n, {
+              left: parseInt(n.element.style.left, 10),
+              top: parseInt(n.element.style.top, 10)
+            });
+          });
+          let isDragging = false;
+          const onMouseMove = (e) => {
+            const dx = e.clientX - startX, dy = e.clientY - startY;
+            if (!isDragging && Math.sqrt(dx*dx+dy*dy) > 5) { isDragging = true; }
+            if (isDragging) {
+              group.forEach(n => {
+                const pos = initialPositions.get(n);
+                n.element.style.left = (pos.left + dx) + "px";
+                n.element.style.top = (pos.top + dy) + "px";
+              });
+              this.updateAllConnections();
+            }
+          };
+          const onMouseUp = (e) => {
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+            this.saveState();
+          };
+          document.addEventListener("mousemove", onMouseMove);
+          document.addEventListener("mouseup", onMouseUp);
+        }
+        deleteSelection() {
+          // 接続線の削除
+          if (this.selectedConnections.length > 0) {
+            this.selectedConnections.forEach(conn => {
+              conn.hideHandles();
+              if (conn.line.parentNode) {
+                conn.line.parentNode.removeChild(conn.line);
+              }
+            });
+            this.connections = this.connections.filter(conn => !this.selectedConnections.includes(conn));
+            this.selectedConnections = [];
+          }
+          // 選択されたノードの削除（接続線も削除）
+          if (this.selectedNodes.length > 0) {
+            this.selectedNodes.forEach(node => {
+              this.connections = this.connections.filter(conn => {
+                if (conn.fromNode === node || conn.toNode === node) {
+                  conn.hideHandles();
+                  if (conn.line.parentNode) {
+                    conn.line.parentNode.removeChild(conn.line);
+                  }
+                  return false;
+                }
+                return true;
+              });
+              if (node.element.parentNode) {
+                node.element.parentNode.removeChild(node.element);
+              }
+            });
+            this.nodes = this.nodes.filter(node => !this.selectedNodes.includes(node));
+            this.selectedNodes = [];
+          } else if (this.selectedNode) {
+            if (this.selectedNode.element.parentNode) {
+              this.selectedNode.element.parentNode.removeChild(this.selectedNode.element);
+            }
+            this.connections = this.connections.filter(conn => {
+              if (conn.fromNode === this.selectedNode || conn.toNode === this.selectedNode) {
+                conn.hideHandles();
+                if (conn.line.parentNode) {
+                  conn.line.parentNode.removeChild(conn.line);
+                }
                 return false;
               }
               return true;
             });
-          });
-          selectedLines = [];
+            this.selectedNode = null;
+          }
+          this.clearSelection();
         }
-        if (selectedNodes.length > 0) {
-          selectedNodes.forEach(node => {
-            if (node.parentNode) node.parentNode.removeChild(node);
+        captureState() {
+          return {
+            nodes: this.nodes.map(node => ({
+              id: node.id,
+              text: node.element.textContent,
+              left: node.element.style.left,
+              top: node.element.style.top
+            })),
+            connections: this.connections.map(conn => ({
+              fromId: conn.fromNode ? conn.fromNode.id : null,
+              toId: conn.toNode ? conn.toNode.id : null,
+              fromCoord: conn.fromCoord,
+              toCoord: conn.toCoord
+            }))
+          };
+        }
+        saveState() {
+          const snapshot = this.captureState();
+          this.undoStack.push(snapshot);
+          this.redoStack = [];
+        }
+        restoreState(state) {
+          this.nodes.forEach(node => {
+            if (node.element.parentNode) node.element.parentNode.removeChild(node.element);
           });
-          selectedNodes = [];
-        } else if (selectedNode) {
-          connections = connections.filter(conn => {
-            if (conn.from === selectedNode || conn.to === selectedNode) {
-              if (conn.line.parentNode) conn.line.parentNode.removeChild(conn.line);
-              return false;
+          this.connections.forEach(conn => {
+            if (conn.line.parentNode) conn.line.parentNode.removeChild(conn.line);
+            conn.hideHandles();
+          });
+          this.nodes = [];
+          this.connections = [];
+          const nodeMap = {};
+          state.nodes.forEach(nodeData => {
+            const node = new NoteNode(nodeData.text, parseInt(nodeData.left), parseInt(nodeData.top), this, nodeData.id);
+            node.element.style.left = nodeData.left;
+            node.element.style.top = nodeData.top;
+            this.nodes.push(node);
+            nodeMap[nodeData.id] = node;
+          });
+          state.connections.forEach(connData => {
+            let fromNode = connData.fromId in nodeMap ? nodeMap[connData.fromId] : null;
+            let toNode = connData.toId in nodeMap ? nodeMap[connData.toId] : null;
+            const conn = new Connection(fromNode, toNode, this);
+            conn.fromCoord = connData.fromCoord;
+            conn.toCoord = connData.toCoord;
+            conn.update();
+            this.connections.push(conn);
+          });
+          this.updateAllConnections();
+        }
+        undo() {
+          if (this.undoStack.length > 1) {
+            const currentState = this.undoStack.pop();
+            this.redoStack.push(currentState);
+            const previousState = this.undoStack[this.undoStack.length - 1];
+            this.restoreState(previousState);
+          }
+        }
+        redo() {
+          if (this.redoStack.length > 0) {
+            const nextState = this.redoStack.pop();
+            this.undoStack.push(nextState);
+            this.restoreState(nextState);
+          }
+        }
+        createNode(text, x, y) {
+          const node = new NoteNode(text, x, y, this);
+          this.nodes.push(node);
+          return node;
+        }
+        createConnection(fromNode, toNode) {
+          const connection = new Connection(fromNode, toNode, this);
+          this.connections.push(connection);
+          return connection;
+        }
+        updateAllConnections() {
+          this.connections.forEach(conn => conn.update());
+        }
+        clearSelection() {
+          if (this.selectedNode) {
+            this.selectedNode.element.classList.remove("selected");
+            this.selectedNode = null;
+          }
+          if (this.selectedConnection) {
+            this.selectedConnection.line.classList.remove("selected-line");
+            this.selectedConnection.hideHandles();
+            this.selectedConnection = null;
+          }
+          this.selectedNodes.forEach(n => n.element.classList.remove("selected"));
+          this.selectedNodes = [];
+          this.selectedConnections.forEach(conn => {
+            conn.line.classList.remove("selected-line");
+            conn.hideHandles();
+          });
+          this.selectedConnections = [];
+        }
+        hideAllHandles() {
+          this.connections.forEach(conn => conn.hideHandles());
+        }
+        selectNode(node) {
+          this.clearSelection();
+          this.selectedNode = node;
+          this.selectedNodes = [node];
+          node.element.classList.add("selected");
+        }
+        selectConnection(connection) {
+          this.clearSelection();
+          this.selectedConnection = connection;
+          this.selectedConnections = [connection];
+          connection.line.classList.add("selected-line");
+          connection.showHandles();
+        }
+        startEditingNode(node) {
+          this.clearSelection();
+          this.selectedNode = node;
+          this.selectedNodes = [node];
+          node.element.classList.add("selected");
+          node.element.contentEditable = "true";
+          node.element.classList.add("editing");
+          node._enterPressCount = 0;
+          node.element.focus();
+          const range = document.createRange();
+          range.selectNodeContents(node.element);
+          range.collapse(false);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          const onKeyDown = (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              node._enterPressCount = (node._enterPressCount || 0) + 1;
+              if (node._enterPressCount >= 2) {
+                node.element.blur();
+              }
+            } else {
+              node._enterPressCount = 0;
             }
-            return true;
+          };
+          const finishEditing = () => {
+            node.element.contentEditable = "false";
+            node.element.classList.remove("editing");
+            node.element.removeEventListener("keydown", onKeyDown);
+            this.clearSelection();
+            if (node.element.textContent.trim() === "") {
+              this.connections = this.connections.filter(conn => {
+                if (conn.fromNode === node || conn.toNode === node) {
+                  if (conn.line.parentNode) conn.line.parentNode.removeChild(conn.line);
+                  return false;
+                }
+                return true;
+              });
+              if (node.element.parentNode) node.element.parentNode.removeChild(node.element);
+              this.clearSelection();
+              this.saveState();
+              return;
+            }
+            this.selectNode(node);
+            this.saveState();
+          };
+          node.element.addEventListener("keydown", onKeyDown);
+          node.element.addEventListener("blur", finishEditing, { once: true });
+        }
+        startMove(e, node) {
+          let group;
+          if (this.selectedNodes.length > 0 && this.selectedNodes.includes(node)) {
+            group = this.selectedNodes;
+          } else {
+            group = [node];
+          }
+          this.clearSelection();
+          group.forEach(n => n.element.classList.add("selected"));
+          this.selectedNodes = group;
+          this.selectedNode = node;
+          const startX = e.clientX, startY = e.clientY;
+          const initialPositions = new Map();
+          group.forEach(n => {
+            initialPositions.set(n, {
+              left: parseInt(n.element.style.left, 10),
+              top: parseInt(n.element.style.top, 10)
+            });
           });
-          if (selectedNode.parentNode) selectedNode.parentNode.removeChild(selectedNode);
-          selectedNode = null;
+          let isDragging = false;
+          const onMouseMove = (e) => {
+            const dx = e.clientX - startX, dy = e.clientY - startY;
+            if (!isDragging && Math.sqrt(dx*dx+dy*dy) > 5) { isDragging = true; }
+            if (isDragging) {
+              group.forEach(n => {
+                const pos = initialPositions.get(n);
+                n.element.style.left = (pos.left + dx) + "px";
+                n.element.style.top = (pos.top + dy) + "px";
+              });
+              this.updateAllConnections();
+            }
+          };
+          const onMouseUp = (e) => {
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+            this.saveState();
+          };
+          document.addEventListener("mousemove", onMouseMove);
+          document.addEventListener("mouseup", onMouseUp);
         }
       }
-    });
-    /* --------------- 背景ダブルクリックで新規ノード作成 --------------- */
-    canvas.addEventListener("dblclick", (e) => {
-      if (e.target.classList.contains("node") || branchCreationJustHappened) return;
-      clearSelection();
-      const newNode = createNode("", e.clientX, e.clientY);
-      startEditing(newNode);
-      selectedNode = newNode;
-      selectedNodes.push(newNode);
-      newNode.classList.add("selected");
-    });
-    window.addEventListener("resize", updateAllLines);
-    /* --------------- documentクリックでハンドル非表示 --------------- */
-    document.addEventListener("mousedown", (e) => {
-      const target = e.target;
-      if (target.closest(".node") || target.closest(".html-handle") || target.tagName.toLowerCase() === "line") {
-        return;
-      }
-      hideAllHandles();
-    });
-    /* --------------- 初期状態 --------------- */
-    createNode("中心ノード", window.innerWidth/2 - 50, window.innerHeight/2 - 25);
+      
+      new YaNoteApp();
+      
+    })();
   </script>
 </body>
 </html>
