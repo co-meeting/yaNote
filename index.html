@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>yaNote v1.0</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #f9f9f9;
+    }
+    #canvas {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+    /* SVGは接続線描画用。z-indexを低く設定 */
+    #svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 100;
+    }
+    /* 選択枠（ラバーバンド） */
+    #selectionRect {
+      position: absolute;
+      border: 1px dashed #000;
+      background-color: rgba(0,0,255,0.1);
+      pointer-events: none;
+      z-index: 1000;
+    }
+    .node {
+      position: absolute;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      padding: 8px 12px;
+      border-radius: 5px;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+      user-select: none;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      /* ノードは常に接続線より前面に表示 */
+      z-index: 300;
+      min-height: 30px;
+      display: flex;
+      align-items: center; /* 垂直中央 */
+      justify-content: flex-start;
+    }
+    .node.selected {
+      border-color: blue;
+    }
+    .node.editing {
+      background-color: #ffffe0;
+      border-color: #007bff;
+    }
+    .selected-line {
+      stroke: red;
+    }
+    /* HTMLハンドルはcanvas内で常に最前面に表示 */
+    .html-handle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #fff;
+      border: 1px solid #000;
+      cursor: pointer;
+      z-index: 1100;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L0,10 L10,5 Z" fill="#000" />
+        </marker>
+      </defs>
+    </svg>
+  </div>
+  <script>
+    // グローバル変数
+    const canvas = document.getElementById("canvas");
+    const svg = document.getElementById("svg");
+    let moveTimer = null;
+    let selectedNode = null;       // 単体選択
+    let selectedNodes = [];        // 複数選択用
+    let selectedLine = null;       // 選択中の接続線
+    let selectedLines = [];
+    let branchCreationJustHappened = false;
+    // 各接続オブジェクト: { from, to, line, fromCoord, toCoord, startHandle, endHandle }
+    let connections = [];
+
+    /* ---------- 補助関数：矩形と線分の交差判定 ---------- */
+    function segmentsIntersect(p1, p2, p3, p4) {
+      function orientation(a, b, c) {
+        const val = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
+        if (Math.abs(val) < 1e-10) return 0;
+        return (val > 0) ? 1 : 2;
+      }
+      const o1 = orientation(p1, p2, p3);
+      const o2 = orientation(p1, p2, p4);
+      const o3 = orientation(p3, p4, p1);
+      const o4 = orientation(p3, p4, p2);
+      return (o1 !== o2 && o3 !== o4);
+    }
+    function rectIntersectsLine(rect, p1, p2) {
+      if (p1.x >= rect.left && p1.x <= rect.right && p1.y >= rect.top && p1.y <= rect.bottom) return true;
+      if (p2.x >= rect.left && p2.x <= rect.right && p2.y >= rect.top && p2.y <= rect.bottom) return true;
+      const topEdge = [{ x: rect.left, y: rect.top }, { x: rect.right, y: rect.top }];
+      const bottomEdge = [{ x: rect.left, y: rect.bottom }, { x: rect.right, y: rect.bottom }];
+      const leftEdge = [{ x: rect.left, y: rect.top }, { x: rect.left, y: rect.bottom }];
+      const rightEdge = [{ x: rect.right, y: rect.top }, { x: rect.right, y: rect.bottom }];
+      if (segmentsIntersect(p1, p2, topEdge[0], topEdge[1])) return true;
+      if (segmentsIntersect(p1, p2, bottomEdge[0], bottomEdge[1])) return true;
+      if (segmentsIntersect(p1, p2, leftEdge[0], leftEdge[1])) return true;
+      if (segmentsIntersect(p1, p2, rightEdge[0], rightEdge[1])) return true;
+      return false;
+    }
+
+    /* ---------- 基本機能 ---------- */
+    function clearSelection() {
+      if (selectedNode) {
+        selectedNode.classList.remove("selected");
+        selectedNode = null;
+      }
+      if (selectedLine) {
+        selectedLine.classList.remove("selected-line");
+        const conn = connections.find(c => c.line === selectedLine);
+        if (conn) hideHandlesForConnection(conn);
+        selectedLine = null;
+      }
+      selectedNodes.forEach(n => n.classList.remove("selected"));
+      selectedNodes = [];
+      selectedLines.forEach(l => l.classList.remove("selected-line"));
+      selectedLines = [];
+    }
+    function hideAllHandles() {
+      connections.forEach(conn => {
+        if (conn.startHandle || conn.endHandle) {
+          hideHandlesForConnection(conn);
+        }
+      });
+    }
+    // ノード作成：(x,y) をノードの左下の角に合わせる
+    function createNode(text, x, y) {
+      const node = document.createElement("div");
+      node.className = "node";
+      node.textContent = text;
+      node.style.left = x + "px";
+      node.style.top = y + "px";
+      canvas.appendChild(node);
+      const h = node.offsetHeight;
+      node.style.top = (y - h) + "px";
+      node.addEventListener("mousedown", onNodeMouseDown);
+      return node;
+    }
+    function onNodeMouseDown(e) {
+      e.preventDefault();
+      const node = e.currentTarget;
+      if (selectedLine) {
+        selectedLine.classList.remove("selected-line");
+        const conn = connections.find(c => c.line === selectedLine);
+        if (conn) hideHandlesForConnection(conn);
+        selectedLine = null;
+      }
+      if (e.detail === 2) {
+        if (moveTimer) { clearTimeout(moveTimer); moveTimer = null; }
+        startDoubleClick(e, node);
+        return;
+      }
+      const mouseDownTime = Date.now();
+      moveTimer = setTimeout(() => {
+        startMove(e, node);
+        moveTimer = null;
+      }, 250);
+      function cancelMove(e) {
+        if (Date.now() - mouseDownTime < 250) {
+          clearTimeout(moveTimer);
+          moveTimer = null;
+          clearSelection();
+          selectedNode = node;
+          node.classList.add("selected");
+          selectedNodes.push(node);
+          hideAllHandles();
+        }
+        document.removeEventListener("mouseup", cancelMove);
+      }
+      document.addEventListener("mouseup", cancelMove);
+    }
+    function startMove(e, node) {
+      let group = selectedNodes.length > 0 ? selectedNodes : [node];
+      if (!group.includes(node)) group.push(node);
+      clearSelection();
+      group.forEach(n => n.classList.add("selected"));
+      selectedNodes = group;
+      selectedNode = node;
+      const startX = e.clientX, startY = e.clientY;
+      const initialPositions = new Map();
+      group.forEach(n => {
+        initialPositions.set(n, {
+          left: parseInt(n.style.left, 10),
+          top: parseInt(n.style.top, 10)
+        });
+      });
+      let isDragging = false;
+      function onMouseMove(e) {
+        const dx = e.clientX - startX, dy = e.clientY - startY;
+        if (!isDragging && Math.sqrt(dx*dx+dy*dy) > 5) { isDragging = true; }
+        if (isDragging) {
+          group.forEach(n => {
+            const pos = initialPositions.get(n);
+            n.style.left = (pos.left + dx) + "px";
+            n.style.top = (pos.top + dy) + "px";
+          });
+          updateAllLines();
+        }
+      }
+      function onMouseUp(e) {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+      }
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    }
+    function startDoubleClick(e, node) {
+      const startX = e.clientX, startY = e.clientY;
+      let branchMode = false;
+      function onDCMouseMove(e) {
+        const dx = e.clientX - startX, dy = e.clientY - startY;
+        if (!branchMode && Math.sqrt(dx*dx+dy*dy) > 10) {
+          branchMode = true;
+          document.removeEventListener("mousemove", onDCMouseMove);
+          document.removeEventListener("mouseup", onDCMouseUp);
+          startBranchCreation(e, node);
+        }
+      }
+      function onDCMouseUp(e) {
+        document.removeEventListener("mousemove", onDCMouseMove);
+        document.removeEventListener("mouseup", onDCMouseUp);
+        if (!branchMode) {
+          startEditing(node);
+        }
+      }
+      document.addEventListener("mousemove", onDCMouseMove);
+      document.addEventListener("mouseup", onDCMouseUp);
+    }
+    function startEditing(node) {
+      clearSelection();
+      selectedNode = node;
+      selectedNodes = [node];
+      node.classList.add("selected");
+      node.contentEditable = "true";
+      node.classList.add("editing");
+      node._enterPressCount = 0;
+      node.focus();
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      // キャレットを末尾に配置（IME候補ウィンドウ位置調整）
+      range.collapse(false);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      function onKeyDown(e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          node._enterPressCount = (node._enterPressCount || 0) + 1;
+          if (node._enterPressCount >= 2) {
+            node.blur();
+          }
+        } else {
+          node._enterPressCount = 0;
+        }
+      }
+      function finishEditing() {
+        node.contentEditable = "false";
+        node.classList.remove("editing");
+        node.removeEventListener("keydown", onKeyDown);
+        clearSelection();
+        if (node.textContent.trim() === "") {
+          connections.forEach(conn => {
+            if (conn.from === node) {
+              const rect = node.getBoundingClientRect();
+              const canvasRect = canvas.getBoundingClientRect();
+              conn.fromCoord = { x: rect.left + rect.width/2 - canvasRect.left, y: rect.top + rect.height/2 - canvasRect.top };
+              conn.from = null;
+            }
+            if (conn.to === node) {
+              const rect = node.getBoundingClientRect();
+              const canvasRect = canvas.getBoundingClientRect();
+              conn.toCoord = { x: rect.left + rect.width/2 - canvasRect.left, y: rect.top + rect.height/2 - canvasRect.top };
+              conn.to = null;
+            }
+          });
+          if (node.parentNode) node.parentNode.removeChild(node);
+          clearSelection();
+          return;
+        }
+        clearSelection();
+        selectedNode = node;
+        selectedNodes = [node];
+        node.classList.add("selected");
+      }
+      node.addEventListener("keydown", onKeyDown);
+      node.addEventListener("blur", finishEditing, { once: true });
+    }
+    function startBranchCreation(e, node) {
+      const canvasRect = canvas.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      const nodeCenterX = nodeRect.left + nodeRect.width/2 - canvasRect.left;
+      const nodeCenterY = nodeRect.top + nodeRect.height/2 - canvasRect.top;
+      const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      tempLine.setAttribute("stroke", "#007bff");
+      tempLine.setAttribute("stroke-width", "2");
+      tempLine.setAttribute("stroke-dasharray", "4");
+      tempLine.setAttribute("x1", nodeCenterX);
+      tempLine.setAttribute("y1", nodeCenterY);
+      tempLine.setAttribute("x2", e.clientX - canvasRect.left);
+      tempLine.setAttribute("y2", e.clientY - canvasRect.top);
+      svg.appendChild(tempLine);
+      function onBCMouseMove(e) {
+        tempLine.setAttribute("x2", e.clientX - canvasRect.left);
+        tempLine.setAttribute("y2", e.clientY - canvasRect.top);
+      }
+      function onBCMouseUp(e) {
+        document.removeEventListener("mousemove", onBCMouseMove);
+        document.removeEventListener("mouseup", onBCMouseUp);
+        svg.removeChild(tempLine);
+        branchCreationJustHappened = true;
+        setTimeout(() => { branchCreationJustHappened = false; }, 300);
+        const dropElem = document.elementFromPoint(e.clientX, e.clientY);
+        const dropNode = dropElem ? dropElem.closest(".node") : null;
+        if (dropNode && dropNode !== node) {
+          createConnectionLine(node, dropNode);
+          clearSelection();
+          selectedNode = dropNode;
+          selectedNodes = [dropNode];
+          dropNode.classList.add("selected");
+        } else {
+          const dropX = e.clientX, dropY = e.clientY;
+          const newNode = createNode("", dropX, dropY);
+          startEditing(newNode);
+          createConnectionLine(node, newNode);
+          clearSelection();
+          selectedNode = newNode;
+          selectedNodes = [newNode];
+          newNode.classList.add("selected");
+        }
+      }
+      document.addEventListener("mousemove", onBCMouseMove);
+      document.addEventListener("mouseup", onBCMouseUp);
+    }
+    function createConnectionLine(fromNode, toNode) {
+      const conn = { from: fromNode, to: toNode, fromCoord: null, toCoord: null, startHandle: null, endHandle: null };
+      const canvasRect = canvas.getBoundingClientRect();
+      const fromRect = fromNode.getBoundingClientRect();
+      const toRect = toNode.getBoundingClientRect();
+      const fx = fromRect.left + fromRect.width/2 - canvasRect.left;
+      const fy = fromRect.top + fromRect.height/2 - canvasRect.top;
+      const tcx = toRect.left + toRect.width/2 - canvasRect.left;
+      const tcy = toRect.top + toRect.height/2 - canvasRect.top;
+      const {arrowX, arrowY} = computeEndpoint(tcx, tcy, fx, fy, toRect, canvasRect);
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", fx);
+      line.setAttribute("y1", fy);
+      line.setAttribute("x2", arrowX);
+      line.setAttribute("y2", arrowY);
+      line.setAttribute("stroke", "#000");
+      line.setAttribute("stroke-width", "2");
+      line.setAttribute("marker-end", "url(#arrowhead)");
+      line.style.pointerEvents = "auto";
+      line.addEventListener("click", (e) => {
+        e.stopPropagation();
+        clearSelection();
+        selectedLine = line;
+        selectedLines.push(line);
+        line.classList.add("selected-line");
+        showHandlesForConnection(conn);
+      });
+      svg.appendChild(line);
+      conn.line = line;
+      connections.push(conn);
+      return conn;
+    }
+    function computeEndpoint(tcx, tcy, fx, fy, toRect, canvasRect) {
+      const dx = fx - tcx, dy = fy - tcy;
+      let t = 1;
+      const hw = toRect.width/2, hh = toRect.height/2;
+      if (dx === 0 && dy === 0) { t = 1; }
+      else if (dx === 0) { t = hh / Math.abs(dy); }
+      else if (dy === 0) { t = hw / Math.abs(dx); }
+      else { t = Math.min(hw / Math.abs(dx), hh / Math.abs(dy)); }
+      const arrowX = tcx + t * dx;
+      const arrowY = tcy + t * dy;
+      return { arrowX, arrowY };
+    }
+    function updateConnection(conn) {
+      const canvasRect = canvas.getBoundingClientRect();
+      let fromPoint, toPoint;
+      if (conn.from && document.body.contains(conn.from)) {
+        const rect = conn.from.getBoundingClientRect();
+        const cx = rect.left + rect.width/2 - canvasRect.left;
+        const cy = rect.top + rect.height/2 - canvasRect.top;
+        fromPoint = { x: cx, y: cy };
+      } else if (conn.fromCoord) {
+        fromPoint = conn.fromCoord;
+      }
+      if (conn.to && document.body.contains(conn.to)) {
+        const rect = conn.to.getBoundingClientRect();
+        const cx = rect.left + rect.width/2 - canvasRect.left;
+        const cy = rect.top + rect.height/2 - canvasRect.top;
+        const pt = computeEndpoint(cx, cy, fromPoint.x, fromPoint.y, conn.to.getBoundingClientRect(), canvasRect);
+        toPoint = { x: pt.arrowX, y: pt.arrowY };
+      } else if (conn.toCoord) {
+        toPoint = conn.toCoord;
+      }
+      if (!fromPoint || !toPoint) return;
+      conn.line.setAttribute("x1", fromPoint.x);
+      conn.line.setAttribute("y1", fromPoint.y);
+      conn.line.setAttribute("x2", toPoint.x);
+      conn.line.setAttribute("y2", toPoint.y);
+      if (conn.startHandle) {
+        conn.startHandle.style.left = (fromPoint.x - 4) + "px";
+        conn.startHandle.style.top = (fromPoint.y - 4) + "px";
+      }
+      if (conn.endHandle) {
+        conn.endHandle.style.left = (toPoint.x - 4) + "px";
+        conn.endHandle.style.top = (toPoint.y - 4) + "px";
+      }
+    }
+    function updateAllLines() {
+      connections.forEach(conn => updateConnection(conn));
+    }
+    /* --------------- HTMLハンドル操作 --------------- */
+    function createHtmlHandle() {
+      const handle = document.createElement("div");
+      handle.className = "html-handle";
+      canvas.appendChild(handle);
+      return handle;
+    }
+    function showHandlesForConnection(conn) {
+      hideHandlesForConnection(conn);
+      const fromHandle = createHtmlHandle();
+      const toHandle = createHtmlHandle();
+      const x1 = parseFloat(conn.line.getAttribute("x1"));
+      const y1 = parseFloat(conn.line.getAttribute("y1"));
+      const x2 = parseFloat(conn.line.getAttribute("x2"));
+      const y2 = parseFloat(conn.line.getAttribute("y2"));
+      fromHandle.style.left = (x1 - 4) + "px";
+      fromHandle.style.top = (y1 - 4) + "px";
+      toHandle.style.left = (x2 - 4) + "px";
+      toHandle.style.top = (y2 - 4) + "px";
+      addHandleDrag(fromHandle, conn, "from");
+      addHandleDrag(toHandle, conn, "to");
+      conn.startHandle = fromHandle;
+      conn.endHandle = toHandle;
+    }
+    function hideHandlesForConnection(conn) {
+      if (conn.startHandle && conn.startHandle.parentNode) {
+        conn.startHandle.parentNode.removeChild(conn.startHandle);
+      }
+      conn.startHandle = null;
+      if (conn.endHandle && conn.endHandle.parentNode) {
+        conn.endHandle.parentNode.removeChild(conn.endHandle);
+      }
+      conn.endHandle = null;
+    }
+    function addHandleDrag(handle, conn, which) {
+      handle.addEventListener("mousedown", (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const initialLeft = parseFloat(handle.style.left);
+        const initialTop = parseFloat(handle.style.top);
+        function onMouseMove(e) {
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          handle.style.left = (initialLeft + dx) + "px";
+          handle.style.top = (initialTop + dy) + "px";
+          if (which === "from") {
+            conn.from = null;
+            conn.fromCoord = { x: initialLeft + dx + 4, y: initialTop + dy + 4 };
+          } else {
+            conn.to = null;
+            conn.toCoord = { x: initialLeft + dx + 4, y: initialTop + dy + 4 };
+          }
+          updateConnection(conn);
+        }
+        function onMouseUp(e) {
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+          handle.style.display = "none";
+          const dropElem = document.elementFromPoint(e.clientX, e.clientY);
+          handle.style.display = "";
+          const dropNode = dropElem ? dropElem.closest(".node") : null;
+          if (dropNode) {
+            if (which === "from") {
+              conn.from = dropNode;
+              conn.fromCoord = null;
+            } else {
+              conn.to = dropNode;
+              conn.toCoord = null;
+            }
+          }
+          updateConnection(conn);
+        }
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      });
+    }
+    /* --------------- 矩形選択（ラバーバンド） --------------- */
+    canvas.addEventListener("mousedown", function(e) {
+      if (e.target !== canvas) return;
+      clearSelection();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const selRect = document.createElement("div");
+      selRect.id = "selectionRect";
+      selRect.style.left = startX + "px";
+      selRect.style.top = startY + "px";
+      canvas.appendChild(selRect);
+      function onMouseMove(e) {
+        const x = Math.min(startX, e.clientX);
+        const y = Math.min(startY, e.clientY);
+        const width = Math.abs(e.clientX - startX);
+        const height = Math.abs(e.clientY - startY);
+        selRect.style.left = x + "px";
+        selRect.style.top = y + "px";
+        selRect.style.width = width + "px";
+        selRect.style.height = height + "px";
+      }
+      function onMouseUp(e) {
+        document.removeEventListener("mousemove", onMouseMove);
+        document.removeEventListener("mouseup", onMouseUp);
+        const selBox = selRect.getBoundingClientRect();
+        document.querySelectorAll(".node").forEach(node => {
+          const nodeBox = node.getBoundingClientRect();
+          if (!(nodeBox.right < selBox.left || nodeBox.left > selBox.right ||
+                nodeBox.bottom < selBox.top || nodeBox.top > selBox.bottom)) {
+            selectedNodes.push(node);
+            node.classList.add("selected");
+          }
+        });
+        connections.forEach(conn => {
+          const x1 = parseFloat(conn.line.getAttribute("x1"));
+          const y1 = parseFloat(conn.line.getAttribute("y1"));
+          const x2 = parseFloat(conn.line.getAttribute("x2"));
+          const y2 = parseFloat(conn.line.getAttribute("y2"));
+          const p1 = { x: x1, y: y1 };
+          const p2 = { x: x2, y: y2 };
+          const rect = { left: selBox.left, top: selBox.top, right: selBox.right, bottom: selBox.bottom };
+          if (rectIntersectsLine(rect, p1, p2)) {
+            selectedLines.push(conn.line);
+            conn.line.classList.add("selected-line");
+            showHandlesForConnection(conn);
+          }
+        });
+        canvas.removeChild(selRect);
+      }
+      document.addEventListener("mousemove", onMouseMove);
+      document.addEventListener("mouseup", onMouseUp);
+    });
+    /* --------------- 削除機能 --------------- */
+    document.addEventListener("keydown", (e) => {
+      if (document.activeElement && document.activeElement.isContentEditable) {
+        return;
+      }
+      if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        if (selectedLines.length > 0) {
+          selectedLines.forEach(line => {
+            connections = connections.filter(conn => {
+              if (conn.line === line) {
+                if (conn.line.parentNode) conn.line.parentNode.removeChild(conn.line);
+                hideHandlesForConnection(conn);
+                return false;
+              }
+              return true;
+            });
+          });
+          selectedLines = [];
+        }
+        if (selectedNodes.length > 0) {
+          selectedNodes.forEach(node => {
+            if (node.parentNode) node.parentNode.removeChild(node);
+          });
+          selectedNodes = [];
+        } else if (selectedNode) {
+          connections = connections.filter(conn => {
+            if (conn.from === selectedNode || conn.to === selectedNode) {
+              if (conn.line.parentNode) conn.line.parentNode.removeChild(conn.line);
+              return false;
+            }
+            return true;
+          });
+          if (selectedNode.parentNode) selectedNode.parentNode.removeChild(selectedNode);
+          selectedNode = null;
+        }
+      }
+    });
+    /* --------------- 背景ダブルクリックで新規ノード作成 --------------- */
+    canvas.addEventListener("dblclick", (e) => {
+      if (e.target.classList.contains("node") || branchCreationJustHappened) return;
+      clearSelection();
+      const newNode = createNode("", e.clientX, e.clientY);
+      startEditing(newNode);
+      selectedNode = newNode;
+      selectedNodes.push(newNode);
+      newNode.classList.add("selected");
+    });
+    window.addEventListener("resize", updateAllLines);
+    /* --------------- documentクリックでハンドル非表示 --------------- */
+    document.addEventListener("mousedown", (e) => {
+      const target = e.target;
+      if (target.closest(".node") || target.closest(".html-handle") || target.tagName.toLowerCase() === "line") {
+        return;
+      }
+      hideAllHandles();
+    });
+    /* --------------- 初期状態 --------------- */
+    createNode("中心ノード", window.innerWidth/2 - 50, window.innerHeight/2 - 25);
+  </script>
+</body>
+</html>
