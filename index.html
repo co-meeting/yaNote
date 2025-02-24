@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2</title>
+  <title>yaNote v1.2.1</title>
   <style>
     body {
       margin: 0;
@@ -74,9 +74,37 @@
       cursor: pointer;
       z-index: 1100;
     }
+    /* コントロールパネル（右上）のスタイル */
+    #controlPanel {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      z-index: 20000;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    #controlPanel button {
+      padding: 5px 10px;
+      cursor: pointer;
+      background: #ddd;
+      border: none;
+      border-radius: 3px;
+    }
+    /* 非表示のインポート用ファイル入力 */
+    #importInput {
+      display: none;
+    }
   </style>
 </head>
 <body>
+  <!-- コントロールパネル：初期状態リセット / エクスポート / インポート -->
+  <div id="controlPanel">
+    <button id="resetBtn">初期状態に戻す</button>
+    <button id="exportBtn">エクスポート</button>
+    <button id="importBtn">インポート</button>
+    <input type="file" id="importInput" accept=".json">
+  </div>
   <div id="canvas">
     <svg id="svg" xmlns="http://www.w3.org/2000/svg">
       <defs>
@@ -314,11 +342,16 @@
           this.globalZoom = 1;
           this.updateGlobalTransform();
           this.initEventListeners();
-          // 無限キャンバス中央（論理座標5000,5000）に中心ノードを作成
-          const initialX = 5000;
-          const initialY = 5000;
-          this.createNode("中心ノード", initialX, initialY);
-          this.saveState();
+          // ローカルストレージに保存データがあれば復元、なければ初期状態（中心ノード作成）
+          const storedData = localStorage.getItem("yaNoteData");
+          if (storedData) {
+            this.loadFromLocalStorage();
+          } else {
+            const initialX = 5000;
+            const initialY = 5000;
+            this.createNode("中心ノード", initialX, initialY);
+            this.saveState();
+          }
           window.addEventListener("load", () => this.recalcCenter());
           window.addEventListener("resize", () => this.recalcCenter());
         }
@@ -378,6 +411,13 @@
               e.preventDefault();
               this.deleteSelection();
               this.saveState();
+            }
+          });
+          
+          // 複数タブ間の同期: 他タブでの yaNoteData 変更時にリロード
+          window.addEventListener("storage", (e) => {
+            if (e.key === "yaNoteData") {
+              location.reload();
             }
           });
         }
@@ -464,19 +504,17 @@
             this.startBlankDoubleClick(e);
           }
         }
-        // 修正：クリックしたノードが選択されていなければ、既存のグループ選択をクリアする
+        // ノード移動処理（グループ移動対応）
         startMove(e, node) {
           if (!this.selectedNodes.includes(node)) {
             this.clearSelection();
             this.selectNode(node);
           }
-          // グループ選択中の場合、複数選択があるとグループ移動となる
           if ((this.selectedNodes.length + this.selectedConnections.length) > 1) {
             this.startGroupMove(e);
             return;
           }
           let group = [node];
-          // すでに選択状態になっているので group は単体
           this.clearSelection();
           group.forEach(n => n.element.classList.add("selected"));
           this.selectedNodes = group;
@@ -761,6 +799,8 @@
             document.addEventListener("mouseup", onMouseUp);
           });
         }
+        // --- 内部状態のキャプチャ・復元 ---
+        // captureState() の出力に version フィールドを追加しておく（将来の拡張用）
         captureState() {
           return {
             nodes: this.nodes.map(node => ({
@@ -779,10 +819,12 @@
             globalZoom: this.globalZoom
           };
         }
+        // saveState() 内で自動保存を実行
         saveState() {
           const snapshot = this.captureState();
           this.undoStack.push(snapshot);
           this.redoStack = [];
+          this.saveToLocalStorage();
         }
         restoreState(state) {
           this.nodes.forEach(node => {
@@ -973,9 +1015,103 @@
           }
           this.clearSelection();
         }
+        
+        // --- ローカルストレージ対応 ---
+        saveToLocalStorage() {
+          const state = {
+            version: "1.2.1",
+            data: this.captureState()
+          };
+          localStorage.setItem("yaNoteData", JSON.stringify(state));
+        }
+        loadFromLocalStorage() {
+          const data = localStorage.getItem("yaNoteData");
+          if (data) {
+            try {
+              const stateObj = JSON.parse(data);
+              if (!stateObj.version || stateObj.version !== "1.2.1") {
+                alert("データのバージョンが一致しません。");
+                return;
+              }
+              this.restoreState(stateObj.data);
+            } catch (e) {
+              alert("データの読み込みエラー: " + e.message);
+            }
+          }
+        }
+        
+        // --- エクスポート機能 ---
+        exportState() {
+          // 最新の安定状態は undoStack の最終状態
+          const state = this.undoStack[this.undoStack.length - 1];
+          const exportObj = {
+            version: "1.2.1",
+            data: state
+          };
+          return JSON.stringify(exportObj, null, 2);
+        }
+        
       }
       
-      new YaNoteApp();
+      // アプリのインスタンスを生成
+      const app = new YaNoteApp();
+      
+      // リセットボタン
+      document.getElementById("resetBtn").addEventListener("click", function() {
+        localStorage.removeItem("yaNoteData");
+        location.reload();
+      });
+      
+      // エクスポートボタン
+      document.getElementById("exportBtn").addEventListener("click", function() {
+        try {
+          const exportJson = app.exportState();
+          const blob = new Blob([exportJson], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          // 日時を含むファイル名作成
+          const now = new Date();
+          const pad = (n) => n.toString().padStart(2, '0');
+          const filename = `yaNote_export_${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          alert("エクスポートエラー: " + e.message);
+        }
+      });
+      
+      // インポートボタン（実際は非表示の input をクリック）
+      document.getElementById("importBtn").addEventListener("click", function() {
+        document.getElementById("importInput").click();
+      });
+      
+      // インポート機能
+      document.getElementById("importInput").addEventListener("change", function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          try {
+            const result = event.target.result;
+            const importObj = JSON.parse(result);
+            if (!importObj.version || importObj.version !== "1.2.1") {
+              alert("インポートするファイルのバージョンが一致しません。");
+              return;
+            }
+            app.restoreState(importObj.data);
+            app.saveState();
+          } catch (err) {
+            alert("インポートエラー: " + err.message);
+          }
+        };
+        reader.readAsText(file);
+        // 選択後、input の value をリセット
+        e.target.value = "";
+      });
       
     })();
   </script>
