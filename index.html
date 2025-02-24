@@ -1,15 +1,23 @@
 <!DOCTYPE html>
+<!--
+/*****************************************************************
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.2)
+ * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
+ * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
+ * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
+ * 4. テスト・デバッグ：DEBUGフラグで制御されたログ出力を行う。
+ * 5. コーディング規約：既存フォーマットは変更せず、必要な箇所のみ修正する。
+ *****************************************************************/
+-->
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.1</title>
+  <title>yaNote v1.2.2</title>
   <style>
-    body {
-      margin: 0;
-      overflow: visible;
-      background-color: #f9f9f9;
-    }
-    /* 無限キャンバス：絶対配置で中央に配置、サイズは大きく設定 */
+    /* ================================
+       共通CSS
+       ================================ */
+    body { margin: 0; overflow: visible; background-color: #f9f9f9; }
     #canvas {
       position: absolute;
       left: 50%;
@@ -19,7 +27,6 @@
       overflow: visible;
       transform: translate(-5000px, -5000px) translate(0px, 0px) scale(1);
     }
-    /* SVGは接続線描画用 */
     #svg {
       position: absolute;
       top: 0;
@@ -29,7 +36,6 @@
       pointer-events: none;
       z-index: 100;
     }
-    /* 選択枠（ラバーバンド）：document.body に固定配置 */
     #selectionRect {
       position: fixed;
       border: 1px dashed #000;
@@ -54,16 +60,9 @@
       align-items: center;
       justify-content: flex-start;
     }
-    .node.selected {
-      border-color: blue;
-    }
-    .node.editing {
-      background-color: #ffffe0;
-      border-color: #007bff;
-    }
-    .selected-line {
-      stroke: red;
-    }
+    .node.selected { border-color: blue; }
+    .node.editing { background-color: #ffffe0; border-color: #007bff; }
+    .selected-line { stroke: red; }
     .html-handle {
       position: absolute;
       width: 8px;
@@ -74,7 +73,6 @@
       cursor: pointer;
       z-index: 1100;
     }
-    /* コントロールパネル（右上）のスタイル */
     #controlPanel {
       position: absolute;
       top: 10px;
@@ -91,14 +89,13 @@
       border: none;
       border-radius: 3px;
     }
-    /* 非表示のインポート用ファイル入力 */
-    #importInput {
-      display: none;
-    }
+    #importInput { display: none; }
   </style>
 </head>
 <body>
-  <!-- コントロールパネル：初期状態リセット / エクスポート / インポート -->
+  <!-- ================================
+       コントロールパネル
+       ================================ -->
   <div id="controlPanel">
     <button id="resetBtn">初期状態に戻す</button>
     <button id="exportBtn">エクスポート</button>
@@ -114,14 +111,43 @@
       </defs>
     </svg>
   </div>
+  
+  <!-- ================================
+       yaNote 本体（v1.2.2）
+       ================================ -->
   <script>
     (function() {
+      "use strict";
+      
+      // --- 1. 一元管理された設定 ---
+      const VERSION = "v1.2.2";
+      const DEBUG = true;
+      console.log("[yaNote]", "Starting yaNote", VERSION);
+      
+      // --- 2. Logger クラス（デバッグ用） ---
+      class Logger {
+        static log(...args) {
+          if (DEBUG) console.log("[yaNote]", ...args);
+        }
+      }
+      
+      // --- 3. Utils クラス（共通処理） ---
       class Utils {
+        /**
+         * 3点の向きを判定する
+         * @param {Object} a {x, y}
+         * @param {Object} b {x, y}
+         * @param {Object} c {x, y}
+         * @returns {number} 0: collinear, 1: clockwise, 2: counterclockwise
+         */
         static orientation(a, b, c) {
           const val = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
           if (Math.abs(val) < 1e-10) return 0;
           return (val > 0) ? 1 : 2;
         }
+        /**
+         * 2つの線分 (p1,p2) と (p3,p4) が交差するかどうか
+         */
         static segmentsIntersect(p1, p2, p3, p4) {
           const o1 = Utils.orientation(p1, p2, p3);
           const o2 = Utils.orientation(p1, p2, p4);
@@ -129,6 +155,9 @@
           const o4 = Utils.orientation(p3, p4, p2);
           return (o1 !== o2 && o3 !== o4);
         }
+        /**
+         * 矩形と線分の交差判定
+         */
         static rectIntersectsLine(rect, p1, p2) {
           if (p1.x >= rect.left && p1.x <= rect.right && p1.y >= rect.top && p1.y <= rect.bottom) return true;
           if (p2.x >= rect.left && p2.x <= rect.right && p2.y >= rect.top && p2.y <= rect.bottom) return true;
@@ -142,7 +171,10 @@
           if (Utils.segmentsIntersect(p1, p2, rightEdge[0], rightEdge[1])) return true;
           return false;
         }
-        static computeEndpoint(tcx, tcy, fx, fy, toRect, canvasRect) {
+        /**
+         * 接続線の終端位置を計算する
+         */
+        static computeEndpoint(tcx, tcy, fx, fy, toRect) {
           const dx = fx - tcx, dy = fy - tcy;
           let t = 1;
           const hw = toRect.width / 2, hh = toRect.height / 2;
@@ -150,14 +182,20 @@
           else if (dx === 0) { t = hh / Math.abs(dy); }
           else if (dy === 0) { t = hw / Math.abs(dx); }
           else { t = Math.min(hw / Math.abs(dx), hh / Math.abs(dy)); }
-          const arrowX = tcx + t * dx;
-          const arrowY = tcy + t * dy;
-          return { arrowX, arrowY };
+          return { arrowX: tcx + t * dx, arrowY: tcy + t * dy };
         }
       }
       
-      // NoteNode: 内部論理座標 (x, y) は「左下」を意味する
+      // --- 4. NoteNode クラス（ノード機能） ---
       class NoteNode {
+        /**
+         * ノード生成
+         * @param {string} text ノードテキスト
+         * @param {number} x 論理座標x（左下基準）
+         * @param {number} y 論理座標y（左下基準）
+         * @param {YaNoteApp} app アプリインスタンス
+         * @param {number} [id] 任意ID（自動採番も可能）
+         */
         constructor(text, x, y, app, id) {
           this.app = app;
           this.element = document.createElement("div");
@@ -180,6 +218,7 @@
           } else {
             this.id = NoteNode.nextId++;
           }
+          Logger.log("NoteNode created:", this.id, text, x, y);
         }
         setPosition(x, y) {
           this.x = x;
@@ -202,7 +241,14 @@
       }
       NoteNode.nextId = 1;
       
+      // --- 5. Connection クラス（接続線管理） ---
       class Connection {
+        /**
+         * 接続線生成
+         * @param {NoteNode|null} fromNode 始点ノード（存在しない場合はfromCoordで管理）
+         * @param {NoteNode|null} toNode 終点ノード（存在しない場合はtoCoordで管理）
+         * @param {YaNoteApp} app アプリインスタンス
+         */
         constructor(fromNode, toNode, app) {
           this.app = app;
           this.fromNode = fromNode;
@@ -235,34 +281,34 @@
           }
           this.app.svg.appendChild(this.line);
           this.update();
+          Logger.log("Connection created:", this.fromNode?.id, "->", this.toNode?.id);
         }
         update() {
           const canvasRect = this.app.canvas.getBoundingClientRect();
           let fromPoint, toPoint;
           if (this.fromNode && document.body.contains(this.fromNode.element)) {
             const rect = this.fromNode.element.getBoundingClientRect();
-            fromPoint = { x: rect.left + rect.width / 2 - canvasRect.left,
-                          y: rect.top + rect.height / 2 - canvasRect.top };
+            fromPoint = {
+              x: rect.left + rect.width / 2 - canvasRect.left,
+              y: rect.top + rect.height / 2 - canvasRect.top
+            };
           } else if (this.fromCoord && typeof this.fromCoord.x === "number") {
             fromPoint = this.fromCoord;
-          } else {
-            return;
-          }
+          } else return;
+          
           if (this.toNode && document.body.contains(this.toNode.element)) {
             const rect = this.toNode.element.getBoundingClientRect();
             const endpoint = Utils.computeEndpoint(
               rect.left + rect.width / 2 - canvasRect.left,
               rect.top + rect.height / 2 - canvasRect.top,
               fromPoint.x, fromPoint.y,
-              this.toNode.element.getBoundingClientRect(),
-              canvasRect
+              this.toNode.element.getBoundingClientRect()
             );
             toPoint = { x: endpoint.arrowX, y: endpoint.arrowY };
           } else if (this.toCoord && typeof this.toCoord.x === "number") {
             toPoint = this.toCoord;
-          } else {
-            return;
-          }
+          } else return;
+          
           this.line.setAttribute("x1", fromPoint.x);
           this.line.setAttribute("y1", fromPoint.y);
           this.line.setAttribute("x2", toPoint.x);
@@ -324,6 +370,7 @@
         }
       }
       
+      // --- 6. YaNoteApp クラス（アプリ全体の管理） ---
       class YaNoteApp {
         constructor() {
           this.canvas = document.getElementById("canvas");
@@ -342,21 +389,21 @@
           this.globalZoom = 1;
           this.updateGlobalTransform();
           this.initEventListeners();
-          // ローカルストレージに保存データがあれば復元、なければ初期状態（中心ノード作成）
           const storedData = localStorage.getItem("yaNoteData");
           if (storedData) {
             this.loadFromLocalStorage();
           } else {
-            const initialX = 5000;
-            const initialY = 5000;
+            const initialX = 5000, initialY = 5000;
             this.createNode("中心ノード", initialX, initialY);
             this.saveState();
           }
           window.addEventListener("load", () => this.recalcCenter());
           window.addEventListener("resize", () => this.recalcCenter());
+          Logger.log("YaNoteApp initialized");
         }
         updateGlobalTransform() {
-          this.canvas.style.transform = `translate(-5000px, -5000px) translate(${this.globalPan.x}px, ${this.globalPan.y}px) scale(${this.globalZoom})`;
+          this.canvas.style.transform =
+            `translate(-5000px, -5000px) translate(${this.globalPan.x}px, ${this.globalPan.y}px) scale(${this.globalZoom})`;
         }
         recalcCenter() {
           let centerNode = this.nodes.find(n => n.element.textContent.trim() === "中心ノード");
@@ -381,14 +428,10 @@
         }
         initEventListeners() {
           this.canvas.addEventListener("mousedown", (e) => {
-            if (e.button === 2) {
-              this.startPan(e);
-            }
+            if (e.button === 2) { this.startPan(e); }
           });
           this.canvas.addEventListener("contextmenu", (e) => {
-            if (this.canvas.style.cursor === "grabbing") {
-              e.preventDefault();
-            }
+            if (this.canvas.style.cursor === "grabbing") { e.preventDefault(); }
           });
           this.canvas.addEventListener("mousedown", (e) => {
             if (e.button === 0) this.onCanvasMouseDown(e);
@@ -413,12 +456,8 @@
               this.saveState();
             }
           });
-          
-          // 複数タブ間の同期: 他タブでの yaNoteData 変更時にリロード
           window.addEventListener("storage", (e) => {
-            if (e.key === "yaNoteData") {
-              location.reload();
-            }
+            if (e.key === "yaNoteData") { location.reload(); }
           });
         }
         startPan(e) {
@@ -432,9 +471,7 @@
           const onMouseMove = (e) => {
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
-            if (!hasMoved && Math.sqrt(dx * dx + dy * dy) > threshold) {
-              hasMoved = true;
-            }
+            if (!hasMoved && Math.sqrt(dx * dx + dy * dy) > threshold) { hasMoved = true; }
             if (hasMoved) {
               this.globalPan.x = initialPan.x + dx;
               this.globalPan.y = initialPan.y + dy;
@@ -447,9 +484,7 @@
           const onMouseUp = (e) => {
             document.removeEventListener("mousemove", onMouseMove);
             document.removeEventListener("mouseup", onMouseUp);
-            if (hasMoved) {
-              this.canvas.style.cursor = "default";
-            }
+            if (hasMoved) { this.canvas.style.cursor = "default"; }
           };
           document.addEventListener("mousemove", onMouseMove);
           document.addEventListener("mouseup", onMouseUp);
@@ -504,7 +539,6 @@
             this.startBlankDoubleClick(e);
           }
         }
-        // ノード移動処理（グループ移動対応）
         startMove(e, node) {
           if (!this.selectedNodes.includes(node)) {
             this.clearSelection();
@@ -631,9 +665,7 @@
           const onDCMouseUp = (e) => {
             document.removeEventListener("mousemove", onDCMouseMove);
             document.removeEventListener("mouseup", onDCMouseUp);
-            if (!branchMode) {
-              this.startEditingNode(node);
-            }
+            if (!branchMode) { this.startEditingNode(node); }
           };
           document.addEventListener("mousemove", onDCMouseMove);
           document.addEventListener("mouseup", onDCMouseUp);
@@ -799,8 +831,6 @@
             document.addEventListener("mouseup", onMouseUp);
           });
         }
-        // --- 内部状態のキャプチャ・復元 ---
-        // captureState() の出力に version フィールドを追加しておく（将来の拡張用）
         captureState() {
           return {
             nodes: this.nodes.map(node => ({
@@ -819,7 +849,6 @@
             globalZoom: this.globalZoom
           };
         }
-        // saveState() 内で自動保存を実行
         saveState() {
           const snapshot = this.captureState();
           this.undoStack.push(snapshot);
@@ -855,6 +884,28 @@
           this.globalZoom = state.globalZoom;
           this.updateGlobalTransform();
           this.updateAllConnections();
+        }
+        saveToLocalStorage() {
+          const state = {
+            version: VERSION,
+            data: this.captureState()
+          };
+          localStorage.setItem("yaNoteData", JSON.stringify(state));
+        }
+        loadFromLocalStorage() {
+          const data = localStorage.getItem("yaNoteData");
+          if (data) {
+            try {
+              const stateObj = JSON.parse(data);
+              if (!stateObj.version || stateObj.version !== VERSION) {
+                alert("データのバージョンが一致しません。");
+                return;
+              }
+              this.restoreState(stateObj.data);
+            } catch (e) {
+              alert("データの読み込みエラー: " + e.message);
+            }
+          }
         }
         undo() {
           if (this.undoStack.length > 1) {
@@ -1015,60 +1066,26 @@
           }
           this.clearSelection();
         }
-        
-        // --- ローカルストレージ対応 ---
-        saveToLocalStorage() {
-          const state = {
-            version: "1.2.1",
-            data: this.captureState()
-          };
-          localStorage.setItem("yaNoteData", JSON.stringify(state));
-        }
-        loadFromLocalStorage() {
-          const data = localStorage.getItem("yaNoteData");
-          if (data) {
-            try {
-              const stateObj = JSON.parse(data);
-              if (!stateObj.version || stateObj.version !== "1.2.1") {
-                alert("データのバージョンが一致しません。");
-                return;
-              }
-              this.restoreState(stateObj.data);
-            } catch (e) {
-              alert("データの読み込みエラー: " + e.message);
-            }
-          }
-        }
-        
-        // --- エクスポート機能 ---
         exportState() {
-          // 最新の安定状態は undoStack の最終状態
           const state = this.undoStack[this.undoStack.length - 1];
-          const exportObj = {
-            version: "1.2.1",
-            data: state
-          };
+          const exportObj = { version: VERSION, data: state };
           return JSON.stringify(exportObj, null, 2);
         }
-        
       }
       
-      // アプリのインスタンスを生成
-      const app = new YaNoteApp();
+      // --- 7. インスタンス生成およびコントロールパネル設定 ---
+      window.app = new YaNoteApp();
       
-      // リセットボタン
-      document.getElementById("resetBtn").addEventListener("click", function() {
+      document.getElementById("resetBtn").addEventListener("click", () => {
         localStorage.removeItem("yaNoteData");
         location.reload();
       });
       
-      // エクスポートボタン
-      document.getElementById("exportBtn").addEventListener("click", function() {
+      document.getElementById("exportBtn").addEventListener("click", () => {
         try {
           const exportJson = app.exportState();
           const blob = new Blob([exportJson], { type: "application/json" });
           const url = URL.createObjectURL(blob);
-          // 日時を含むファイル名作成
           const now = new Date();
           const pad = (n) => n.toString().padStart(2, '0');
           const filename = `yaNote_export_${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
@@ -1084,21 +1101,19 @@
         }
       });
       
-      // インポートボタン（実際は非表示の input をクリック）
-      document.getElementById("importBtn").addEventListener("click", function() {
+      document.getElementById("importBtn").addEventListener("click", () => {
         document.getElementById("importInput").click();
       });
       
-      // インポート機能
-      document.getElementById("importInput").addEventListener("change", function(e) {
+      document.getElementById("importInput").addEventListener("change", (e) => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = function(event) {
+        reader.onload = (event) => {
           try {
             const result = event.target.result;
             const importObj = JSON.parse(result);
-            if (!importObj.version || importObj.version !== "1.2.1") {
+            if (!importObj.version || importObj.version !== VERSION) {
               alert("インポートするファイルのバージョンが一致しません。");
               return;
             }
@@ -1109,7 +1124,6 @@
           }
         };
         reader.readAsText(file);
-        // 選択後、input の value をリセット
         e.target.value = "";
       });
       
