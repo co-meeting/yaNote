@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.2)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.3)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -12,7 +12,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.2</title>
+  <title>yaNote v1.2.3</title>
   <style>
     /* ================================
        共通CSS
@@ -26,6 +26,10 @@
       height: 10000px;
       overflow: visible;
       transform: translate(-5000px, -5000px) translate(0px, 0px) scale(1);
+      background-color: #f9f9f9;
+      /* 点を描く背景 */
+      background-image: radial-gradient(circle, #e0e0e0 1px, transparent 1px);
+      background-size: 20px 20px;
     }
     #svg {
       position: absolute;
@@ -58,10 +62,20 @@
       min-height: 30px;
       display: flex;
       align-items: center;
-      justify-content: flex-start;
+      justify-content: center; /* 文字中央寄せ */
     }
     .node.selected { border-color: blue; }
     .node.editing { background-color: #ffffe0; border-color: #007bff; }
+    /* --- 追加: テキストのみノード（見た目のみ標準の枠・影を排除） --- */
+    .node.text-only {
+      background-color: transparent;
+      border: none;
+      box-shadow: none;
+    }
+    /* --- 追加: 選択時の視覚フィードバック（標準と同様に表示） --- */
+    .node.text-only.selected {
+      border: 1px dashed blue;
+    }
     .selected-line { stroke: red; }
     .html-handle {
       position: absolute;
@@ -100,6 +114,8 @@
     <button id="resetBtn">初期状態に戻す</button>
     <button id="exportBtn">エクスポート</button>
     <button id="importBtn">インポート</button>
+    <!-- 追加: ノード種類変更ボタン -->
+    <button id="changeTypeBtn">ノード種類変更</button>
     <input type="file" id="importInput" accept=".json">
   </div>
   <div id="canvas">
@@ -113,14 +129,14 @@
   </div>
   
   <!-- ================================
-       yaNote 本体（v1.2.2）
+       yaNote 本体（v1.2.3）
        ================================ -->
   <script>
     (function() {
       "use strict";
       
       // --- 1. 一元管理された設定 ---
-      const VERSION = "v1.2.2";
+      const VERSION = "v1.2.3";
       const DEBUG = true;
       console.log("[yaNote]", "Starting yaNote", VERSION);
       
@@ -210,6 +226,8 @@
           this.anchorOffset = h;
           this.setPosition(x, y);
           this.addEventListeners();
+          // --- 追加: ノード種類のプロパティ ---
+          this.nodeType = "standard"; // "standard" または "text-only"
           if (id !== undefined) {
             this.id = id;
             if (id >= NoteNode.nextId) {
@@ -237,6 +255,21 @@
         }
         startEditing() {
           this.app.startEditingNode(this);
+        }
+        // --- 追加: ノード種類変更のためのメソッド ---
+        setType(newType) {
+          this.nodeType = newType;
+          if (newType === "text-only") {
+            this.element.classList.add("text-only");
+          } else {
+            this.element.classList.remove("text-only");
+          }
+          // --- 追加: ノード種類変更時に当該ノードを起点とする接続線を更新 ---
+          this.app.connections.forEach(conn => {
+            if (conn.fromNode === this) {
+              conn.update();
+            }
+          });
         }
       }
       NoteNode.nextId = 1;
@@ -308,6 +341,40 @@
           } else if (this.toCoord && typeof this.toCoord.x === "number") {
             toPoint = this.toCoord;
           } else return;
+          
+          // --- 追加: テキストのみノードの場合、線の始点をノードのバウンディングボックスとの交点＋オフセットにする ---
+          if (this.fromNode && this.fromNode.nodeType === "text-only") {
+            const nodeRect = this.fromNode.element.getBoundingClientRect();
+            const localRect = {
+              left: nodeRect.left - canvasRect.left,
+              top: nodeRect.top - canvasRect.top,
+              right: nodeRect.right - canvasRect.left,
+              bottom: nodeRect.bottom - canvasRect.top
+            };
+            const cx = (localRect.left + localRect.right) / 2;
+            const cy = (localRect.top + localRect.bottom) / 2;
+            const dirX = toPoint.x - fromPoint.x;
+            const dirY = toPoint.y - fromPoint.y;
+            const len = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+            const ndx = dirX / len;
+            const ndy = dirY / len;
+            let tCandidates = [];
+            if (ndx > 0) {
+              tCandidates.push((localRect.right - cx) / ndx);
+            } else if (ndx < 0) {
+              tCandidates.push((localRect.left - cx) / ndx);
+            }
+            if (ndy > 0) {
+              tCandidates.push((localRect.bottom - cy) / ndy);
+            } else if (ndy < 0) {
+              tCandidates.push((localRect.top - cy) / ndy);
+            }
+            const t = Math.min(...tCandidates.filter(v => v > 0));
+            // オフセットは2px＋(ノード幅の割合)とする例
+            const offset = 2 + (nodeRect.width / 50);
+            fromPoint.x = cx + ndx * (t + offset);
+            fromPoint.y = cy + ndy * (t + offset);
+          }
           
           this.line.setAttribute("x1", fromPoint.x);
           this.line.setAttribute("y1", fromPoint.y);
@@ -387,18 +454,27 @@
           this.redoStack = [];
           this.globalPan = { x: 0, y: 0 };
           this.globalZoom = 1;
+          // --- 追加: デフォルトのノード種類 ---
+          this.defaultNodeType = "standard";
+          // --- 追加: 復帰時かどうかのフラグ ---
+          this.restored = false;
           this.updateGlobalTransform();
           this.initEventListeners();
           const storedData = localStorage.getItem("yaNoteData");
           if (storedData) {
             this.loadFromLocalStorage();
+            this.restored = true;
           } else {
             const initialX = 5000, initialY = 5000;
-            this.createNode("中心ノード", initialX, initialY);
+            let node = this.createNode("中心ノード", initialX, initialY);
+            node.setType(this.defaultNodeType);
             this.saveState();
           }
-          window.addEventListener("load", () => this.recalcCenter());
-          window.addEventListener("resize", () => this.recalcCenter());
+          // --- 変更: 復帰時はキャンバス位置を保持するため、load時の recalcCenter を実行しない ---
+          if (!this.restored) {
+            window.addEventListener("load", () => this.recalcCenter());
+            window.addEventListener("resize", () => this.recalcCenter());
+          }
           Logger.log("YaNoteApp initialized");
         }
         updateGlobalTransform() {
@@ -406,6 +482,7 @@
             `translate(-5000px, -5000px) translate(${this.globalPan.x}px, ${this.globalPan.y}px) scale(${this.globalZoom})`;
         }
         recalcCenter() {
+          if (this.restored) return;
           let centerNode = this.nodes.find(n => n.element.textContent.trim() === "中心ノード");
           if (!centerNode && this.nodes.length > 0) {
             centerNode = this.nodes[0];
@@ -458,6 +535,31 @@
           });
           window.addEventListener("storage", (e) => {
             if (e.key === "yaNoteData") { location.reload(); }
+          });
+          // --- 追加: ノード種類変更ボタンのイベント ---
+          const changeTypeBtn = document.getElementById("changeTypeBtn");
+          changeTypeBtn.addEventListener("click", () => {
+            if (this.selectedNodes.length > 0) {
+              // グループ選択の場合：全ノードの種類を一括トグル
+              // すべてが "text-only" なら "standard"、それ以外なら "text-only" とする
+              const allTextOnly = this.selectedNodes.every(n => n.nodeType === "text-only");
+              const targetType = allTextOnly ? "standard" : "text-only";
+              this.selectedNodes.forEach(n => n.setType(targetType));
+              this.defaultNodeType = targetType;
+              this.saveState();
+            } else if (this.selectedNode) {
+              // 単一選択の場合
+              if (this.selectedNode.nodeType === "standard") {
+                this.selectedNode.setType("text-only");
+                this.defaultNodeType = "text-only";
+              } else {
+                this.selectedNode.setType("standard");
+                this.defaultNodeType = "standard";
+              }
+              this.saveState();
+            } else {
+              alert("ノードが選択されていません。");
+            }
           });
         }
         startPan(e) {
@@ -708,6 +810,8 @@
             } else {
               const logicalPos = this.eventToLogical(e);
               const newNode = this.createNode("", logicalPos.x, logicalPos.y);
+              // --- 追加: 分岐作成時にノード種類の継承 ---
+              newNode.setType(node.nodeType);
               this.startEditingNode(newNode);
               this.createConnection(node, newNode);
               this.clearSelection();
@@ -771,6 +875,8 @@
             } else {
               const logicalPos = this.eventToLogical(e);
               const newNode = this.createNode("", logicalPos.x, logicalPos.y);
+              // --- 追加: キャンバス上で新規作成するノードにデフォルトの種類を適用 ---
+              newNode.setType(this.defaultNodeType);
               this.startEditingNode(newNode);
               this.selectNode(newNode);
               this.saveState();
@@ -837,7 +943,8 @@
               id: node.id,
               text: node.element.textContent,
               x: node.x,
-              y: node.y
+              y: node.y,
+              nodeType: node.nodeType
             })),
             connections: this.connections.map(conn => ({
               fromId: conn.fromNode ? conn.fromNode.id : null,
@@ -868,6 +975,7 @@
           const nodeMap = {};
           state.nodes.forEach(nodeData => {
             const node = new NoteNode(nodeData.text, parseInt(nodeData.x), parseInt(nodeData.y), this, nodeData.id);
+            node.setType(nodeData.nodeType || "standard"); // --- 追加: 復元時にノード種類を設定 ---
             this.nodes.push(node);
             nodeMap[nodeData.id] = node;
           });
@@ -924,6 +1032,8 @@
         }
         createNode(text, x, y) {
           const node = new NoteNode(text, x, y, this);
+          // --- 追加: 新規作成ノードにグローバルの defaultNodeType を適用 ---
+          node.setType(this.defaultNodeType);
           this.nodes.push(node);
           return node;
         }
@@ -977,6 +1087,9 @@
           node.element.contentEditable = "true";
           node.element.classList.add("editing");
           node._enterPressCount = 0;
+          // --- 追加: 編集中の input イベントで接続線更新 ---
+          const onInput = () => { this.updateAllConnections(); };
+          node.element.addEventListener("input", onInput);
           node.element.focus();
           const range = document.createRange();
           range.selectNodeContents(node.element);
@@ -999,8 +1112,10 @@
             node.element.contentEditable = "false";
             node.element.classList.remove("editing");
             node.element.removeEventListener("keydown", onKeyDown);
+            node.element.removeEventListener("input", onInput);
             this.clearSelection();
             if (node.element.textContent.trim() === "") {
+              // --- 変更: ノードが空の場合、内部配列からも除去する ---
               this.connections = this.connections.filter(conn => {
                 if (conn.fromNode === node || conn.toNode === node) {
                   if (conn.line.parentNode) conn.line.parentNode.removeChild(conn.line);
@@ -1009,6 +1124,7 @@
                 return true;
               });
               if (node.element.parentNode) node.element.parentNode.removeChild(node.element);
+              this.nodes = this.nodes.filter(n => n !== node);
               this.clearSelection();
               this.saveState();
               return;
