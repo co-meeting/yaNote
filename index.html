@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.4)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.4.1)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.4</title>
+  <title>yaNote v1.2.4.1</title>
   <style>
     /* ================================
        共通CSS
@@ -432,19 +432,20 @@
             toPoint.y = endpoint.arrowY;
           }
 
-          // --- 追加: 始点調整：線種が "reverse-arrow" または "both-arrow" の場合に始点側の矢印がノードと重ならないように調整 ---
+          // --- 修正: 始点調整：線種が "reverse-arrow" または "both-arrow" の場合に始点側の矢印がノードと重ならないように調整 ---
           if ((this.lineType === "reverse-arrow" || this.lineType === "both-arrow") &&
             this.fromNode && document.body.contains(this.fromNode.element)) {
-            // 矢印の方向は from→to の逆方向なので、引数を入れ替える
+            // 終点と始点の位置を入れ替えて計算する
+            // 重要: ここでtoPointからfromPointへの方向で計算する
             const startpoint = Utils.computeEndpoint(
               origFromPoint.x, origFromPoint.y,
               origToPoint.x, origToPoint.y,
               this.fromNode.element.getBoundingClientRect()
             );
+            // 始点側の調整位置を設定
             fromPoint.x = startpoint.arrowX;
             fromPoint.y = startpoint.arrowY;
           }
-
           // --- 追加: テキストのみノードの場合、線の始点をノードのバウンディングボックスとの交点＋オフセットにする ---
           if (this.fromNode && this.fromNode.nodeType === "text-only") {
             const nodeRect = this.fromNode.element.getBoundingClientRect();
@@ -604,6 +605,9 @@
               // デフォルトは標準の終点矢印
               this.line.setAttribute("marker-end", "url(#arrowhead)");
           }
+
+          // 線種変更後に接続線を更新
+          this.update();
         }
       }
 
