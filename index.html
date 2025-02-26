@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.3)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.3.1)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -12,7 +12,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.3</title>
+  <title>yaNote v1.2.3.1</title>
   <style>
     /* ================================
        共通CSS
@@ -199,6 +199,29 @@
           else if (dy === 0) { t = hw / Math.abs(dx); }
           else { t = Math.min(hw / Math.abs(dx), hh / Math.abs(dy)); }
           return { arrowX: tcx + t * dx, arrowY: tcy + t * dy };
+        }
+        
+        /**
+         * バージョンを比較する（書式：v1.2.3 のような形式）
+         * @param {string} v1 比較対象バージョン１
+         * @param {string} v2 比較対象バージョン２
+         * @returns {number} v1が大きい場合は1、v2が大きい場合は-1、同じ場合は0
+         */
+        static compareVersions(v1, v2) {
+          // vの接頭辞を削除して純粋な数字の部分だけにする
+          const v1Parts = v1.replace(/^v/, '').split('.').map(Number);
+          const v2Parts = v2.replace(/^v/, '').split('.').map(Number);
+          
+          for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
+            // 片方のバージョンがない場合は0とみなす
+            const p1 = i < v1Parts.length ? v1Parts[i] : 0;
+            const p2 = i < v2Parts.length ? v2Parts[i] : 0;
+            
+            if (p1 > p2) return 1;
+            if (p1 < p2) return -1;
+          }
+          
+          return 0;
         }
       }
       
@@ -931,7 +954,7 @@
                 }
               }
               connection.update();
-              this.saveState();
+              this.app.saveState();
             };
             document.addEventListener("mousemove", onMouseMove);
             document.addEventListener("mouseup", onMouseUp);
@@ -1005,13 +1028,57 @@
           if (data) {
             try {
               const stateObj = JSON.parse(data);
-              if (!stateObj.version || stateObj.version !== VERSION) {
-                alert("データのバージョンが一致しません。");
-                return;
+              // バージョンチェックとマイグレーション
+              if (stateObj.version) {
+                const versionCompare = Utils.compareVersions(stateObj.version, VERSION);
+                
+                // 将来のバージョンからのインポートを防止
+                if (versionCompare > 0) {
+                  alert(`保存データが将来のバージョン(${stateObj.version})で作成されています。現在のバージョン(${VERSION})では互換性がない可能性があります。`);
+                }
+                
+                // 旧バージョンからのデータ変換
+                if (versionCompare < 0) {
+                  Logger.log(`旧バージョン(${stateObj.version})からのデータをマイグレーションします。`);
+                  
+                  // v1.1.0より前のデータ形式の場合（nodeTypeプロパティがない）
+                  if (Utils.compareVersions(stateObj.version, "v1.1.0") < 0) {
+                    Logger.log('v1.1.0へのマイグレーション：nodeTypeプロパティを追加');
+                    stateObj.data.nodes.forEach(node => {
+                      if (!node.hasOwnProperty('nodeType')) {
+                        node.nodeType = "standard";
+                      }
+                    });
+                  }
+                  
+                  // v1.2.0より前のデータ形式の場合（globalZoomプロパティがない）
+                  if (Utils.compareVersions(stateObj.version, "v1.2.0") < 0) {
+                    Logger.log('v1.2.0へのマイグレーション：globalZoomプロパティを追加');
+                    if (!stateObj.data.hasOwnProperty('globalZoom')) {
+                      stateObj.data.globalZoom = 1;
+                    }
+                  }
+                  
+                  // バージョン情報を更新
+                  stateObj.version = VERSION;
+                  
+                  // 更新したデータを保存
+                  localStorage.setItem("yaNoteData", JSON.stringify(stateObj));
+                  Logger.log('マイグレーション完了：現在のバージョン=' + VERSION);
+                }
+              } else {
+                // バージョン情報がない古いデータ形式の場合
+                Logger.log('バージョン情報なしのデータ：バージョン情報を追加');
+                stateObj.version = VERSION;
+                
+                // 更新したデータを保存
+                localStorage.setItem("yaNoteData", JSON.stringify(stateObj));
               }
+              
               this.restoreState(stateObj.data);
             } catch (e) {
               alert("データの読み込みエラー: " + e.message);
+              Logger.log('データ読み込みエラー:', e);
             }
           }
         }
@@ -1229,10 +1296,47 @@
           try {
             const result = event.target.result;
             const importObj = JSON.parse(result);
-            if (!importObj.version || importObj.version !== VERSION) {
-              alert("インポートするファイルのバージョンが一致しません。");
-              return;
+            
+            // バージョン検証とマイグレーション処理
+            if (importObj.version) {
+              const versionCompare = Utils.compareVersions(importObj.version, VERSION);
+              
+              // 将来のバージョンからのインポートを防止
+              if (versionCompare > 0) {
+                throw new Error(`インポートするファイルは将来のバージョン(${importObj.version})で作成されています。現在のバージョン(${VERSION})では読み込めません。`);
+              }
+              
+              // 旧バージョンからのデータ変換
+              if (versionCompare < 0) {
+                Logger.log(`旧バージョン(${importObj.version})からのデータをマイグレーションします。`);
+                
+                // v1.1.0より前のデータ形式の場合（nodeTypeプロパティがない）
+                if (Utils.compareVersions(importObj.version, "v1.1.0") < 0) {
+                  Logger.log('v1.1.0へのマイグレーション：nodeTypeプロパティを追加');
+                  importObj.data.nodes.forEach(node => {
+                    if (!node.hasOwnProperty('nodeType')) {
+                      node.nodeType = "standard";
+                    }
+                  });
+                }
+                
+                // v1.2.0より前のデータ形式の場合（globalZoomプロパティがない）
+                if (Utils.compareVersions(importObj.version, "v1.2.0") < 0) {
+                  Logger.log('v1.2.0へのマイグレーション：globalZoomプロパティを追加');
+                  if (!importObj.data.hasOwnProperty('globalZoom')) {
+                    importObj.data.globalZoom = 1;
+                  }
+                }
+                
+                // バージョン情報を更新
+                importObj.version = VERSION;
+              }
+            } else {
+              // バージョン情報がない古いデータ形式の場合
+              importObj.version = VERSION;
+              Logger.log('バージョン情報なしのデータをインポート');
             }
+            
             app.restoreState(importObj.data);
             app.saveState();
           } catch (err) {
