@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.3.1)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.4)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -10,14 +10,20 @@
  *****************************************************************/
 -->
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.3.1</title>
+  <title>yaNote v1.2.4</title>
   <style>
     /* ================================
        共通CSS
        ================================ */
-    body { margin: 0; overflow: visible; background-color: #f9f9f9; }
+    body {
+      margin: 0;
+      overflow: visible;
+      background-color: #f9f9f9;
+    }
+
     #canvas {
       position: absolute;
       left: 50%;
@@ -31,6 +37,7 @@
       background-image: radial-gradient(circle, #e0e0e0 1px, transparent 1px);
       background-size: 20px 20px;
     }
+
     #svg {
       position: absolute;
       top: 0;
@@ -40,20 +47,22 @@
       pointer-events: none;
       z-index: 100;
     }
+
     #selectionRect {
       position: fixed;
       border: 1px dashed #000;
-      background-color: rgba(0,0,255,0.1);
+      background-color: rgba(0, 0, 255, 0.1);
       pointer-events: none;
       z-index: 10000;
     }
+
     .node {
       position: absolute;
       background-color: #fff;
       border: 1px solid #ccc;
       padding: 8px 12px;
       border-radius: 5px;
-      box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
       user-select: none;
       white-space: nowrap;
       cursor: pointer;
@@ -62,21 +71,35 @@
       min-height: 30px;
       display: flex;
       align-items: center;
-      justify-content: center; /* 文字中央寄せ */
+      justify-content: center;
+      /* 文字中央寄せ */
     }
-    .node.selected { border-color: blue; }
-    .node.editing { background-color: #ffffe0; border-color: #007bff; }
+
+    .node.selected {
+      border-color: blue;
+    }
+
+    .node.editing {
+      background-color: #ffffe0;
+      border-color: #007bff;
+    }
+
     /* --- 追加: テキストのみノード（見た目のみ標準の枠・影を排除） --- */
     .node.text-only {
       background-color: transparent;
       border: none;
       box-shadow: none;
     }
+
     /* --- 追加: 選択時の視覚フィードバック（標準と同様に表示） --- */
     .node.text-only.selected {
       border: 1px dashed blue;
     }
-    .selected-line { stroke: red; }
+
+    .selected-line {
+      stroke: red;
+    }
+
     .html-handle {
       position: absolute;
       width: 8px;
@@ -87,6 +110,7 @@
       cursor: pointer;
       z-index: 1100;
     }
+
     #controlPanel {
       position: absolute;
       top: 10px;
@@ -96,6 +120,7 @@
       gap: 10px;
       align-items: center;
     }
+
     #controlPanel button {
       padding: 5px 10px;
       cursor: pointer;
@@ -103,50 +128,77 @@
       border: none;
       border-radius: 3px;
     }
-    #importInput { display: none; }
+
+    #importInput {
+      display: none;
+    }
   </style>
 </head>
+
 <body>
   <!-- ================================
        コントロールパネル
        ================================ -->
   <div id="controlPanel">
-    <button id="resetBtn">初期状態に戻す</button>
-    <button id="exportBtn">エクスポート</button>
-    <button id="importBtn">インポート</button>
     <!-- 追加: ノード種類変更ボタン -->
-    <button id="changeTypeBtn">ノード種類変更</button>
+    <button id="changeTypeBtn">◻︎</button>
+    <!-- 追加: 線種変更ボタン -->
+    <button id="changeLineTypeBtn">ー</button>
+    <button id="resetBtn">新規</button>
+    <button id="importBtn">開く</button>
+    <button id="exportBtn">保存</button>
     <input type="file" id="importInput" accept=".json">
   </div>
   <div id="canvas">
     <svg id="svg" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+        <!-- 標準の終点矢印 -->
+        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
+          markerUnits="strokeWidth">
           <path d="M0,0 L0,10 L10,5 Z" fill="#000" />
+        </marker>
+        <!-- 追加: 矢印なし用の空マーカー -->
+        <marker id="no-arrow" markerWidth="0" markerHeight="0" refX="0" refY="0" orient="auto"
+          markerUnits="strokeWidth">
+        </marker>
+        <!-- 追加: 始点矢印 -->
+        <marker id="start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
+          markerUnits="strokeWidth">
+          <path d="M10,0 L10,10 L0,5 Z" fill="#000" />
+        </marker>
+        <!-- 追加: 両方矢印用の終点矢印（標準と同じ） -->
+        <marker id="both-end-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
+          markerUnits="strokeWidth">
+          <path d="M0,0 L0,10 L10,5 Z" fill="#000" />
+        </marker>
+        <!-- 追加: 両方矢印用の始点矢印 -->
+        <marker id="both-start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
+          markerUnits="strokeWidth">
+          <path d="M10,0 L10,10 L0,5 Z" fill="#000" />
         </marker>
       </defs>
     </svg>
   </div>
-  
+
   <!-- ================================
-       yaNote 本体（v1.2.3）
+       yaNote 本体（v1.2.4）
        ================================ -->
   <script>
-    (function() {
+    (function () {
       "use strict";
-      
+
       // --- 1. 一元管理された設定 ---
-      const VERSION = "v1.2.3";
+      const VERSION = "v1.2.4";
       const DEBUG = true;
       console.log("[yaNote]", "Starting yaNote", VERSION);
-      
+
       // --- 2. Logger クラス（デバッグ用） ---
       class Logger {
         static log(...args) {
           if (DEBUG) console.log("[yaNote]", ...args);
         }
       }
-      
+
       // --- 3. Utils クラス（共通処理） ---
       class Utils {
         /**
@@ -200,7 +252,7 @@
           else { t = Math.min(hw / Math.abs(dx), hh / Math.abs(dy)); }
           return { arrowX: tcx + t * dx, arrowY: tcy + t * dy };
         }
-        
+
         /**
          * バージョンを比較する（書式：v1.2.3 のような形式）
          * @param {string} v1 比較対象バージョン１
@@ -211,20 +263,20 @@
           // vの接頭辞を削除して純粋な数字の部分だけにする
           const v1Parts = v1.replace(/^v/, '').split('.').map(Number);
           const v2Parts = v2.replace(/^v/, '').split('.').map(Number);
-          
+
           for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
             // 片方のバージョンがない場合は0とみなす
             const p1 = i < v1Parts.length ? v1Parts[i] : 0;
             const p2 = i < v2Parts.length ? v2Parts[i] : 0;
-            
+
             if (p1 > p2) return 1;
             if (p1 < p2) return -1;
           }
-          
+
           return 0;
         }
       }
-      
+
       // --- 4. NoteNode クラス（ノード機能） ---
       class NoteNode {
         /**
@@ -296,7 +348,7 @@
         }
       }
       NoteNode.nextId = 1;
-      
+
       // --- 5. Connection クラス（接続線管理） ---
       class Connection {
         /**
@@ -313,10 +365,13 @@
           this.toCoord = null;
           this.startHandle = null;
           this.endHandle = null;
+          // --- 追加: 線種プロパティ ---
+          this.lineType = "standard"; // "standard", "no-arrow", "reverse-arrow", "both-arrow"
           this.line = document.createElementNS("http://www.w3.org/2000/svg", "line");
           this.line.setAttribute("stroke", "#000");
           this.line.setAttribute("stroke-width", "2");
-          this.line.setAttribute("marker-end", "url(#arrowhead)");
+          // --- 変更: デフォルトの線種をアプリのデフォルト値から設定 ---
+          this.setLineType(this.app.defaultLineType || "standard");
           this.line.style.pointerEvents = "auto";
           this.line.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -351,20 +406,45 @@
           } else if (this.fromCoord && typeof this.fromCoord.x === "number") {
             fromPoint = this.fromCoord;
           } else return;
-          
+
           if (this.toNode && document.body.contains(this.toNode.element)) {
             const rect = this.toNode.element.getBoundingClientRect();
-            const endpoint = Utils.computeEndpoint(
-              rect.left + rect.width / 2 - canvasRect.left,
-              rect.top + rect.height / 2 - canvasRect.top,
-              fromPoint.x, fromPoint.y,
-              this.toNode.element.getBoundingClientRect()
-            );
-            toPoint = { x: endpoint.arrowX, y: endpoint.arrowY };
+            toPoint = {
+              x: rect.left + rect.width / 2 - canvasRect.left,
+              y: rect.top + rect.height / 2 - canvasRect.top
+            };
           } else if (this.toCoord && typeof this.toCoord.x === "number") {
             toPoint = this.toCoord;
           } else return;
-          
+
+          // --- 始点と終点の中心点を保存 ---
+          const origFromPoint = { x: fromPoint.x, y: fromPoint.y };
+          const origToPoint = { x: toPoint.x, y: toPoint.y };
+
+          // --- 終点調整：ノードが存在する場合、矢印がノードと重ならないように調整 ---
+          if (this.toNode && document.body.contains(this.toNode.element)) {
+            const endpoint = Utils.computeEndpoint(
+              origToPoint.x, origToPoint.y,
+              origFromPoint.x, origFromPoint.y,
+              this.toNode.element.getBoundingClientRect()
+            );
+            toPoint.x = endpoint.arrowX;
+            toPoint.y = endpoint.arrowY;
+          }
+
+          // --- 追加: 始点調整：線種が "reverse-arrow" または "both-arrow" の場合に始点側の矢印がノードと重ならないように調整 ---
+          if ((this.lineType === "reverse-arrow" || this.lineType === "both-arrow") &&
+            this.fromNode && document.body.contains(this.fromNode.element)) {
+            // 矢印の方向は from→to の逆方向なので、引数を入れ替える
+            const startpoint = Utils.computeEndpoint(
+              origFromPoint.x, origFromPoint.y,
+              origToPoint.x, origToPoint.y,
+              this.fromNode.element.getBoundingClientRect()
+            );
+            fromPoint.x = startpoint.arrowX;
+            fromPoint.y = startpoint.arrowY;
+          }
+
           // --- 追加: テキストのみノードの場合、線の始点をノードのバウンディングボックスとの交点＋オフセットにする ---
           if (this.fromNode && this.fromNode.nodeType === "text-only") {
             const nodeRect = this.fromNode.element.getBoundingClientRect();
@@ -398,7 +478,41 @@
             fromPoint.x = cx + ndx * (t + offset);
             fromPoint.y = cy + ndy * (t + offset);
           }
-          
+
+          // --- 追加: text-only対応を終点側にも実装 ---
+          if (this.toNode && this.toNode.nodeType === "text-only") {
+            const nodeRect = this.toNode.element.getBoundingClientRect();
+            const localRect = {
+              left: nodeRect.left - canvasRect.left,
+              top: nodeRect.top - canvasRect.top,
+              right: nodeRect.right - canvasRect.left,
+              bottom: nodeRect.bottom - canvasRect.top
+            };
+            const cx = (localRect.left + localRect.right) / 2;
+            const cy = (localRect.top + localRect.bottom) / 2;
+            const dirX = fromPoint.x - toPoint.x;
+            const dirY = fromPoint.y - toPoint.y;
+            const len = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+            const ndx = dirX / len;
+            const ndy = dirY / len;
+            let tCandidates = [];
+            if (ndx > 0) {
+              tCandidates.push((localRect.right - cx) / ndx);
+            } else if (ndx < 0) {
+              tCandidates.push((localRect.left - cx) / ndx);
+            }
+            if (ndy > 0) {
+              tCandidates.push((localRect.bottom - cy) / ndy);
+            } else if (ndy < 0) {
+              tCandidates.push((localRect.top - cy) / ndy);
+            }
+            const t = Math.min(...tCandidates.filter(v => v > 0));
+            // オフセットは2px＋(ノード幅の割合)とする例
+            const offset = 2 + (nodeRect.width / 50);
+            toPoint.x = cx + ndx * (t + offset);
+            toPoint.y = cy + ndy * (t + offset);
+          }
+
           this.line.setAttribute("x1", fromPoint.x);
           this.line.setAttribute("y1", fromPoint.y);
           this.line.setAttribute("x2", toPoint.x);
@@ -411,6 +525,7 @@
             this.endHandle.style.left = (toPoint.x - 4) + "px";
             this.endHandle.style.top = (toPoint.y - 4) + "px";
           }
+
         }
         showHandles() {
           this.hideHandles();
@@ -458,8 +573,40 @@
           document.addEventListener("mousemove", onMouseMove);
           document.addEventListener("mouseup", onMouseUp);
         }
+
+        /**
+         * 線種を設定する
+         * @param {string} type 線種("standard", "no-arrow", "reverse-arrow", "both-arrow")
+         */
+        setLineType(type) {
+          this.lineType = type;
+
+          // マーカーの設定をリセット
+          this.line.removeAttribute("marker-start");
+          this.line.removeAttribute("marker-end");
+
+          // 線種に応じたマーカーを設定
+          switch (type) {
+            case "standard":
+              this.line.setAttribute("marker-end", "url(#arrowhead)");
+              break;
+            case "no-arrow":
+              // マーカーなしは属性を設定しない
+              break;
+            case "reverse-arrow":
+              this.line.setAttribute("marker-start", "url(#start-arrow)");
+              break;
+            case "both-arrow":
+              this.line.setAttribute("marker-start", "url(#both-start-arrow)");
+              this.line.setAttribute("marker-end", "url(#both-end-arrow)");
+              break;
+            default:
+              // デフォルトは標準の終点矢印
+              this.line.setAttribute("marker-end", "url(#arrowhead)");
+          }
+        }
       }
-      
+
       // --- 6. YaNoteApp クラス（アプリ全体の管理） ---
       class YaNoteApp {
         constructor() {
@@ -479,6 +626,8 @@
           this.globalZoom = 1;
           // --- 追加: デフォルトのノード種類 ---
           this.defaultNodeType = "standard";
+          // --- 追加: デフォルトの線種 ---
+          this.defaultLineType = "standard";
           // --- 追加: 復帰時かどうかのフラグ ---
           this.restored = false;
           this.updateGlobalTransform();
@@ -584,7 +733,58 @@
               alert("ノードが選択されていません。");
             }
           });
+
+          // --- 追加: 線種変更ボタンのイベント ---
+          const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
+          changeLineTypeBtn.addEventListener("click", () => {
+            if (this.selectedConnections.length > 0) {
+              // 選択されている線の種類を判断
+              const currentTypes = new Set(this.selectedConnections.map(conn => conn.lineType));
+
+              // 次の線種を決定（ローテーション方式）
+              let nextType;
+              if (currentTypes.size === 1) {
+                // 全て同じタイプの場合は次のタイプにローテーション
+                const currentType = this.selectedConnections[0].lineType;
+                switch (currentType) {
+                  case "standard": nextType = "no-arrow"; break;
+                  case "no-arrow": nextType = "reverse-arrow"; break;
+                  case "reverse-arrow": nextType = "both-arrow"; break;
+                  case "both-arrow": nextType = "standard"; break;
+                  default: nextType = "standard";
+                }
+              } else {
+                // 複数のタイプが混在している場合は standard に統一
+                nextType = "standard";
+              }
+
+              // 選択されている全ての線のタイプを変更
+              this.selectedConnections.forEach(conn => {
+                conn.setLineType(nextType);
+              });
+
+              // デフォルトの線種を更新
+              this.defaultLineType = nextType;
+              this.saveState();
+            } else if (this.selectedConnection) {
+              // 単一選択の場合、ローテーション方式で線種を変更
+              let nextType;
+              switch (this.selectedConnection.lineType) {
+                case "standard": nextType = "no-arrow"; break;
+                case "no-arrow": nextType = "reverse-arrow"; break;
+                case "reverse-arrow": nextType = "both-arrow"; break;
+                case "both-arrow": nextType = "standard"; break;
+                default: nextType = "standard";
+              }
+              this.selectedConnection.setLineType(nextType);
+              this.defaultLineType = nextType;
+              this.saveState();
+            } else {
+              alert("線が選択されていません。");
+            }
+          });
         }
+
         startPan(e) {
           if (e.button !== 2) return;
           e.preventDefault();
@@ -614,6 +814,7 @@
           document.addEventListener("mousemove", onMouseMove);
           document.addEventListener("mouseup", onMouseUp);
         }
+
         onCanvasMouseDown(e) {
           if (e.target.closest(".node")) return;
           if (e.detail === 1) {
@@ -641,7 +842,7 @@
               this.nodes.forEach(node => {
                 const nodeBox = node.element.getBoundingClientRect();
                 if (!(nodeBox.right < selBox.left || nodeBox.left > selBox.right ||
-                      nodeBox.bottom < selBox.top || nodeBox.top > selBox.bottom)) {
+                  nodeBox.bottom < selBox.top || nodeBox.top > selBox.bottom)) {
                   this.selectedNodes.push(node);
                   node.element.classList.add("selected");
                 }
@@ -649,7 +850,7 @@
               this.connections.forEach(conn => {
                 const lineRect = conn.line.getBoundingClientRect();
                 if (!(lineRect.right < selBox.left || lineRect.left > selBox.right ||
-                      lineRect.bottom < selBox.top || lineRect.top > selBox.bottom)) {
+                  lineRect.bottom < selBox.top || lineRect.top > selBox.bottom)) {
                   this.selectedConnections.push(conn);
                   conn.line.classList.add("selected-line");
                   conn.showHandles();
@@ -664,6 +865,7 @@
             this.startBlankDoubleClick(e);
           }
         }
+
         startMove(e, node) {
           if (!this.selectedNodes.includes(node)) {
             this.clearSelection();
@@ -705,6 +907,7 @@
           document.addEventListener("mousemove", onMouseMove);
           document.addEventListener("mouseup", onMouseUp);
         }
+
         startGroupMove(e) {
           const start = this.eventToLogical(e);
           const nodeInitialPositions = new Map();
@@ -714,7 +917,7 @@
           const connectionInitialPositions = new Map();
           this.selectedConnections.forEach(conn => {
             if (conn.fromCoord && conn.toCoord) {
-              connectionInitialPositions.set(conn, { 
+              connectionInitialPositions.set(conn, {
                 from: { x: conn.fromCoord.x, y: conn.fromCoord.y },
                 to: { x: conn.toCoord.x, y: conn.toCoord.y }
               });
@@ -747,6 +950,7 @@
           document.addEventListener("mousemove", onMouseMove);
           document.addEventListener("mouseup", onMouseUp);
         }
+
         handleNodeMouseDown(e, node) {
           if (this.selectedConnection) {
             this.selectedConnection.line.classList.remove("selected-line");
@@ -775,6 +979,7 @@
           };
           document.addEventListener("mouseup", cancelMove);
         }
+
         startDoubleClick(e, node) {
           const start = { x: e.clientX, y: e.clientY };
           let branchMode = false;
@@ -795,6 +1000,7 @@
           document.addEventListener("mousemove", onDCMouseMove);
           document.addEventListener("mouseup", onDCMouseUp);
         }
+
         startBranchCreation(e, node) {
           const canvasRect = this.canvas.getBoundingClientRect();
           const nodeRect = node.element.getBoundingClientRect();
@@ -827,7 +1033,9 @@
             const dropNodeElem = dropElem ? dropElem.closest(".node") : null;
             let dropNode = this.nodes.find(n => n.element === dropNodeElem);
             if (dropNode && dropNode !== node) {
-              this.createConnection(node, dropNode);
+              // --- 変更: 接続作成時にデフォルトの線種を適用 ---
+              const conn = this.createConnection(node, dropNode);
+              conn.setLineType(this.defaultLineType);
               this.clearSelection();
               this.selectNode(dropNode);
             } else {
@@ -836,7 +1044,9 @@
               // --- 追加: 分岐作成時にノード種類の継承 ---
               newNode.setType(node.nodeType);
               this.startEditingNode(newNode);
-              this.createConnection(node, newNode);
+              // --- 変更: 接続作成時にデフォルトの線種を適用 ---
+              const conn = this.createConnection(node, newNode);
+              conn.setLineType(this.defaultLineType);
               this.clearSelection();
               this.selectNode(newNode);
             }
@@ -845,6 +1055,7 @@
           document.addEventListener("mousemove", onBCMouseMove);
           document.addEventListener("mouseup", onBCMouseUp);
         }
+
         startBlankDoubleClick(e) {
           const canvasRect = this.canvas.getBoundingClientRect();
           const startX = e.clientX - canvasRect.left;
@@ -884,11 +1095,15 @@
               const dropNodeElem = dropElem ? dropElem.closest(".node") : null;
               if (dropNodeElem) {
                 const targetNode = this.nodes.find(n => n.element === dropNodeElem);
+                // --- 変更: 接続作成時にデフォルトの線種を適用 ---
                 const conn = this.createConnection(null, targetNode);
+                conn.setLineType(this.defaultLineType);
                 conn.fromCoord = fromCoord;
                 conn.update();
               } else {
+                // --- 変更: 接続作成時にデフォルトの線種を適用 ---
                 const conn = this.createConnection(null, null);
+                conn.setLineType(this.defaultLineType);
                 conn.fromCoord = fromCoord;
                 const current = this.eventToLogical(e);
                 conn.toCoord = current;
@@ -908,12 +1123,14 @@
           document.addEventListener("mousemove", onDCMouseMove);
           document.addEventListener("mouseup", onDCMouseUp);
         }
+
         createHtmlHandle() {
           const handle = document.createElement("div");
           handle.className = "html-handle";
           this.canvas.appendChild(handle);
           return handle;
         }
+
         addHandleDrag(handle, connection, which) {
           handle.addEventListener("mousedown", (e) => {
             e.stopPropagation();
@@ -960,6 +1177,7 @@
             document.addEventListener("mouseup", onMouseUp);
           });
         }
+
         captureState() {
           return {
             nodes: this.nodes.map(node => ({
@@ -973,18 +1191,25 @@
               fromId: conn.fromNode ? conn.fromNode.id : null,
               toId: conn.toNode ? conn.toNode.id : null,
               fromCoord: conn.fromCoord,
-              toCoord: conn.toCoord
+              toCoord: conn.toCoord,
+              // --- 追加: 線種情報を保存 ---
+              lineType: conn.lineType
             })),
             globalPan: { x: this.globalPan.x, y: this.globalPan.y },
-            globalZoom: this.globalZoom
+            globalZoom: this.globalZoom,
+            // --- 追加: デフォルトノード種類と線種を保存 ---
+            defaultNodeType: this.defaultNodeType,
+            defaultLineType: this.defaultLineType
           };
         }
+
         saveState() {
           const snapshot = this.captureState();
           this.undoStack.push(snapshot);
           this.redoStack = [];
           this.saveToLocalStorage();
         }
+
         restoreState(state) {
           this.nodes.forEach(node => {
             if (node.element.parentNode) node.element.parentNode.removeChild(node.element);
@@ -1006,16 +1231,28 @@
             let fromNode = connData.fromId in nodeMap ? nodeMap[connData.fromId] : null;
             let toNode = connData.toId in nodeMap ? nodeMap[connData.toId] : null;
             const conn = new Connection(fromNode, toNode, this);
+            // --- 追加: 線種を復元 ---
+            if (connData.lineType) {
+              conn.setLineType(connData.lineType);
+            }
             conn.fromCoord = connData.fromCoord;
             conn.toCoord = connData.toCoord;
             conn.update();
             this.connections.push(conn);
           });
+          // --- 追加: デフォルトノード種類と線種を復元 ---
+          if (state.defaultNodeType) {
+            this.defaultNodeType = state.defaultNodeType;
+          }
+          if (state.defaultLineType) {
+            this.defaultLineType = state.defaultLineType;
+          }
           this.globalPan = state.globalPan;
           this.globalZoom = state.globalZoom;
           this.updateGlobalTransform();
           this.updateAllConnections();
         }
+
         saveToLocalStorage() {
           const state = {
             version: VERSION,
@@ -1023,6 +1260,7 @@
           };
           localStorage.setItem("yaNoteData", JSON.stringify(state));
         }
+
         loadFromLocalStorage() {
           const data = localStorage.getItem("yaNoteData");
           if (data) {
@@ -1031,16 +1269,16 @@
               // バージョンチェックとマイグレーション
               if (stateObj.version) {
                 const versionCompare = Utils.compareVersions(stateObj.version, VERSION);
-                
+
                 // 将来のバージョンからのインポートを防止
                 if (versionCompare > 0) {
                   alert(`保存データが将来のバージョン(${stateObj.version})で作成されています。現在のバージョン(${VERSION})では互換性がない可能性があります。`);
                 }
-                
+
                 // 旧バージョンからのデータ変換
                 if (versionCompare < 0) {
                   Logger.log(`旧バージョン(${stateObj.version})からのデータをマイグレーションします。`);
-                  
+
                   // v1.1.0より前のデータ形式の場合（nodeTypeプロパティがない）
                   if (Utils.compareVersions(stateObj.version, "v1.1.0") < 0) {
                     Logger.log('v1.1.0へのマイグレーション：nodeTypeプロパティを追加');
@@ -1050,7 +1288,7 @@
                       }
                     });
                   }
-                  
+
                   // v1.2.0より前のデータ形式の場合（globalZoomプロパティがない）
                   if (Utils.compareVersions(stateObj.version, "v1.2.0") < 0) {
                     Logger.log('v1.2.0へのマイグレーション：globalZoomプロパティを追加');
@@ -1058,10 +1296,23 @@
                       stateObj.data.globalZoom = 1;
                     }
                   }
-                  
+
+                  // --- 追加: v1.2.4より前のデータ形式の場合（lineTypeプロパティがない） ---
+                  if (Utils.compareVersions(stateObj.version, "v1.2.4") < 0) {
+                    Logger.log('v1.2.4へのマイグレーション：lineTypeプロパティを追加');
+                    stateObj.data.connections.forEach(conn => {
+                      if (!conn.hasOwnProperty('lineType')) {
+                        conn.lineType = "standard";
+                      }
+                    });
+                    if (!stateObj.data.hasOwnProperty('defaultLineType')) {
+                      stateObj.data.defaultLineType = "standard";
+                    }
+                  }
+
                   // バージョン情報を更新
                   stateObj.version = VERSION;
-                  
+
                   // 更新したデータを保存
                   localStorage.setItem("yaNoteData", JSON.stringify(stateObj));
                   Logger.log('マイグレーション完了：現在のバージョン=' + VERSION);
@@ -1070,11 +1321,11 @@
                 // バージョン情報がない古いデータ形式の場合
                 Logger.log('バージョン情報なしのデータ：バージョン情報を追加');
                 stateObj.version = VERSION;
-                
+
                 // 更新したデータを保存
                 localStorage.setItem("yaNoteData", JSON.stringify(stateObj));
               }
-              
+
               this.restoreState(stateObj.data);
             } catch (e) {
               alert("データの読み込みエラー: " + e.message);
@@ -1082,6 +1333,7 @@
             }
           }
         }
+
         undo() {
           if (this.undoStack.length > 1) {
             const currentState = this.undoStack.pop();
@@ -1090,6 +1342,7 @@
             this.restoreState(previousState);
           }
         }
+
         redo() {
           if (this.redoStack.length > 0) {
             const nextState = this.redoStack.pop();
@@ -1097,6 +1350,7 @@
             this.restoreState(nextState);
           }
         }
+
         createNode(text, x, y) {
           const node = new NoteNode(text, x, y, this);
           // --- 追加: 新規作成ノードにグローバルの defaultNodeType を適用 ---
@@ -1104,14 +1358,19 @@
           this.nodes.push(node);
           return node;
         }
+
         createConnection(fromNode, toNode) {
           const connection = new Connection(fromNode, toNode, this);
+          // --- 追加: 新規作成接続線にグローバルのデフォルト線種を適用 ---
+          connection.setLineType(this.defaultLineType);
           this.connections.push(connection);
           return connection;
         }
+
         updateAllConnections() {
           this.connections.forEach(conn => conn.update());
         }
+
         clearSelection() {
           if (this.selectedNode) {
             this.selectedNode.element.classList.remove("selected");
@@ -1130,15 +1389,18 @@
           });
           this.selectedConnections = [];
         }
+
         hideAllHandles() {
           this.connections.forEach(conn => conn.hideHandles());
         }
+
         selectNode(node) {
           this.clearSelection();
           this.selectedNode = node;
           this.selectedNodes = [node];
           node.element.classList.add("selected");
         }
+
         selectConnection(connection) {
           this.clearSelection();
           this.selectedConnection = connection;
@@ -1146,6 +1408,7 @@
           connection.line.classList.add("selected-line");
           connection.showHandles();
         }
+
         startEditingNode(node) {
           this.clearSelection();
           this.selectedNode = node;
@@ -1202,6 +1465,7 @@
           node.element.addEventListener("keydown", onKeyDown);
           node.element.addEventListener("blur", finishEditing, { once: true });
         }
+
         deleteSelection() {
           if (this.selectedConnections.length > 0) {
             this.selectedConnections.forEach(conn => {
@@ -1249,21 +1513,22 @@
           }
           this.clearSelection();
         }
+
         exportState() {
           const state = this.undoStack[this.undoStack.length - 1];
           const exportObj = { version: VERSION, data: state };
           return JSON.stringify(exportObj, null, 2);
         }
       }
-      
+
       // --- 7. インスタンス生成およびコントロールパネル設定 ---
       window.app = new YaNoteApp();
-      
+
       document.getElementById("resetBtn").addEventListener("click", () => {
         localStorage.removeItem("yaNoteData");
         location.reload();
       });
-      
+
       document.getElementById("exportBtn").addEventListener("click", () => {
         try {
           const exportJson = app.exportState();
@@ -1271,7 +1536,7 @@
           const url = URL.createObjectURL(blob);
           const now = new Date();
           const pad = (n) => n.toString().padStart(2, '0');
-          const filename = `yaNote_export_${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
+          const filename = `yaNote_export_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
           const a = document.createElement("a");
           a.href = url;
           a.download = filename;
@@ -1283,11 +1548,11 @@
           alert("エクスポートエラー: " + e.message);
         }
       });
-      
+
       document.getElementById("importBtn").addEventListener("click", () => {
         document.getElementById("importInput").click();
       });
-      
+
       document.getElementById("importInput").addEventListener("change", (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1296,20 +1561,20 @@
           try {
             const result = event.target.result;
             const importObj = JSON.parse(result);
-            
+
             // バージョン検証とマイグレーション処理
             if (importObj.version) {
               const versionCompare = Utils.compareVersions(importObj.version, VERSION);
-              
+
               // 将来のバージョンからのインポートを防止
               if (versionCompare > 0) {
                 throw new Error(`インポートするファイルは将来のバージョン(${importObj.version})で作成されています。現在のバージョン(${VERSION})では読み込めません。`);
               }
-              
+
               // 旧バージョンからのデータ変換
               if (versionCompare < 0) {
                 Logger.log(`旧バージョン(${importObj.version})からのデータをマイグレーションします。`);
-                
+
                 // v1.1.0より前のデータ形式の場合（nodeTypeプロパティがない）
                 if (Utils.compareVersions(importObj.version, "v1.1.0") < 0) {
                   Logger.log('v1.1.0へのマイグレーション：nodeTypeプロパティを追加');
@@ -1319,7 +1584,7 @@
                     }
                   });
                 }
-                
+
                 // v1.2.0より前のデータ形式の場合（globalZoomプロパティがない）
                 if (Utils.compareVersions(importObj.version, "v1.2.0") < 0) {
                   Logger.log('v1.2.0へのマイグレーション：globalZoomプロパティを追加');
@@ -1327,7 +1592,22 @@
                     importObj.data.globalZoom = 1;
                   }
                 }
-                
+
+                // --- 追加: v1.2.4より前のデータ形式の場合（lineTypeプロパティがない） ---
+                if (Utils.compareVersions(importObj.version, "v1.2.4") < 0) {
+                  Logger.log('v1.2.4へのマイグレーション：lineTypeプロパティを追加');
+                  if (importObj.data.connections) {
+                    importObj.data.connections.forEach(conn => {
+                      if (!conn.hasOwnProperty('lineType')) {
+                        conn.lineType = "standard";
+                      }
+                    });
+                  }
+                  if (!importObj.data.hasOwnProperty('defaultLineType')) {
+                    importObj.data.defaultLineType = "standard";
+                  }
+                }
+
                 // バージョン情報を更新
                 importObj.version = VERSION;
               }
@@ -1335,8 +1615,20 @@
               // バージョン情報がない古いデータ形式の場合
               importObj.version = VERSION;
               Logger.log('バージョン情報なしのデータをインポート');
+
+              // --- 追加: lineTypeプロパティを設定 ---
+              if (importObj.data.connections) {
+                importObj.data.connections.forEach(conn => {
+                  if (!conn.hasOwnProperty('lineType')) {
+                    conn.lineType = "standard";
+                  }
+                });
+              }
+              if (!importObj.data.hasOwnProperty('defaultLineType')) {
+                importObj.data.defaultLineType = "standard";
+              }
             }
-            
+
             app.restoreState(importObj.data);
             app.saveState();
           } catch (err) {
@@ -1346,8 +1638,9 @@
         reader.readAsText(file);
         e.target.value = "";
       });
-      
+
     })();
   </script>
 </body>
+
 </html>
