@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.4.1)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.6)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.4.1</title>
+  <title>yaNote v1.2.6</title>
   <style>
     /* ================================
        共通CSS
@@ -121,16 +121,68 @@
       align-items: center;
     }
 
-    #controlPanel button {
-      padding: 5px 10px;
-      cursor: pointer;
-      background: #ddd;
-      border: none;
-      border-radius: 3px;
+/* コントロールパネルのボタンスタイル調整 */
+#controlPanel button {
+  padding: 5px 10px;
+  cursor: pointer;
+  background: #ddd;
+  border: none;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 機能ボタン（B, ◻︎, ー）のスタイル */
+#boldTextBtn, #changeTypeBtn, #changeLineTypeBtn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* テキストボタン（新規、開く、保存）のスタイル - 元のバランスを維持 */
+#resetBtn, #importBtn, #exportBtn {
+  min-width: 40px;
+  padding: 5px 10px;
+  font-size: 14px;
+}
+
+    /* --- 追加: アクティブなボタンのスタイル --- */
+    #controlPanel button.active {
+      background-color: #007bff;
+      color: white;
+      font-weight: bold;
     }
 
     #importInput {
       display: none;
+    }
+
+    /* --- 追加: ツールチップスタイル --- */
+    .tooltip {
+      position: absolute;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 30000;
+      pointer-events: none;
+      white-space: nowrap;
+      transform: translateY(30px);
+    }
+
+    /* --- Bold機能用スタイル --- */
+    .node.bold-text {
+      font-weight: bold;
+    }
+
+    /* --- Boldボタンの無効化状態 --- */
+    #controlPanel button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
   </style>
 </head>
@@ -140,6 +192,8 @@
        コントロールパネル
        ================================ -->
   <div id="controlPanel">
+    <!-- Bold機能ボタン -->
+    <button id="boldTextBtn">B</button>
     <!-- 追加: ノード種類変更ボタン -->
     <button id="changeTypeBtn">◻︎</button>
     <!-- 追加: 線種変更ボタン -->
@@ -181,14 +235,14 @@
   </div>
 
   <!-- ================================
-       yaNote 本体（v1.2.4）
+       yaNote 本体（v1.2.6）
        ================================ -->
   <script>
     (function () {
       "use strict";
 
       // --- 1. 一元管理された設定 ---
-      const VERSION = "v1.2.4";
+      const VERSION = "v1.2.6";
       const DEBUG = true;
       console.log("[yaNote]", "Starting yaNote", VERSION);
 
@@ -275,6 +329,46 @@
 
           return 0;
         }
+
+        /**
+         * ツールチップを表示する
+         * @param {HTMLElement} element ツールチップを表示する要素
+         * @param {string} text ツールチップのテキスト
+         */
+        static showTooltip(element, text) {
+          // 既存のツールチップを削除
+          Utils.hideAllTooltips();
+
+          // 新しいツールチップを作成
+          const tooltip = document.createElement("div");
+          tooltip.className = "tooltip";
+          tooltip.textContent = text;
+          document.body.appendChild(tooltip);
+
+          // 位置を計算
+          const rect = element.getBoundingClientRect();
+          tooltip.style.left = rect.left + (rect.width / 2) - (tooltip.offsetWidth / 2) + "px";
+          tooltip.style.top = rect.bottom + "px";
+
+          // 一定時間後に自動的に消える
+          setTimeout(() => {
+            if (tooltip.parentNode) {
+              tooltip.parentNode.removeChild(tooltip);
+            }
+          }, 2000);
+        }
+
+        /**
+         * すべてのツールチップを非表示にする
+         */
+        static hideAllTooltips() {
+          const tooltips = document.querySelectorAll(".tooltip");
+          tooltips.forEach(tooltip => {
+            if (tooltip.parentNode) {
+              tooltip.parentNode.removeChild(tooltip);
+            }
+          });
+        }
       }
 
       // --- 4. NoteNode クラス（ノード機能） ---
@@ -303,6 +397,9 @@
           this.addEventListeners();
           // --- 追加: ノード種類のプロパティ ---
           this.nodeType = "standard"; // "standard" または "text-only"
+          // --- 追加: Bold状態の初期値 ---
+          this.boldText = false;
+
           if (id !== undefined) {
             this.id = id;
             if (id >= NoteNode.nextId) {
@@ -313,24 +410,29 @@
           }
           Logger.log("NoteNode created:", this.id, text, x, y);
         }
+
         setPosition(x, y) {
           this.x = x;
           this.y = y;
           const h = this.anchorOffset || this.element.offsetHeight;
           this.element.style.transform = `translate(${x}px, ${y - h}px)`;
         }
+
         addEventListeners() {
           this.element.addEventListener("mousedown", (e) => this.onMouseDown(e));
         }
+
         onMouseDown(e) {
           if (e.button === 0) {
             e.preventDefault();
             this.app.handleNodeMouseDown(e, this);
           }
         }
+
         startEditing() {
           this.app.startEditingNode(this);
         }
+
         // --- 追加: ノード種類変更のためのメソッド ---
         setType(newType) {
           this.nodeType = newType;
@@ -345,6 +447,19 @@
               conn.update();
             }
           });
+        }
+
+        /**
+         * Bold状態を設定する
+         * @param {boolean} isBold Bold状態にするかどうか
+         */
+        setBold(isBold) {
+          this.boldText = isBold;
+          if (isBold) {
+            this.element.classList.add("bold-text");
+          } else {
+            this.element.classList.remove("bold-text");
+          }
         }
       }
       NoteNode.nextId = 1;
@@ -651,6 +766,8 @@
             window.addEventListener("load", () => this.recalcCenter());
             window.addEventListener("resize", () => this.recalcCenter());
           }
+          // --- 追加: コントロールパネルのボタン状態を初期化 ---
+          this.updateControlButtonsState();
           Logger.log("YaNoteApp initialized");
         }
         updateGlobalTransform() {
@@ -723,19 +840,49 @@
               this.selectedNodes.forEach(n => n.setType(targetType));
               this.defaultNodeType = targetType;
               this.saveState();
+              // --- 追加: 状態変更後にボタン状態を更新 ---
+              this.updateControlButtonsState();
+              // --- 追加: ツールチップを表示 ---
+              Utils.showTooltip(changeTypeBtn, `ノード種類: ${targetType === "standard" ? "標準" : "テキストのみ"}`);
             } else if (this.selectedNode) {
               // 単一選択の場合
-              if (this.selectedNode.nodeType === "standard") {
-                this.selectedNode.setType("text-only");
-                this.defaultNodeType = "text-only";
-              } else {
-                this.selectedNode.setType("standard");
-                this.defaultNodeType = "standard";
-              }
+              const newType = this.selectedNode.nodeType === "standard" ? "text-only" : "standard";
+              this.selectedNode.setType(newType);
+              this.defaultNodeType = newType;
               this.saveState();
+              // --- 追加: 状態変更後にボタン状態を更新 ---
+              this.updateControlButtonsState();
+              // --- 追加: ツールチップを表示 ---
+              Utils.showTooltip(changeTypeBtn, `ノード種類: ${newType === "standard" ? "標準" : "テキストのみ"}`);
             } else {
-              alert("ノードが選択されていません。");
+              // --- 変更: 選択がなくても切り替え可能にする ---
+              const newType = this.defaultNodeType === "standard" ? "text-only" : "standard";
+              this.defaultNodeType = newType;
+              this.saveState();
+              // --- 追加: 状態変更後にボタン状態を更新 ---
+              this.updateControlButtonsState();
+              // --- 追加: ツールチップを表示 ---
+              Utils.showTooltip(changeTypeBtn, `デフォルトノード種類: ${newType === "standard" ? "標準" : "テキストのみ"}`);
             }
+          });
+
+          // --- 追加: ノード種類変更ボタンのマウスオーバーイベント ---
+          changeTypeBtn.addEventListener("mouseenter", () => {
+            let tooltipText = `現在のノード種類: ${this.defaultNodeType === "standard" ? "標準" : "テキストのみ"}`;
+            if (this.selectedNodes.length > 0) {
+              const allTextOnly = this.selectedNodes.every(n => n.nodeType === "text-only");
+              const allStandard = this.selectedNodes.every(n => n.nodeType === "standard");
+              if (allTextOnly) {
+                tooltipText = "選択中のノード: テキストのみ";
+              } else if (allStandard) {
+                tooltipText = "選択中のノード: 標準";
+              } else {
+                tooltipText = "選択中のノード: 混在";
+              }
+            } else if (this.selectedNode) {
+              tooltipText = `選択中のノード: ${this.selectedNode.nodeType === "standard" ? "標準" : "テキストのみ"}`;
+            }
+            Utils.showTooltip(changeTypeBtn, tooltipText);
           });
 
           // --- 追加: 線種変更ボタンのイベント ---
@@ -770,6 +917,10 @@
               // デフォルトの線種を更新
               this.defaultLineType = nextType;
               this.saveState();
+              // --- 追加: 状態変更後にボタン状態を更新 ---
+              this.updateControlButtonsState();
+              // --- 追加: ツールチップを表示 ---
+              Utils.showTooltip(changeLineTypeBtn, `線種: ${this.getLineTypeName(nextType)}`);
             } else if (this.selectedConnection) {
               // 単一選択の場合、ローテーション方式で線種を変更
               let nextType;
@@ -783,10 +934,165 @@
               this.selectedConnection.setLineType(nextType);
               this.defaultLineType = nextType;
               this.saveState();
+              // --- 追加: 状態変更後にボタン状態を更新 ---
+              this.updateControlButtonsState();
+              // --- 追加: ツールチップを表示 ---
+              Utils.showTooltip(changeLineTypeBtn, `線種: ${this.getLineTypeName(nextType)}`);
             } else {
-              alert("線が選択されていません。");
+              // --- 変更: 線が選択されていなくても線種を変更できるようにする ---
+              let nextType;
+              switch (this.defaultLineType) {
+                case "standard": nextType = "no-arrow"; break;
+                case "no-arrow": nextType = "reverse-arrow"; break;
+                case "reverse-arrow": nextType = "both-arrow"; break;
+                case "both-arrow": nextType = "standard"; break;
+                default: nextType = "standard";
+              }
+              this.defaultLineType = nextType;
+              this.saveState();
+              // --- 追加: 状態変更後にボタン状態を更新 ---
+              this.updateControlButtonsState();
+              // --- 追加: ツールチップを表示 ---
+              Utils.showTooltip(changeLineTypeBtn, `デフォルト線種: ${this.getLineTypeName(nextType)}`);
             }
           });
+
+          // --- 追加: 線種変更ボタンのマウスオーバーイベント ---
+          changeLineTypeBtn.addEventListener("mouseenter", () => {
+            let tooltipText = `現在の線種: ${this.getLineTypeName(this.defaultLineType)}`;
+            if (this.selectedConnections.length > 0) {
+              const types = new Set(this.selectedConnections.map(conn => conn.lineType));
+              if (types.size === 1) {
+                tooltipText = `選択中の線種: ${this.getLineTypeName(this.selectedConnections[0].lineType)}`;
+              } else {
+                tooltipText = "選択中の線種: 混在";
+              }
+            } else if (this.selectedConnection) {
+              tooltipText = `選択中の線種: ${this.getLineTypeName(this.selectedConnection.lineType)}`;
+            }
+            Utils.showTooltip(changeLineTypeBtn, tooltipText);
+          });
+          // --- 追加: Boldボタンのイベント ---
+          const boldTextBtn = document.getElementById("boldTextBtn");
+          boldTextBtn.addEventListener("click", () => {
+            if (this.selectedNodes.length > 0) {
+              // 全てのノードがBoldかどうか判定
+              const allBold = this.selectedNodes.every(n => n.boldText);
+
+              // 全てBoldなら全てオフに、そうでなければ全てオンに
+              const newBoldState = !allBold;
+
+              this.selectedNodes.forEach(n => n.setBold(newBoldState));
+              this.saveState();
+
+              // 状態変更後にボタン状態を更新
+              this.updateControlButtonsState();
+
+              // ツールチップを表示
+              Utils.showTooltip(boldTextBtn, `太字: ${newBoldState ? "オン" : "オフ"}`);
+            } else if (this.selectedNode) {
+              // 単一ノード選択の場合
+              const newBoldState = !this.selectedNode.boldText;
+              this.selectedNode.setBold(newBoldState);
+              this.saveState();
+
+              // 状態変更後にボタン状態を更新
+              this.updateControlButtonsState();
+
+              // ツールチップを表示
+              Utils.showTooltip(boldTextBtn, `太字: ${newBoldState ? "オン" : "オフ"}`);
+            }
+          });
+
+          // Boldボタンのマウスオーバーイベント
+          boldTextBtn.addEventListener("mouseenter", () => {
+            let tooltipText = "太字";
+            if (this.selectedNodes.length > 0) {
+              const allBold = this.selectedNodes.every(n => n.boldText);
+              const noneBold = this.selectedNodes.every(n => !n.boldText);
+
+              if (allBold) {
+                tooltipText = "選択中のノード: 太字";
+              } else if (noneBold) {
+                tooltipText = "選択中のノード: 通常";
+              } else {
+                tooltipText = "選択中のノード: 混在";
+              }
+            } else if (this.selectedNode) {
+              tooltipText = `選択中のノード: ${this.selectedNode.boldText ? "太字" : "通常"}`;
+            }
+            Utils.showTooltip(boldTextBtn, tooltipText);
+          });
+        }
+
+        /**
+         * 線種の名称を取得する
+         * @param {string} type 線種コード("standard", "no-arrow", "reverse-arrow", "both-arrow")
+         * @returns {string} 線種の日本語名称
+         */
+        getLineTypeName(type) {
+          switch (type) {
+            case "standard": return "標準矢印";
+            case "no-arrow": return "矢印なし";
+            case "reverse-arrow": return "逆矢印";
+            case "both-arrow": return "両方向矢印";
+            default: return "標準矢印";
+          }
+        }
+
+        /**
+         * コントロールパネルのボタン状態を更新する
+         */
+        updateControlButtonsState() {
+          const changeTypeBtn = document.getElementById("changeTypeBtn");
+          const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
+
+          // ノード種類ボタンの状態を更新
+          changeTypeBtn.classList.remove("active");
+          if (this.selectedNodes.length > 0) {
+            if (this.selectedNodes.every(n => n.nodeType === "standard")) {
+              changeTypeBtn.classList.add("active");
+            }
+          } else if (this.selectedNode && this.selectedNode.nodeType === "standard") {
+            changeTypeBtn.classList.add("active");
+          } else if (this.defaultNodeType === "standard") {
+            changeTypeBtn.classList.add("active");
+          }
+
+          // --- 線種ボタンの状態を更新 ---
+          changeLineTypeBtn.textContent = this.getLineTypeSymbol(
+            this.selectedConnections.length > 0 ? this.selectedConnections[0].lineType :
+              this.selectedConnection ? this.selectedConnection.lineType :
+                this.defaultLineType
+          );
+
+          // --- Boldボタンの状態を更新 ---
+          const boldTextBtn = document.getElementById("boldTextBtn");
+          boldTextBtn.classList.remove("active");
+          boldTextBtn.disabled = !(this.selectedNodes.length > 0 || this.selectedNode);
+
+          if (this.selectedNodes.length > 0) {
+            if (this.selectedNodes.every(n => n.boldText)) {
+              boldTextBtn.classList.add("active");
+            }
+          } else if (this.selectedNode && this.selectedNode.boldText) {
+            boldTextBtn.classList.add("active");
+          }
+        }
+
+        /**
+         * 線種を表すシンボルを取得する
+         * @param {string} type 線種コード("standard", "no-arrow", "reverse-arrow", "both-arrow")
+         * @returns {string} 線種を表すシンボル
+         */
+        getLineTypeSymbol(type) {
+          switch (type) {
+            case "standard": return "→";
+            case "no-arrow": return "—";
+            case "reverse-arrow": return "←";
+            case "both-arrow": return "↔";
+            default: return "→";
+          }
         }
 
         startPan(e) {
@@ -861,6 +1167,8 @@
                 }
               });
               document.body.removeChild(selRect);
+              // --- 追加: 選択状態が変わったらコントロールパネルを更新 ---
+              this.updateControlButtonsState();
               this.saveState();
             };
             document.addEventListener("mousemove", onMouseMove);
@@ -978,6 +1286,8 @@
               this.clearSelection();
               this.selectNode(node);
               this.hideAllHandles();
+              // --- 追加: 選択状態が変わったらコントロールパネルを更新 ---
+              this.updateControlButtonsState();
             }
             document.removeEventListener("mouseup", cancelMove);
           };
@@ -1054,6 +1364,8 @@
               this.clearSelection();
               this.selectNode(newNode);
             }
+            // --- 追加: コントロールボタンの状態を更新 ---
+            this.updateControlButtonsState();
             this.saveState();
           };
           document.addEventListener("mousemove", onBCMouseMove);
@@ -1121,6 +1433,8 @@
               newNode.setType(this.defaultNodeType);
               this.startEditingNode(newNode);
               this.selectNode(newNode);
+              // --- 追加: コントロールボタンの状態を更新 ---
+              this.updateControlButtonsState();
               this.saveState();
             }
           };
@@ -1175,7 +1489,7 @@
                 }
               }
               connection.update();
-              this.app.saveState();
+              this.saveState();
             };
             document.addEventListener("mousemove", onMouseMove);
             document.addEventListener("mouseup", onMouseUp);
@@ -1189,19 +1503,18 @@
               text: node.element.textContent,
               x: node.x,
               y: node.y,
-              nodeType: node.nodeType
+              nodeType: node.nodeType,
+              boldText: node.boldText // Bold状態を追加
             })),
             connections: this.connections.map(conn => ({
               fromId: conn.fromNode ? conn.fromNode.id : null,
               toId: conn.toNode ? conn.toNode.id : null,
               fromCoord: conn.fromCoord,
               toCoord: conn.toCoord,
-              // --- 追加: 線種情報を保存 ---
               lineType: conn.lineType
             })),
             globalPan: { x: this.globalPan.x, y: this.globalPan.y },
             globalZoom: this.globalZoom,
-            // --- 追加: デフォルトノード種類と線種を保存 ---
             defaultNodeType: this.defaultNodeType,
             defaultLineType: this.defaultLineType
           };
@@ -1225,17 +1538,25 @@
           this.nodes = [];
           this.connections = [];
           const nodeMap = {};
+
           state.nodes.forEach(nodeData => {
             const node = new NoteNode(nodeData.text, parseInt(nodeData.x), parseInt(nodeData.y), this, nodeData.id);
-            node.setType(nodeData.nodeType || "standard"); // --- 追加: 復元時にノード種類を設定 ---
+            node.setType(nodeData.nodeType || "standard");
+
+            // Bold状態の復元
+            if (nodeData.boldText) {
+              node.setBold(true);
+            }
+
             this.nodes.push(node);
             nodeMap[nodeData.id] = node;
           });
+
           state.connections.forEach(connData => {
             let fromNode = connData.fromId in nodeMap ? nodeMap[connData.fromId] : null;
             let toNode = connData.toId in nodeMap ? nodeMap[connData.toId] : null;
             const conn = new Connection(fromNode, toNode, this);
-            // --- 追加: 線種を復元 ---
+            // --- 線種を復元 ---
             if (connData.lineType) {
               conn.setLineType(connData.lineType);
             }
@@ -1244,7 +1565,8 @@
             conn.update();
             this.connections.push(conn);
           });
-          // --- 追加: デフォルトノード種類と線種を復元 ---
+
+          // --- デフォルト設定の復元 ---
           if (state.defaultNodeType) {
             this.defaultNodeType = state.defaultNodeType;
           }
@@ -1255,6 +1577,8 @@
           this.globalZoom = state.globalZoom;
           this.updateGlobalTransform();
           this.updateAllConnections();
+          // コントロールパネルのボタン状態を更新
+          this.updateControlButtonsState();
         }
 
         saveToLocalStorage() {
@@ -1312,6 +1636,16 @@
                     if (!stateObj.data.hasOwnProperty('defaultLineType')) {
                       stateObj.data.defaultLineType = "standard";
                     }
+                  }
+
+                  // --- 追加: v1.2.6より前のデータ形式の場合（boldTextプロパティがない） ---
+                  if (Utils.compareVersions(stateObj.version, "v1.2.6") < 0) {
+                    Logger.log('v1.2.6へのマイグレーション：boldTextプロパティを追加');
+                    stateObj.data.nodes.forEach(node => {
+                      if (!node.hasOwnProperty('boldText')) {
+                        node.boldText = false;
+                      }
+                    });
                   }
 
                   // バージョン情報を更新
@@ -1392,6 +1726,8 @@
             conn.hideHandles();
           });
           this.selectedConnections = [];
+          // --- 追加: 選択クリア時にコントロールパネルの状態も更新 ---
+          this.updateControlButtonsState();
         }
 
         hideAllHandles() {
@@ -1403,6 +1739,8 @@
           this.selectedNode = node;
           this.selectedNodes = [node];
           node.element.classList.add("selected");
+          // --- 追加: 選択変更時にコントロールパネルの状態を更新 ---
+          this.updateControlButtonsState();
         }
 
         selectConnection(connection) {
@@ -1411,6 +1749,8 @@
           this.selectedConnections = [connection];
           connection.line.classList.add("selected-line");
           connection.showHandles();
+          // --- 追加: 選択変更時にコントロールパネルの状態を更新 ---
+          this.updateControlButtonsState();
         }
 
         startEditingNode(node) {
@@ -1612,6 +1952,18 @@
                   }
                 }
 
+                // --- 追加: v1.2.6より前のデータ形式の場合（boldTextプロパティがない） ---
+                if (Utils.compareVersions(importObj.version, "v1.2.6") < 0) {
+                  Logger.log('v1.2.6へのマイグレーション：boldTextプロパティを追加');
+                  if (importObj.data.nodes) {
+                    importObj.data.nodes.forEach(node => {
+                      if (!node.hasOwnProperty('boldText')) {
+                        node.boldText = false;
+                      }
+                    });
+                  }
+                }
+
                 // バージョン情報を更新
                 importObj.version = VERSION;
               }
@@ -1630,6 +1982,15 @@
               }
               if (!importObj.data.hasOwnProperty('defaultLineType')) {
                 importObj.data.defaultLineType = "standard";
+              }
+
+              // --- 追加: boldTextプロパティを設定 ---
+              if (importObj.data.nodes) {
+                importObj.data.nodes.forEach(node => {
+                  if (!node.hasOwnProperty('boldText')) {
+                    node.boldText = false;
+                  }
+                });
               }
             }
 
