@@ -18,9 +18,11 @@
     /* ================================
        共通CSS
        ================================ */
+    html,
     body {
       margin: 0;
-      overflow: visible;
+      overflow: hidden;
+      /* スクロールバーを非表示にする */
       background-color: #f9f9f9;
     }
 
@@ -64,7 +66,8 @@
       border-radius: 5px;
       box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
       user-select: none;
-      white-space: nowrap;
+      white-space: pre-wrap;
+      /* 改行を表示するために変更 */
       cursor: pointer;
       transition: border-color 0.2s;
       z-index: 300;
@@ -121,33 +124,37 @@
       align-items: center;
     }
 
-/* コントロールパネルのボタンスタイル調整 */
-#controlPanel button {
-  padding: 5px 10px;
-  cursor: pointer;
-  background: #ddd;
-  border: none;
-  border-radius: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+    /* コントロールパネルのボタンスタイル調整 */
+    #controlPanel button {
+      padding: 5px 10px;
+      cursor: pointer;
+      background: #ddd;
+      border: none;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-/* 機能ボタン（B, ◻︎, ー）のスタイル */
-#boldTextBtn, #changeTypeBtn, #changeLineTypeBtn {
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  font-size: 16px;
-  font-weight: 500;
-}
+    /* 機能ボタン（B, ◻︎, ー）のスタイル */
+    #boldTextBtn,
+    #changeTypeBtn,
+    #changeLineTypeBtn {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      font-size: 16px;
+      font-weight: 500;
+    }
 
-/* テキストボタン（新規、開く、保存）のスタイル - 元のバランスを維持 */
-#resetBtn, #importBtn, #exportBtn {
-  min-width: 40px;
-  padding: 5px 10px;
-  font-size: 14px;
-}
+    /* テキストボタン（新規、開く、保存）のスタイル - 元のバランスを維持 */
+    #resetBtn,
+    #importBtn,
+    #exportBtn {
+      min-width: 40px;
+      padding: 5px 10px;
+      font-size: 14px;
+    }
 
     /* --- 追加: アクティブなボタンのスタイル --- */
     #controlPanel button.active {
@@ -183,6 +190,26 @@
     #controlPanel button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
+    }
+
+    /* --- 追加: ズーム表示用スタイル --- */
+    #zoomDisplay {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background-color: rgba(0, 0, 0, 0.6);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 20000;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #zoomDisplay.visible {
+      opacity: 1;
     }
   </style>
 </head>
@@ -234,15 +261,18 @@
     </svg>
   </div>
 
+  <!-- 追加：ズーム表示用エレメント -->
+  <div id="zoomDisplay">100%</div>
+
   <!-- ================================
-       yaNote 本体（v1.2.6）
+       yaNote 本体（v1.2.7）
        ================================ -->
   <script>
     (function () {
       "use strict";
 
       // --- 1. 一元管理された設定 ---
-      const VERSION = "v1.2.6";
+      const VERSION = "v1.2.7";
       const DEBUG = true;
       console.log("[yaNote]", "Starting yaNote", VERSION);
 
@@ -369,7 +399,27 @@
             }
           });
         }
+
+        /**
+         * ズーム表示を更新する
+         * @param {number} zoom 現在のズーム率（1.0 = 100%）
+         */
+        static updateZoomDisplay(zoom) {
+          const zoomDisplay = document.getElementById("zoomDisplay");
+          const percent = Math.round(zoom * 100);
+          zoomDisplay.textContent = `${percent}%`;
+          zoomDisplay.classList.add("visible");
+
+          // 一定時間後に非表示にする
+          clearTimeout(Utils.zoomDisplayTimeout);
+          Utils.zoomDisplayTimeout = setTimeout(() => {
+            zoomDisplay.classList.remove("visible");
+          }, 1500);
+        }
       }
+
+      // ズーム表示用タイムアウト
+      Utils.zoomDisplayTimeout = null;
 
       // --- 4. NoteNode クラス（ノード機能） ---
       class NoteNode {
@@ -743,6 +793,9 @@
           this.redoStack = [];
           this.globalPan = { x: 0, y: 0 };
           this.globalZoom = 1;
+          // --- 追加: ズーム制限 ---
+          this.minZoom = 0.2; // 最小ズーム率
+          this.maxZoom = 3.0; // 最大ズーム率
           // --- 追加: デフォルトのノード種類 ---
           this.defaultNodeType = "standard";
           // --- 追加: デフォルトの線種 ---
@@ -829,6 +882,45 @@
           window.addEventListener("storage", (e) => {
             if (e.key === "yaNoteData") { location.reload(); }
           });
+
+          // --- 追加: ホイールイベントによるパン処理 ---
+          this.canvas.addEventListener("wheel", (e) => {
+            e.preventDefault(); // 標準のスクロールを防止
+
+            // Ctrlキーまたはmetaキー(Mac)が押されている場合はズーム処理をスキップ
+            if (e.ctrlKey || e.metaKey) {
+              // ズーム処理は一時的に無効化
+              // this.handleZoom(e);
+              return; // 何もせずに終了
+            }
+            // Shiftキーが押されている場合は横方向のパン
+            else if (e.shiftKey) {
+              // シフトキー押下時は、deltaYの値を横方向の移動に適用
+              // 一部のマウスでは、shiftキー押下時に自動的にdeltaXに値が入る場合があるため、
+              // 両方をチェックしてより大きい方の値を使用
+              const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+              this.globalPan.x -= dx * 0.5; // 感度調整係数
+              this.updateGlobalTransform();
+              this.updateAllConnections();
+            }
+            // 通常のホイールやトラックパッド操作
+            else {
+              // 縦横両方向のパン
+              if (e.deltaY !== 0) {
+                const dy = e.deltaY * 0.5; // 感度調整係数
+                this.globalPan.y -= dy;
+              }
+
+              if (e.deltaX !== 0) {
+                const dx = e.deltaX * 0.5; // 感度調整係数
+                this.globalPan.x -= dx;
+              }
+
+              this.updateGlobalTransform();
+              this.updateAllConnections();
+            }
+          }, { passive: false });
+
           // --- 追加: ノード種類変更ボタンのイベント ---
           const changeTypeBtn = document.getElementById("changeTypeBtn");
           changeTypeBtn.addEventListener("click", () => {
@@ -1023,6 +1115,62 @@
             }
             Utils.showTooltip(boldTextBtn, tooltipText);
           });
+        }
+
+        /**
+         * マウスホイールによるズーム処理
+         * @param {WheelEvent} e ホイールイベント
+         */
+        // updateGlobalTransform メソッドの修正
+        updateGlobalTransform() {
+          // transform を使って、移動とズームを適用
+          this.canvas.style.transform =
+            `translate(-5000px, -5000px) translate(${this.globalPan.x}px, ${this.globalPan.y}px) scale(${this.globalZoom})`;
+        }
+
+        // handleZoom メソッドの完全な書き直し
+        handleZoom(e) {
+          // ズーム量の計算（Chromeと他のブラウザでの値の違いを考慮）
+          const wheelDelta = e.deltaY || -e.wheelDelta;
+          const zoomDelta = -wheelDelta / 500; // 感度調整
+
+          // 現在のズーム率を保存
+          const oldZoom = this.globalZoom;
+
+          // 新しいズーム率を計算（制限内に）
+          const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, oldZoom * (1 + zoomDelta)));
+
+          // 変化がなければ何もしない
+          if (newZoom === oldZoom) return;
+
+          // マウス位置（ビューポート内）
+          const mouseViewportX = e.clientX;
+          const mouseViewportY = e.clientY;
+
+          // キャンバス内でのマウス位置
+          const canvasRect = this.canvas.getBoundingClientRect();
+          const mouseCanvasX = mouseViewportX - canvasRect.left;
+          const mouseCanvasY = mouseViewportY - canvasRect.top;
+
+          // ズーム前のキャンバス内でのマウス位置（論理座標）
+          const mouseLogicalX = (mouseCanvasX - this.globalPan.x) / oldZoom;
+          const mouseLogicalY = (mouseCanvasY - this.globalPan.y) / oldZoom;
+
+          // ズーム後のパン位置（マウス位置を固定）
+          this.globalPan.x = mouseCanvasX - mouseLogicalX * newZoom;
+          this.globalPan.y = mouseCanvasY - mouseLogicalY * newZoom;
+
+          // ズーム率更新
+          this.globalZoom = newZoom;
+
+          // 変換適用
+          this.updateGlobalTransform();
+
+          // 接続線更新
+          this.updateAllConnections();
+
+          // ズーム表示更新
+          Utils.updateZoomDisplay(this.globalZoom);
         }
 
         /**
@@ -1771,17 +1919,35 @@
           const sel = window.getSelection();
           sel.removeAllRanges();
           sel.addRange(range);
+
+          // --- 変更: Shift+Enterで改行を可能に ---
           const onKeyDown = (e) => {
             if (e.key === "Enter") {
-              e.preventDefault();
-              node._enterPressCount = (node._enterPressCount || 0) + 1;
-              if (node._enterPressCount >= 2) {
-                node.element.blur();
+              // Shiftキーと一緒に押された場合は改行を挿入
+              if (e.shiftKey) {
+                e.stopPropagation(); // デフォルトの処理を阻止しない（改行を許可）
+                // 改行後にノードの高さを調整
+                setTimeout(() => {
+                  this.updateAllConnections();
+                  const h = node.element.offsetHeight;
+                  node.anchorOffset = h;
+                  node.setPosition(node.x, node.y);
+                }, 0);
+                // 連続Enter押下カウンタをリセット
+                node._enterPressCount = 0;
+              } else {
+                // 通常のEnterキーの場合は編集終了カウント
+                e.preventDefault();
+                node._enterPressCount = (node._enterPressCount || 0) + 1;
+                if (node._enterPressCount >= 2) {
+                  node.element.blur();
+                }
               }
             } else {
               node._enterPressCount = 0;
             }
           };
+
           const finishEditing = () => {
             node.element.contentEditable = "false";
             node.element.classList.remove("editing");
