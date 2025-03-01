@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.8)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.8.1)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.8</title>
+  <title>yaNote v1.2.8.1</title>
   <style>
     /* ===== 共通CSS ===== */
     html,
@@ -705,9 +705,11 @@
             }
           });
           document.addEventListener("keydown", e => {
-            const tag = document.activeElement.tagName.toLowerCase();
-            // input や textarea なら何もしない
-            if (tag === "input" || tag === "textarea") return;
+            // 編集モード中（コンテンツが編集可能な状態）の場合は削除処理をしない
+            if (document.activeElement && document.activeElement.isContentEditable) {
+              return;
+            }
+            // ここから既存の処理（例：Undo／Redo, BackSpace 削除処理など）
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
               e.preventDefault();
               app.undo();
@@ -720,6 +722,7 @@
               app.saveState();
             }
           });
+
 
           window.addEventListener("storage", e => { if (e.key === "yaNoteData") location.reload(); });
           this.canvas.addEventListener("wheel", e => {
