@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.7)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.8)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -9,18 +9,20 @@
  * 5. コーディング規約：既存フォーマットは変更せず、必要な箇所のみ修正する。
  *****************************************************************/
 -->
-<!DOCTYPE html>
 <html lang="ja">
+
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.7</title>
+  <title>yaNote v1.2.8</title>
   <style>
     /* ===== 共通CSS ===== */
-    html, body {
+    html,
+    body {
       margin: 0;
       overflow: hidden;
       background-color: #f9f9f9;
     }
+
     #canvas {
       position: absolute;
       left: 50%;
@@ -33,6 +35,7 @@
       background-image: radial-gradient(circle, #e0e0e0 1px, transparent 1px);
       background-size: 20px 20px;
     }
+
     #svg {
       position: absolute;
       top: 0;
@@ -42,20 +45,22 @@
       pointer-events: none;
       z-index: 100;
     }
+
     #selectionRect {
       position: fixed;
       border: 1px dashed #000;
-      background-color: rgba(0,0,255,0.1);
+      background-color: rgba(0, 0, 255, 0.1);
       pointer-events: none;
       z-index: 10000;
     }
+
     .node {
       position: absolute;
       background-color: #fff;
       border: 1px solid #ccc;
       padding: 8px 12px;
       border-radius: 5px;
-      box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
       user-select: none;
       white-space: pre-wrap;
       cursor: pointer;
@@ -66,15 +71,30 @@
       align-items: center;
       justify-content: center;
     }
-    .node.selected { border-color: blue; }
-    .node.editing { background-color: #ffffe0; border-color: #007bff; }
+
+    .node.selected {
+      border-color: blue;
+    }
+
+    .node.editing {
+      background-color: #ffffe0;
+      border-color: #007bff;
+    }
+
     .node.text-only {
       background-color: transparent;
       border: none;
       box-shadow: none;
     }
-    .node.text-only.selected { border: 1px dashed blue; }
-    .selected-line { stroke: red; }
+
+    .node.text-only.selected {
+      border: 1px dashed blue;
+    }
+
+    .selected-line {
+      stroke: red;
+    }
+
     .html-handle {
       position: absolute;
       width: 8px;
@@ -85,8 +105,11 @@
       cursor: pointer;
       z-index: 1100;
     }
+
+    /* ===== コントロールパネル ===== */
     #controlPanel {
-      position: absolute;
+      position: fixed;
+      /* fixed に変更 */
       top: 10px;
       right: 10px;
       z-index: 20000;
@@ -94,6 +117,18 @@
       gap: 10px;
       align-items: center;
     }
+
+    /* タイトルフィールド：コントロールパネルの左側に配置 */
+    #titleField {
+      width: 150px;
+      margin-right: 10px;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 14px;
+      text-align: right;
+    }
+
     #controlPanel button {
       padding: 5px 10px;
       cursor: pointer;
@@ -104,28 +139,41 @@
       align-items: center;
       justify-content: center;
     }
+
     /* ボタンサイズ */
-    #boldTextBtn, #changeTypeBtn, #changeLineTypeBtn, #changeDashTypeBtn {
+    #boldTextBtn,
+    #changeTypeBtn,
+    #changeLineTypeBtn,
+    #changeDashTypeBtn {
       width: 30px;
       height: 30px;
       padding: 0;
       font-size: 16px;
       font-weight: 500;
     }
-    #resetBtn, #importBtn, #exportBtn {
+
+    #resetBtn,
+    #importBtn,
+    #exportBtn {
       min-width: 40px;
       padding: 5px 10px;
       font-size: 14px;
     }
+
     #controlPanel button.active {
       background-color: #007bff;
       color: white;
       font-weight: bold;
     }
-    #importInput { display: none; }
+
+    #importInput {
+      display: none;
+    }
+
     .tooltip {
-      position: absolute;
-      background-color: rgba(0,0,0,0.8);
+      position: fixed;
+      /* absolute から fixed に変更 */
+      background-color: rgba(0, 0, 0, 0.8);
       color: #fff;
       padding: 5px 8px;
       border-radius: 4px;
@@ -135,16 +183,22 @@
       white-space: nowrap;
       transform: translateY(30px);
     }
-    .node.bold-text { font-weight: bold; }
+
+
+    .node.bold-text {
+      font-weight: bold;
+    }
+
     #controlPanel button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
+
     #zoomDisplay {
       position: absolute;
       bottom: 10px;
       right: 10px;
-      background-color: rgba(0,0,0,0.6);
+      background-color: rgba(0, 0, 0, 0.6);
       color: #fff;
       padding: 5px 10px;
       border-radius: 4px;
@@ -154,12 +208,18 @@
       opacity: 0;
       transition: opacity 0.3s ease;
     }
-    #zoomDisplay.visible { opacity: 1; }
+
+    #zoomDisplay.visible {
+      opacity: 1;
+    }
   </style>
 </head>
+
 <body>
   <!-- ===== コントロールパネル ===== -->
   <div id="controlPanel">
+    <!-- タイトルフィールド：ダブルクリックまたはEnterで編集確定 -->
+    <input type="text" id="titleField" value="" placeholder="タイトル" readonly>
     <button id="boldTextBtn">B</button>
     <button id="changeTypeBtn">◻︎</button>
     <button id="changeLineTypeBtn">ー</button>
@@ -173,17 +233,22 @@
     <svg id="svg" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <!-- マーカー定義 -->
-        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
+          markerUnits="strokeWidth">
           <path d="M0,0 L0,10 L10,5 Z" fill="#000" />
         </marker>
-        <marker id="no-arrow" markerWidth="0" markerHeight="0" refX="0" refY="0" orient="auto" markerUnits="strokeWidth"></marker>
-        <marker id="start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto" markerUnits="strokeWidth">
+        <marker id="no-arrow" markerWidth="0" markerHeight="0" refX="0" refY="0" orient="auto"
+          markerUnits="strokeWidth"></marker>
+        <marker id="start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
+          markerUnits="strokeWidth">
           <path d="M10,0 L10,10 L0,5 Z" fill="#000" />
         </marker>
-        <marker id="both-end-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+        <marker id="both-end-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
+          markerUnits="strokeWidth">
           <path d="M0,0 L0,10 L10,5 Z" fill="#000" />
         </marker>
-        <marker id="both-start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto" markerUnits="strokeWidth">
+        <marker id="both-start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
+          markerUnits="strokeWidth">
           <path d="M10,0 L10,10 L0,5 Z" fill="#000" />
         </marker>
       </defs>
@@ -193,15 +258,18 @@
 
   <!-- ===== アプリ本体 ===== -->
   <script>
-    document.addEventListener("DOMContentLoaded", function() {
+    document.addEventListener("DOMContentLoaded", function () {
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.2.7";
+      const VERSION = "v1.2.8";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
       };
+
+      // タイトルフィールドの自動更新フラグ（初回のみ中心ノードから反映）
+      let titleAutoUpdated = false;
 
       /* ===== 2. ユーティリティ関数 ===== */
       const Utils = {
@@ -221,10 +289,10 @@
           if (p1.x >= rect.left && p1.x <= rect.right && p1.y >= rect.top && p1.y <= rect.bottom) return true;
           if (p2.x >= rect.left && p2.x <= rect.right && p2.y >= rect.top && p2.y <= rect.bottom) return true;
           const edges = [
-            [{x: rect.left, y: rect.top}, {x: rect.right, y: rect.top}],
-            [{x: rect.left, y: rect.bottom}, {x: rect.right, y: rect.bottom}],
-            [{x: rect.left, y: rect.top}, {x: rect.left, y: rect.bottom}],
-            [{x: rect.right, y: rect.top}, {x: rect.right, y: rect.bottom}]
+            [{ x: rect.left, y: rect.top }, { x: rect.right, y: rect.top }],
+            [{ x: rect.left, y: rect.bottom }, { x: rect.right, y: rect.bottom }],
+            [{ x: rect.left, y: rect.top }, { x: rect.left, y: rect.bottom }],
+            [{ x: rect.right, y: rect.top }, { x: rect.right, y: rect.bottom }]
           ];
           return edges.some(edge => Utils.segmentsIntersect(p1, p2, edge[0], edge[1]));
         },
@@ -256,16 +324,65 @@
           tip.textContent = text;
           document.body.appendChild(tip);
           const rect = el.getBoundingClientRect();
-          tip.style.left = (rect.left + rect.width/2 - tip.offsetWidth/2) + "px";
+          tip.style.left = (rect.left + rect.width / 2 - tip.offsetWidth / 2) + "px";
           tip.style.top = (rect.bottom) + "px";
-          setTimeout(() => { if(tip.parentNode) tip.parentNode.removeChild(tip); }, 2000);
+          setTimeout(() => { if (tip.parentNode) tip.parentNode.removeChild(tip); }, 2000);
         },
         hideAllTooltips: () => {
           document.querySelectorAll(".tooltip").forEach(t => t.parentNode && t.parentNode.removeChild(t));
         }
       };
 
-      /* ===== 3. ノードクラス ===== */
+      /* ===== 3. タイトルフィールド設定 ===== */
+      const titleField = document.getElementById("titleField");
+      titleField.addEventListener("dblclick", function (e) {
+        titleField.readOnly = false;
+        titleField.style.borderBottom = "1px dashed #000";
+        titleField.style.width = "150px";  // 編集中は固定幅
+        titleField.style.textAlign = "left"; // 編集中は左寄せ
+        titleField.focus();
+      });
+      titleField.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.isComposing) {
+          e.preventDefault();
+          titleField.blur();
+        }
+      });
+      titleField.addEventListener("blur", function (e) {
+        titleField.readOnly = true;
+        titleField.style.borderBottom = "none";
+        if (titleField.value.trim() === "") {
+          titleField.value = "無題";
+        }
+        adjustTitleFieldWidth();
+        titleField.style.textAlign = "right"; // 表示時は右寄せ
+      });
+
+
+      titleField.addEventListener("blur", function (e) {
+        titleField.readOnly = true;
+        titleField.style.borderBottom = "none";
+        if (titleField.value.trim() === "") {
+          titleField.value = "無題";
+        }
+        // 編集確定後、調整してテキスト全体が表示されるように幅を計測・設定
+        adjustTitleFieldWidth();
+      });
+      // テキスト幅を計測してタイトルフィールドの幅を自動調整する関数
+      function adjustTitleFieldWidth() {
+        let tempSpan = document.createElement("span");
+        const style = window.getComputedStyle(titleField);
+        tempSpan.style.font = style.font;
+        tempSpan.style.visibility = "hidden";
+        tempSpan.style.whiteSpace = "nowrap";
+        tempSpan.textContent = titleField.value;
+        document.body.appendChild(tempSpan);
+        const width = tempSpan.offsetWidth + 10; // 少し余裕をもたせる
+        document.body.removeChild(tempSpan);
+        titleField.style.width = width + "px";
+      }
+
+      /* ===== 4. ノードクラス ===== */
       class NoteNode {
         constructor(text, x, y, app, id) {
           this.app = app;
@@ -321,7 +438,7 @@
       }
       NoteNode.nextId = 1;
 
-      /* ===== 4. 接続線クラス ===== */
+      /* ===== 5. 接続線クラス ===== */
       class Connection {
         constructor(fromNode, toNode, app) {
           this.app = app;
@@ -359,13 +476,13 @@
           let fromPoint, toPoint;
           if (this.fromNode && document.body.contains(this.fromNode.element)) {
             const rect = this.fromNode.element.getBoundingClientRect();
-            fromPoint = { x: rect.left + rect.width/2 - canvasRect.left, y: rect.top + rect.height/2 - canvasRect.top };
+            fromPoint = { x: rect.left + rect.width / 2 - canvasRect.left, y: rect.top + rect.height / 2 - canvasRect.top };
           } else if (this.fromCoord && typeof this.fromCoord.x === "number") {
             fromPoint = this.fromCoord;
           } else return;
           if (this.toNode && document.body.contains(this.toNode.element)) {
             const rect = this.toNode.element.getBoundingClientRect();
-            toPoint = { x: rect.left + rect.width/2 - canvasRect.left, y: rect.top + rect.height/2 - canvasRect.top };
+            toPoint = { x: rect.left + rect.width / 2 - canvasRect.left, y: rect.top + rect.height / 2 - canvasRect.top };
           } else if (this.toCoord && typeof this.toCoord.x === "number") {
             toPoint = this.toCoord;
           } else return;
@@ -377,12 +494,12 @@
             toPoint.y = endpoint.arrowY;
           }
           if ((this.lineType === "reverse-arrow" || this.lineType === "both-arrow") &&
-              this.fromNode && document.body.contains(this.fromNode.element)) {
+            this.fromNode && document.body.contains(this.fromNode.element)) {
             const startpoint = Utils.computeEndpoint(origFrom.x, origFrom.y, origTo.x, origTo.y, this.fromNode.element.getBoundingClientRect());
             fromPoint.x = startpoint.arrowX;
             fromPoint.y = startpoint.arrowY;
           }
-          // テキストのみノードの場合の補正（元のロジックに準拠）
+          // テキストのみノードの場合の補正
           if (this.fromNode && this.fromNode.nodeType === "text-only") {
             const nodeRect = this.fromNode.element.getBoundingClientRect();
             const localRect = {
@@ -516,7 +633,7 @@
         }
       }
 
-      /* ===== 5. アプリ全体管理クラス ===== */
+      /* ===== 6. アプリ全体管理クラス ===== */
       class YaNoteApp {
         constructor() {
           this.canvas = document.getElementById("canvas");
@@ -540,6 +657,9 @@
           this.updateGlobalTransform();
           this.initEventListeners();
 
+          // タイトルフィールドの初期値は空。保存時はタイトルも含める。
+          this.titleField = titleField;
+
           const stored = localStorage.getItem("yaNoteData");
           if (stored) { this.loadFromLocalStorage(); this.restored = true; }
           else {
@@ -562,17 +682,17 @@
           let center = this.nodes.find(n => n.element.textContent.trim() === "中心ノード") || this.nodes[0];
           if (center) {
             const rect = center.element.getBoundingClientRect();
-            const cx = rect.left + rect.width/2;
-            const cy = rect.top + rect.height/2;
-            this.globalPan.x = (window.innerWidth/2) - cx;
-            this.globalPan.y = (window.innerHeight/2) - cy;
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            this.globalPan.x = (window.innerWidth / 2) - cx;
+            this.globalPan.y = (window.innerHeight / 2) - cy;
             this.updateGlobalTransform();
             this.updateAllConnections();
           }
         }
         eventToLogical(e) {
           const rect = this.canvas.getBoundingClientRect();
-          return { x: (e.clientX - rect.left)/this.globalZoom, y: (e.clientY - rect.top)/this.globalZoom };
+          return { x: (e.clientX - rect.left) / this.globalZoom, y: (e.clientY - rect.top) / this.globalZoom };
         }
         initEventListeners() {
           this.canvas.addEventListener("mousedown", e => { if (e.button === 2) this.startPan(e); });
@@ -585,11 +705,22 @@
             }
           });
           document.addEventListener("keydown", e => {
-            if (document.activeElement && document.activeElement.isContentEditable) return;
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); this.undo(); }
-            else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); this.redo(); }
-            else if (["Backspace", "Delete"].includes(e.key)) { e.preventDefault(); this.deleteSelection(); this.saveState(); }
+            const tag = document.activeElement.tagName.toLowerCase();
+            // input や textarea なら何もしない
+            if (tag === "input" || tag === "textarea") return;
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+              e.preventDefault();
+              app.undo();
+            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+              e.preventDefault();
+              app.redo();
+            } else if (["Backspace", "Delete"].includes(e.key)) {
+              e.preventDefault();
+              app.deleteSelection();
+              app.saveState();
+            }
           });
+
           window.addEventListener("storage", e => { if (e.key === "yaNoteData") location.reload(); });
           this.canvas.addEventListener("wheel", e => {
             if (e.ctrlKey || e.metaKey) return;
@@ -788,7 +919,7 @@
           let moved = false;
           const onMove = e => {
             const dx = e.clientX - startX, dy = e.clientY - startY;
-            if (!moved && Math.sqrt(dx*dx+dy*dy) > 5) moved = true;
+            if (!moved && Math.sqrt(dx * dx + dy * dy) > 5) moved = true;
             if (moved) {
               this.globalPan.x = initPan.x + dx;
               this.globalPan.y = initPan.y + dy;
@@ -867,7 +998,7 @@
           const onMove = e => {
             const cur = this.eventToLogical(e);
             const dx = cur.x - start.x, dy = cur.y - start.y;
-            if (!dragging && Math.sqrt(dx*dx+dy*dy) > 5) dragging = true;
+            if (!dragging && Math.sqrt(dx * dx + dy * dy) > 5) dragging = true;
             if (dragging) {
               group.forEach(n => {
                 const pos = initPos.get(n);
@@ -954,7 +1085,7 @@
           let branch = false;
           const onMove = e => {
             const dx = e.clientX - start.x, dy = e.clientY - start.y;
-            if (!branch && Math.sqrt(dx*dx+dy*dy) > 10) {
+            if (!branch && Math.sqrt(dx * dx + dy * dy) > 10) {
               branch = true;
               document.removeEventListener("mousemove", onMove);
               document.removeEventListener("mouseup", onUp);
@@ -972,8 +1103,8 @@
         startBranchCreation(e, node) {
           const cRect = this.canvas.getBoundingClientRect();
           const nRect = node.element.getBoundingClientRect();
-          const cx = nRect.left + nRect.width/2 - cRect.left;
-          const cy = nRect.top + nRect.height/2 - cRect.top;
+          const cx = nRect.left + nRect.width / 2 - cRect.left;
+          const cy = nRect.top + nRect.height / 2 - cRect.top;
           const mx = e.clientX - cRect.left, my = e.clientY - cRect.top;
           const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
           tempLine.setAttribute("stroke", "#007bff");
@@ -1037,7 +1168,7 @@
           let fromCoord = null;
           const onMove = e => {
             const dx = e.clientX - initClient.x, dy = e.clientY - initClient.y;
-            if (!lineMode && Math.sqrt(dx*dx+dy*dy) > 10) {
+            if (!lineMode && Math.sqrt(dx * dx + dy * dy) > 10) {
               lineMode = true;
               fromCoord = this.eventToLogical({ clientX: initClient.x, clientY: initClient.y });
               this.svg.appendChild(tempLine);
@@ -1131,6 +1262,7 @@
         }
         captureState() {
           return {
+            title: this.titleField.value,
             nodes: this.nodes.map(n => ({
               id: n.id,
               text: n.element.textContent,
@@ -1189,6 +1321,10 @@
           if (state.defaultDashType) this.defaultDashType = state.defaultDashType;
           this.globalPan = state.globalPan;
           this.globalZoom = state.globalZoom;
+          if (state.title) {
+            this.titleField.value = state.title;
+            adjustTitleFieldWidth();
+          }
           this.updateGlobalTransform();
           this.updateAllConnections();
           this.updateControlButtonsState();
@@ -1308,12 +1444,17 @@
             n.element.classList.remove("editing");
             n.element.removeEventListener("keydown", onKeyDown);
             n.element.removeEventListener("input", onInput);
-            // もし内容が空なら削除する
             if (n.element.textContent.trim() === "") {
               this.selectNode(n);
               this.deleteSelection();
               this.saveState();
               return;
+            }
+            // 中心ノード（ID==1）の初回編集完了時にタイトルフィールドへ自動反映
+            if (!titleAutoUpdated && n.id === 1) {
+              titleField.value = n.element.textContent.trim() || "無題";
+              adjustTitleFieldWidth();
+              titleAutoUpdated = true;
             }
             this.selectNode(n);
             this.saveState();
@@ -1381,14 +1522,7 @@
           changeDashTypeBtn.textContent = this.selectedConnections.length > 0 ?
             this.getDashTypeSymbol(this.selectedConnections[0].dashType) :
             (this.selectedConnection ? this.getDashTypeSymbol(this.selectedConnection.dashType) : this.getDashTypeSymbol(this.defaultDashType));
-          changeDashTypeBtn.classList.remove("active");
-          if (this.selectedConnections.length > 0) {
-            if (this.selectedConnections.every(c => c.dashType === "dashed")) changeDashTypeBtn.classList.add("active");
-          } else if (this.selectedConnection && this.selectedConnection.dashType === "dashed") {
-            changeDashTypeBtn.classList.add("active");
-          } else if (this.defaultDashType === "dashed") {
-            changeDashTypeBtn.classList.add("active");
-          }
+
           const boldTextBtn = document.getElementById("boldTextBtn");
           boldTextBtn.classList.remove("active");
           boldTextBtn.disabled = !(this.selectedNodes.length > 0 || this.selectedNode);
@@ -1412,7 +1546,7 @@
         }
       }
 
-      /* ===== 6. インスタンス生成とコントロールパネル設定 ===== */
+      /* ===== 7. インスタンス生成とコントロールパネル設定 ===== */
       window.app = new YaNoteApp();
       document.getElementById("resetBtn").addEventListener("click", () => { localStorage.removeItem("yaNoteData"); location.reload(); });
       document.getElementById("exportBtn").addEventListener("click", () => {
@@ -1422,7 +1556,9 @@
           const url = URL.createObjectURL(blob);
           const now = new Date();
           const pad = n => n.toString().padStart(2, "0");
-          const filename = `yaNote_export_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
+          // ファイル名はタイトルフィールドの内容（空なら「無題」）を先頭に
+          const title = app.titleField.value.trim() || "無題";
+          const filename = `${title}_yaNote_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
           const a = document.createElement("a");
           a.href = url;
           a.download = filename;
@@ -1454,4 +1590,5 @@
     });
   </script>
 </body>
+
 </html>
