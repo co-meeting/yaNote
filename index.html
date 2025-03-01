@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.6)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.7)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -9,23 +9,18 @@
  * 5. コーディング規約：既存フォーマットは変更せず、必要な箇所のみ修正する。
  *****************************************************************/
 -->
+<!DOCTYPE html>
 <html lang="ja">
-
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.6</title>
+  <title>yaNote v1.2.7</title>
   <style>
-    /* ================================
-       共通CSS
-       ================================ */
-    html,
-    body {
+    /* ===== 共通CSS ===== */
+    html, body {
       margin: 0;
       overflow: hidden;
-      /* スクロールバーを非表示にする */
       background-color: #f9f9f9;
     }
-
     #canvas {
       position: absolute;
       left: 50%;
@@ -33,13 +28,11 @@
       width: 10000px;
       height: 10000px;
       overflow: visible;
-      transform: translate(-5000px, -5000px) translate(0px, 0px) scale(1);
+      transform: translate(-5000px, -5000px) scale(1);
       background-color: #f9f9f9;
-      /* 点を描く背景 */
       background-image: radial-gradient(circle, #e0e0e0 1px, transparent 1px);
       background-size: 20px 20px;
     }
-
     #svg {
       position: absolute;
       top: 0;
@@ -49,25 +42,22 @@
       pointer-events: none;
       z-index: 100;
     }
-
     #selectionRect {
       position: fixed;
       border: 1px dashed #000;
-      background-color: rgba(0, 0, 255, 0.1);
+      background-color: rgba(0,0,255,0.1);
       pointer-events: none;
       z-index: 10000;
     }
-
     .node {
       position: absolute;
       background-color: #fff;
       border: 1px solid #ccc;
       padding: 8px 12px;
       border-radius: 5px;
-      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
       user-select: none;
       white-space: pre-wrap;
-      /* 改行を表示するために変更 */
       cursor: pointer;
       transition: border-color 0.2s;
       z-index: 300;
@@ -75,34 +65,16 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      /* 文字中央寄せ */
     }
-
-    .node.selected {
-      border-color: blue;
-    }
-
-    .node.editing {
-      background-color: #ffffe0;
-      border-color: #007bff;
-    }
-
-    /* --- 追加: テキストのみノード（見た目のみ標準の枠・影を排除） --- */
+    .node.selected { border-color: blue; }
+    .node.editing { background-color: #ffffe0; border-color: #007bff; }
     .node.text-only {
       background-color: transparent;
       border: none;
       box-shadow: none;
     }
-
-    /* --- 追加: 選択時の視覚フィードバック（標準と同様に表示） --- */
-    .node.text-only.selected {
-      border: 1px dashed blue;
-    }
-
-    .selected-line {
-      stroke: red;
-    }
-
+    .node.text-only.selected { border: 1px dashed blue; }
+    .selected-line { stroke: red; }
     .html-handle {
       position: absolute;
       width: 8px;
@@ -113,7 +85,6 @@
       cursor: pointer;
       z-index: 1100;
     }
-
     #controlPanel {
       position: absolute;
       top: 10px;
@@ -123,8 +94,6 @@
       gap: 10px;
       align-items: center;
     }
-
-    /* コントロールパネルのボタンスタイル調整 */
     #controlPanel button {
       padding: 5px 10px;
       cursor: pointer;
@@ -135,43 +104,29 @@
       align-items: center;
       justify-content: center;
     }
-
-    /* 機能ボタン（B, ◻︎, ー）のスタイル */
-    #boldTextBtn,
-    #changeTypeBtn,
-    #changeLineTypeBtn {
+    /* ボタンサイズ */
+    #boldTextBtn, #changeTypeBtn, #changeLineTypeBtn, #changeDashTypeBtn {
       width: 30px;
       height: 30px;
       padding: 0;
       font-size: 16px;
       font-weight: 500;
     }
-
-    /* テキストボタン（新規、開く、保存）のスタイル - 元のバランスを維持 */
-    #resetBtn,
-    #importBtn,
-    #exportBtn {
+    #resetBtn, #importBtn, #exportBtn {
       min-width: 40px;
       padding: 5px 10px;
       font-size: 14px;
     }
-
-    /* --- 追加: アクティブなボタンのスタイル --- */
     #controlPanel button.active {
       background-color: #007bff;
       color: white;
       font-weight: bold;
     }
-
-    #importInput {
-      display: none;
-    }
-
-    /* --- 追加: ツールチップスタイル --- */
+    #importInput { display: none; }
     .tooltip {
       position: absolute;
-      background-color: rgba(0, 0, 0, 0.8);
-      color: white;
+      background-color: rgba(0,0,0,0.8);
+      color: #fff;
       padding: 5px 8px;
       border-radius: 4px;
       font-size: 12px;
@@ -180,25 +135,17 @@
       white-space: nowrap;
       transform: translateY(30px);
     }
-
-    /* --- Bold機能用スタイル --- */
-    .node.bold-text {
-      font-weight: bold;
-    }
-
-    /* --- Boldボタンの無効化状態 --- */
+    .node.bold-text { font-weight: bold; }
     #controlPanel button:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
-
-    /* --- 追加: ズーム表示用スタイル --- */
     #zoomDisplay {
       position: absolute;
       bottom: 10px;
       right: 10px;
-      background-color: rgba(0, 0, 0, 0.6);
-      color: white;
+      background-color: rgba(0,0,0,0.6);
+      color: #fff;
       padding: 5px 10px;
       border-radius: 4px;
       font-size: 12px;
@@ -207,24 +154,16 @@
       opacity: 0;
       transition: opacity 0.3s ease;
     }
-
-    #zoomDisplay.visible {
-      opacity: 1;
-    }
+    #zoomDisplay.visible { opacity: 1; }
   </style>
 </head>
-
 <body>
-  <!-- ================================
-       コントロールパネル
-       ================================ -->
+  <!-- ===== コントロールパネル ===== -->
   <div id="controlPanel">
-    <!-- Bold機能ボタン -->
     <button id="boldTextBtn">B</button>
-    <!-- 追加: ノード種類変更ボタン -->
     <button id="changeTypeBtn">◻︎</button>
-    <!-- 追加: 線種変更ボタン -->
     <button id="changeLineTypeBtn">ー</button>
+    <button id="changeDashTypeBtn">—</button>
     <button id="resetBtn">新規</button>
     <button id="importBtn">開く</button>
     <button id="exportBtn">保存</button>
@@ -233,204 +172,101 @@
   <div id="canvas">
     <svg id="svg" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <!-- 標準の終点矢印 -->
-        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
-          markerUnits="strokeWidth">
+        <!-- マーカー定義 -->
+        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
           <path d="M0,0 L0,10 L10,5 Z" fill="#000" />
         </marker>
-        <!-- 追加: 矢印なし用の空マーカー -->
-        <marker id="no-arrow" markerWidth="0" markerHeight="0" refX="0" refY="0" orient="auto"
-          markerUnits="strokeWidth">
-        </marker>
-        <!-- 追加: 始点矢印 -->
-        <marker id="start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
-          markerUnits="strokeWidth">
+        <marker id="no-arrow" markerWidth="0" markerHeight="0" refX="0" refY="0" orient="auto" markerUnits="strokeWidth"></marker>
+        <marker id="start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto" markerUnits="strokeWidth">
           <path d="M10,0 L10,10 L0,5 Z" fill="#000" />
         </marker>
-        <!-- 追加: 両方矢印用の終点矢印（標準と同じ） -->
-        <marker id="both-end-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
-          markerUnits="strokeWidth">
+        <marker id="both-end-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
           <path d="M0,0 L0,10 L10,5 Z" fill="#000" />
         </marker>
-        <!-- 追加: 両方矢印用の始点矢印 -->
-        <marker id="both-start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
-          markerUnits="strokeWidth">
+        <marker id="both-start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto" markerUnits="strokeWidth">
           <path d="M10,0 L10,10 L0,5 Z" fill="#000" />
         </marker>
       </defs>
     </svg>
   </div>
-
-  <!-- 追加：ズーム表示用エレメント -->
   <div id="zoomDisplay">100%</div>
 
-  <!-- ================================
-       yaNote 本体（v1.2.7）
-       ================================ -->
+  <!-- ===== アプリ本体 ===== -->
   <script>
-    (function () {
+    document.addEventListener("DOMContentLoaded", function() {
       "use strict";
 
-      // --- 1. 一元管理された設定 ---
+      /* ===== 1. 定数・グローバル設定 ===== */
       const VERSION = "v1.2.7";
       const DEBUG = true;
-      console.log("[yaNote]", "Starting yaNote", VERSION);
+      const Logger = {
+        log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
+      };
 
-      // --- 2. Logger クラス（デバッグ用） ---
-      class Logger {
-        static log(...args) {
-          if (DEBUG) console.log("[yaNote]", ...args);
-        }
-      }
-
-      // --- 3. Utils クラス（共通処理） ---
-      class Utils {
-        /**
-         * 3点の向きを判定する
-         * @param {Object} a {x, y}
-         * @param {Object} b {x, y}
-         * @param {Object} c {x, y}
-         * @returns {number} 0: collinear, 1: clockwise, 2: counterclockwise
-         */
-        static orientation(a, b, c) {
+      /* ===== 2. ユーティリティ関数 ===== */
+      const Utils = {
+        orientation: (a, b, c) => {
           const val = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
           if (Math.abs(val) < 1e-10) return 0;
           return (val > 0) ? 1 : 2;
-        }
-        /**
-         * 2つの線分 (p1,p2) と (p3,p4) が交差するかどうか
-         */
-        static segmentsIntersect(p1, p2, p3, p4) {
+        },
+        segmentsIntersect: (p1, p2, p3, p4) => {
           const o1 = Utils.orientation(p1, p2, p3);
           const o2 = Utils.orientation(p1, p2, p4);
           const o3 = Utils.orientation(p3, p4, p1);
           const o4 = Utils.orientation(p3, p4, p2);
           return (o1 !== o2 && o3 !== o4);
-        }
-        /**
-         * 矩形と線分の交差判定
-         */
-        static rectIntersectsLine(rect, p1, p2) {
+        },
+        rectIntersectsLine: (rect, p1, p2) => {
           if (p1.x >= rect.left && p1.x <= rect.right && p1.y >= rect.top && p1.y <= rect.bottom) return true;
           if (p2.x >= rect.left && p2.x <= rect.right && p2.y >= rect.top && p2.y <= rect.bottom) return true;
-          const topEdge = [{ x: rect.left, y: rect.top }, { x: rect.right, y: rect.top }];
-          const bottomEdge = [{ x: rect.left, y: rect.bottom }, { x: rect.right, y: rect.bottom }];
-          const leftEdge = [{ x: rect.left, y: rect.top }, { x: rect.left, y: rect.bottom }];
-          const rightEdge = [{ x: rect.right, y: rect.top }, { x: rect.right, y: rect.bottom }];
-          if (Utils.segmentsIntersect(p1, p2, topEdge[0], topEdge[1])) return true;
-          if (Utils.segmentsIntersect(p1, p2, bottomEdge[0], bottomEdge[1])) return true;
-          if (Utils.segmentsIntersect(p1, p2, leftEdge[0], leftEdge[1])) return true;
-          if (Utils.segmentsIntersect(p1, p2, rightEdge[0], rightEdge[1])) return true;
-          return false;
-        }
-        /**
-         * 接続線の終端位置を計算する
-         */
-        static computeEndpoint(tcx, tcy, fx, fy, toRect) {
+          const edges = [
+            [{x: rect.left, y: rect.top}, {x: rect.right, y: rect.top}],
+            [{x: rect.left, y: rect.bottom}, {x: rect.right, y: rect.bottom}],
+            [{x: rect.left, y: rect.top}, {x: rect.left, y: rect.bottom}],
+            [{x: rect.right, y: rect.top}, {x: rect.right, y: rect.bottom}]
+          ];
+          return edges.some(edge => Utils.segmentsIntersect(p1, p2, edge[0], edge[1]));
+        },
+        computeEndpoint: (tcx, tcy, fx, fy, toRect) => {
           const dx = fx - tcx, dy = fy - tcy;
           let t = 1;
           const hw = toRect.width / 2, hh = toRect.height / 2;
-          if (dx === 0 && dy === 0) { t = 1; }
-          else if (dx === 0) { t = hh / Math.abs(dy); }
-          else if (dy === 0) { t = hw / Math.abs(dx); }
-          else { t = Math.min(hw / Math.abs(dx), hh / Math.abs(dy)); }
+          if (dx === 0 && dy === 0) t = 1;
+          else if (dx === 0) t = hh / Math.abs(dy);
+          else if (dy === 0) t = hw / Math.abs(dx);
+          else t = Math.min(hw / Math.abs(dx), hh / Math.abs(dy));
           return { arrowX: tcx + t * dx, arrowY: tcy + t * dy };
-        }
-
-        /**
-         * バージョンを比較する（書式：v1.2.3 のような形式）
-         * @param {string} v1 比較対象バージョン１
-         * @param {string} v2 比較対象バージョン２
-         * @returns {number} v1が大きい場合は1、v2が大きい場合は-1、同じ場合は0
-         */
-        static compareVersions(v1, v2) {
-          // vの接頭辞を削除して純粋な数字の部分だけにする
-          const v1Parts = v1.replace(/^v/, '').split('.').map(Number);
-          const v2Parts = v2.replace(/^v/, '').split('.').map(Number);
-
-          for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
-            // 片方のバージョンがない場合は0とみなす
-            const p1 = i < v1Parts.length ? v1Parts[i] : 0;
-            const p2 = i < v2Parts.length ? v2Parts[i] : 0;
-
-            if (p1 > p2) return 1;
-            if (p1 < p2) return -1;
+        },
+        compareVersions: (v1, v2) => {
+          const parts1 = v1.replace(/^v/, "").split('.').map(Number);
+          const parts2 = v2.replace(/^v/, "").split('.').map(Number);
+          for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+            const a = parts1[i] || 0;
+            const b = parts2[i] || 0;
+            if (a > b) return 1;
+            if (a < b) return -1;
           }
-
           return 0;
-        }
-
-        /**
-         * ツールチップを表示する
-         * @param {HTMLElement} element ツールチップを表示する要素
-         * @param {string} text ツールチップのテキスト
-         */
-        static showTooltip(element, text) {
-          // 既存のツールチップを削除
+        },
+        showTooltip: (el, text) => {
           Utils.hideAllTooltips();
-
-          // 新しいツールチップを作成
-          const tooltip = document.createElement("div");
-          tooltip.className = "tooltip";
-          tooltip.textContent = text;
-          document.body.appendChild(tooltip);
-
-          // 位置を計算
-          const rect = element.getBoundingClientRect();
-          tooltip.style.left = rect.left + (rect.width / 2) - (tooltip.offsetWidth / 2) + "px";
-          tooltip.style.top = rect.bottom + "px";
-
-          // 一定時間後に自動的に消える
-          setTimeout(() => {
-            if (tooltip.parentNode) {
-              tooltip.parentNode.removeChild(tooltip);
-            }
-          }, 2000);
+          const tip = document.createElement("div");
+          tip.className = "tooltip";
+          tip.textContent = text;
+          document.body.appendChild(tip);
+          const rect = el.getBoundingClientRect();
+          tip.style.left = (rect.left + rect.width/2 - tip.offsetWidth/2) + "px";
+          tip.style.top = (rect.bottom) + "px";
+          setTimeout(() => { if(tip.parentNode) tip.parentNode.removeChild(tip); }, 2000);
+        },
+        hideAllTooltips: () => {
+          document.querySelectorAll(".tooltip").forEach(t => t.parentNode && t.parentNode.removeChild(t));
         }
+      };
 
-        /**
-         * すべてのツールチップを非表示にする
-         */
-        static hideAllTooltips() {
-          const tooltips = document.querySelectorAll(".tooltip");
-          tooltips.forEach(tooltip => {
-            if (tooltip.parentNode) {
-              tooltip.parentNode.removeChild(tooltip);
-            }
-          });
-        }
-
-        /**
-         * ズーム表示を更新する
-         * @param {number} zoom 現在のズーム率（1.0 = 100%）
-         */
-        static updateZoomDisplay(zoom) {
-          const zoomDisplay = document.getElementById("zoomDisplay");
-          const percent = Math.round(zoom * 100);
-          zoomDisplay.textContent = `${percent}%`;
-          zoomDisplay.classList.add("visible");
-
-          // 一定時間後に非表示にする
-          clearTimeout(Utils.zoomDisplayTimeout);
-          Utils.zoomDisplayTimeout = setTimeout(() => {
-            zoomDisplay.classList.remove("visible");
-          }, 1500);
-        }
-      }
-
-      // ズーム表示用タイムアウト
-      Utils.zoomDisplayTimeout = null;
-
-      // --- 4. NoteNode クラス（ノード機能） ---
+      /* ===== 3. ノードクラス ===== */
       class NoteNode {
-        /**
-         * ノード生成
-         * @param {string} text ノードテキスト
-         * @param {number} x 論理座標x（左下基準）
-         * @param {number} y 論理座標y（左下基準）
-         * @param {YaNoteApp} app アプリインスタンス
-         * @param {number} [id] 任意ID（自動採番も可能）
-         */
         constructor(text, x, y, app, id) {
           this.app = app;
           this.element = document.createElement("div");
@@ -439,119 +275,78 @@
           this.app.canvas.appendChild(this.element);
           this.x = x;
           this.y = y;
-          this.element.style.left = "0px";
-          this.element.style.top = "0px";
-          const h = this.element.offsetHeight;
-          this.anchorOffset = h;
           this.setPosition(x, y);
-          this.addEventListeners();
-          // --- 追加: ノード種類のプロパティ ---
-          this.nodeType = "standard"; // "standard" または "text-only"
-          // --- 追加: Bold状態の初期値 ---
+          this.nodeType = "standard"; // "standard" or "text-only"
           this.boldText = false;
-
+          this.addEventListeners();
           if (id !== undefined) {
             this.id = id;
-            if (id >= NoteNode.nextId) {
-              NoteNode.nextId = id + 1;
-            }
+            if (id >= NoteNode.nextId) NoteNode.nextId = id + 1;
           } else {
             this.id = NoteNode.nextId++;
           }
           Logger.log("NoteNode created:", this.id, text, x, y);
         }
-
         setPosition(x, y) {
           this.x = x;
           this.y = y;
-          const h = this.anchorOffset || this.element.offsetHeight;
-          this.element.style.transform = `translate(${x}px, ${y - h}px)`;
+          this.element.style.transform = `translate(${x}px, ${y}px)`;
         }
-
         addEventListeners() {
-          this.element.addEventListener("mousedown", (e) => this.onMouseDown(e));
-        }
-
-        onMouseDown(e) {
-          if (e.button === 0) {
-            e.preventDefault();
-            this.app.handleNodeMouseDown(e, this);
-          }
-        }
-
-        startEditing() {
-          this.app.startEditingNode(this);
-        }
-
-        // --- 追加: ノード種類変更のためのメソッド ---
-        setType(newType) {
-          this.nodeType = newType;
-          if (newType === "text-only") {
-            this.element.classList.add("text-only");
-          } else {
-            this.element.classList.remove("text-only");
-          }
-          // --- 追加: ノード種類変更時に当該ノードを起点とする接続線を更新 ---
-          this.app.connections.forEach(conn => {
-            if (conn.fromNode === this) {
-              conn.update();
+          this.element.addEventListener("mousedown", e => {
+            if (this.element.isContentEditable || this.element.classList.contains("editing")) return;
+            if (e.button === 0) {
+              e.preventDefault();
+              this.app.handleNodeMouseDown(e, this);
             }
           });
         }
-
-        /**
-         * Bold状態を設定する
-         * @param {boolean} isBold Bold状態にするかどうか
-         */
+        startEditing() {
+          this.app.startEditingNode(this);
+        }
+        setType(newType) {
+          this.nodeType = newType;
+          if (newType === "text-only") this.element.classList.add("text-only");
+          else this.element.classList.remove("text-only");
+          // 接続線の更新
+          this.app.connections.forEach(conn => {
+            if (conn.fromNode === this) conn.update();
+          });
+        }
         setBold(isBold) {
           this.boldText = isBold;
-          if (isBold) {
-            this.element.classList.add("bold-text");
-          } else {
-            this.element.classList.remove("bold-text");
-          }
+          if (isBold) this.element.classList.add("bold-text");
+          else this.element.classList.remove("bold-text");
         }
       }
       NoteNode.nextId = 1;
 
-      // --- 5. Connection クラス（接続線管理） ---
+      /* ===== 4. 接続線クラス ===== */
       class Connection {
-        /**
-         * 接続線生成
-         * @param {NoteNode|null} fromNode 始点ノード（存在しない場合はfromCoordで管理）
-         * @param {NoteNode|null} toNode 終点ノード（存在しない場合はtoCoordで管理）
-         * @param {YaNoteApp} app アプリインスタンス
-         */
         constructor(fromNode, toNode, app) {
           this.app = app;
           this.fromNode = fromNode;
           this.toNode = toNode;
           this.fromCoord = null;
           this.toCoord = null;
+          this.lineType = "standard"; // "standard", "no-arrow", "reverse-arrow", "both-arrow"
+          this.dashType = "solid";    // "solid", "dashed"
           this.startHandle = null;
           this.endHandle = null;
-          // --- 追加: 線種プロパティ ---
-          this.lineType = "standard"; // "standard", "no-arrow", "reverse-arrow", "both-arrow"
           this.line = document.createElementNS("http://www.w3.org/2000/svg", "line");
           this.line.setAttribute("stroke", "#000");
           this.line.setAttribute("stroke-width", "2");
-          // --- 変更: デフォルトの線種をアプリのデフォルト値から設定 ---
           this.setLineType(this.app.defaultLineType || "standard");
+          this.setDashType(this.app.defaultDashType || "solid");
           this.line.style.pointerEvents = "auto";
-          this.line.addEventListener("click", (e) => {
-            e.stopPropagation();
-            this.app.selectConnection(this);
-          });
+          this.line.addEventListener("click", e => { e.stopPropagation(); this.app.selectConnection(this); });
           if (this.fromNode === null && this.toNode === null) {
-            this.line.addEventListener("mousedown", (e) => {
+            this.line.addEventListener("mousedown", e => {
               if (e.button === 0) {
                 e.stopPropagation();
                 e.preventDefault();
-                if (this.app.selectedConnections.includes(this)) {
-                  this.app.startGroupMove(e);
-                } else {
-                  this.startDrag(e);
-                }
+                if (this.app.selectedConnections.includes(this)) this.app.startGroupMove(e);
+                else this.startDrag(e);
               }
             });
           }
@@ -564,54 +359,30 @@
           let fromPoint, toPoint;
           if (this.fromNode && document.body.contains(this.fromNode.element)) {
             const rect = this.fromNode.element.getBoundingClientRect();
-            fromPoint = {
-              x: rect.left + rect.width / 2 - canvasRect.left,
-              y: rect.top + rect.height / 2 - canvasRect.top
-            };
+            fromPoint = { x: rect.left + rect.width/2 - canvasRect.left, y: rect.top + rect.height/2 - canvasRect.top };
           } else if (this.fromCoord && typeof this.fromCoord.x === "number") {
             fromPoint = this.fromCoord;
           } else return;
-
           if (this.toNode && document.body.contains(this.toNode.element)) {
             const rect = this.toNode.element.getBoundingClientRect();
-            toPoint = {
-              x: rect.left + rect.width / 2 - canvasRect.left,
-              y: rect.top + rect.height / 2 - canvasRect.top
-            };
+            toPoint = { x: rect.left + rect.width/2 - canvasRect.left, y: rect.top + rect.height/2 - canvasRect.top };
           } else if (this.toCoord && typeof this.toCoord.x === "number") {
             toPoint = this.toCoord;
           } else return;
-
-          // --- 始点と終点の中心点を保存 ---
-          const origFromPoint = { x: fromPoint.x, y: fromPoint.y };
-          const origToPoint = { x: toPoint.x, y: toPoint.y };
-
-          // --- 終点調整：ノードが存在する場合、矢印がノードと重ならないように調整 ---
+          const origFrom = Object.assign({}, fromPoint);
+          const origTo = Object.assign({}, toPoint);
           if (this.toNode && document.body.contains(this.toNode.element)) {
-            const endpoint = Utils.computeEndpoint(
-              origToPoint.x, origToPoint.y,
-              origFromPoint.x, origFromPoint.y,
-              this.toNode.element.getBoundingClientRect()
-            );
+            const endpoint = Utils.computeEndpoint(origTo.x, origTo.y, origFrom.x, origFrom.y, this.toNode.element.getBoundingClientRect());
             toPoint.x = endpoint.arrowX;
             toPoint.y = endpoint.arrowY;
           }
-
-          // --- 修正: 始点調整：線種が "reverse-arrow" または "both-arrow" の場合に始点側の矢印がノードと重ならないように調整 ---
           if ((this.lineType === "reverse-arrow" || this.lineType === "both-arrow") &&
-            this.fromNode && document.body.contains(this.fromNode.element)) {
-            // 終点と始点の位置を入れ替えて計算する
-            // 重要: ここでtoPointからfromPointへの方向で計算する
-            const startpoint = Utils.computeEndpoint(
-              origFromPoint.x, origFromPoint.y,
-              origToPoint.x, origToPoint.y,
-              this.fromNode.element.getBoundingClientRect()
-            );
-            // 始点側の調整位置を設定
+              this.fromNode && document.body.contains(this.fromNode.element)) {
+            const startpoint = Utils.computeEndpoint(origFrom.x, origFrom.y, origTo.x, origTo.y, this.fromNode.element.getBoundingClientRect());
             fromPoint.x = startpoint.arrowX;
             fromPoint.y = startpoint.arrowY;
           }
-          // --- 追加: テキストのみノードの場合、線の始点をノードのバウンディングボックスとの交点＋オフセットにする ---
+          // テキストのみノードの場合の補正（元のロジックに準拠）
           if (this.fromNode && this.fromNode.nodeType === "text-only") {
             const nodeRect = this.fromNode.element.getBoundingClientRect();
             const localRect = {
@@ -628,24 +399,15 @@
             const ndx = dirX / len;
             const ndy = dirY / len;
             let tCandidates = [];
-            if (ndx > 0) {
-              tCandidates.push((localRect.right - cx) / ndx);
-            } else if (ndx < 0) {
-              tCandidates.push((localRect.left - cx) / ndx);
-            }
-            if (ndy > 0) {
-              tCandidates.push((localRect.bottom - cy) / ndy);
-            } else if (ndy < 0) {
-              tCandidates.push((localRect.top - cy) / ndy);
-            }
+            if (ndx > 0) tCandidates.push((localRect.right - cx) / ndx);
+            else if (ndx < 0) tCandidates.push((localRect.left - cx) / ndx);
+            if (ndy > 0) tCandidates.push((localRect.bottom - cy) / ndy);
+            else if (ndy < 0) tCandidates.push((localRect.top - cy) / ndy);
             const t = Math.min(...tCandidates.filter(v => v > 0));
-            // オフセットは2px＋(ノード幅の割合)とする例
             const offset = 2 + (nodeRect.width / 50);
             fromPoint.x = cx + ndx * (t + offset);
             fromPoint.y = cy + ndy * (t + offset);
           }
-
-          // --- 追加: text-only対応を終点側にも実装 ---
           if (this.toNode && this.toNode.nodeType === "text-only") {
             const nodeRect = this.toNode.element.getBoundingClientRect();
             const localRect = {
@@ -662,23 +424,15 @@
             const ndx = dirX / len;
             const ndy = dirY / len;
             let tCandidates = [];
-            if (ndx > 0) {
-              tCandidates.push((localRect.right - cx) / ndx);
-            } else if (ndx < 0) {
-              tCandidates.push((localRect.left - cx) / ndx);
-            }
-            if (ndy > 0) {
-              tCandidates.push((localRect.bottom - cy) / ndy);
-            } else if (ndy < 0) {
-              tCandidates.push((localRect.top - cy) / ndy);
-            }
+            if (ndx > 0) tCandidates.push((localRect.right - cx) / ndx);
+            else if (ndx < 0) tCandidates.push((localRect.left - cx) / ndx);
+            if (ndy > 0) tCandidates.push((localRect.bottom - cy) / ndy);
+            else if (ndy < 0) tCandidates.push((localRect.top - cy) / ndy);
             const t = Math.min(...tCandidates.filter(v => v > 0));
-            // オフセットは2px＋(ノード幅の割合)とする例
             const offset = 2 + (nodeRect.width / 50);
             toPoint.x = cx + ndx * (t + offset);
             toPoint.y = cy + ndy * (t + offset);
           }
-
           this.line.setAttribute("x1", fromPoint.x);
           this.line.setAttribute("y1", fromPoint.y);
           this.line.setAttribute("x2", toPoint.x);
@@ -691,7 +445,6 @@
             this.endHandle.style.left = (toPoint.x - 4) + "px";
             this.endHandle.style.top = (toPoint.y - 4) + "px";
           }
-
         }
         showHandles() {
           this.hideHandles();
@@ -709,55 +462,37 @@
           this.app.addHandleDrag(this.endHandle, this, "to");
         }
         hideHandles() {
-          if (this.startHandle && this.startHandle.parentNode) {
-            this.startHandle.parentNode.removeChild(this.startHandle);
-          }
-          if (this.endHandle && this.endHandle.parentNode) {
-            this.endHandle.parentNode.removeChild(this.endHandle);
-          }
-          this.startHandle = null;
-          this.endHandle = null;
+          if (this.startHandle && this.startHandle.parentNode) this.startHandle.parentNode.removeChild(this.startHandle);
+          if (this.endHandle && this.endHandle.parentNode) this.endHandle.parentNode.removeChild(this.endHandle);
+          this.startHandle = this.endHandle = null;
         }
         startDrag(e) {
           const startX = e.clientX, startY = e.clientY;
-          const initialFrom = { x: this.fromCoord.x, y: this.fromCoord.y };
-          const initialTo = { x: this.toCoord.x, y: this.toCoord.y };
-          const onMouseMove = (e) => {
-            const dx = (e.clientX - startX) / this.app.globalZoom;
-            const dy = (e.clientY - startY) / this.app.globalZoom;
-            this.fromCoord.x = initialFrom.x + dx;
-            this.fromCoord.y = initialFrom.y + dy;
-            this.toCoord.x = initialTo.x + dx;
-            this.toCoord.y = initialTo.y + dy;
+          const initFrom = Object.assign({}, this.fromCoord);
+          const initTo = Object.assign({}, this.toCoord);
+          const onMove = e => {
+            const dx = e.clientX - startX, dy = e.clientY - startY;
+            this.fromCoord = { x: initFrom.x + dx, y: initFrom.y + dy };
+            this.toCoord = { x: initTo.x + dx, y: initTo.y + dy };
             this.update();
           };
-          const onMouseUp = (e) => {
-            document.removeEventListener("mousemove", onMouseMove);
-            document.removeEventListener("mouseup", onMouseUp);
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
             this.app.saveState();
           };
-          document.addEventListener("mousemove", onMouseMove);
-          document.addEventListener("mouseup", onMouseUp);
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
         }
-
-        /**
-         * 線種を設定する
-         * @param {string} type 線種("standard", "no-arrow", "reverse-arrow", "both-arrow")
-         */
         setLineType(type) {
           this.lineType = type;
-
-          // マーカーの設定をリセット
           this.line.removeAttribute("marker-start");
           this.line.removeAttribute("marker-end");
-
-          // 線種に応じたマーカーを設定
           switch (type) {
             case "standard":
               this.line.setAttribute("marker-end", "url(#arrowhead)");
               break;
             case "no-arrow":
-              // マーカーなしは属性を設定しない
               break;
             case "reverse-arrow":
               this.line.setAttribute("marker-start", "url(#start-arrow)");
@@ -767,16 +502,21 @@
               this.line.setAttribute("marker-end", "url(#both-end-arrow)");
               break;
             default:
-              // デフォルトは標準の終点矢印
               this.line.setAttribute("marker-end", "url(#arrowhead)");
           }
-
-          // 線種変更後に接続線を更新
+          this.update();
+        }
+        setDashType(type) {
+          this.dashType = type;
+          this.line.removeAttribute("stroke-dasharray");
+          if (type === "dashed") {
+            this.line.setAttribute("stroke-dasharray", "4,4");
+          }
           this.update();
         }
       }
 
-      // --- 6. YaNoteApp クラス（アプリ全体の管理） ---
+      /* ===== 5. アプリ全体管理クラス ===== */
       class YaNoteApp {
         constructor() {
           this.canvas = document.getElementById("canvas");
@@ -793,391 +533,228 @@
           this.redoStack = [];
           this.globalPan = { x: 0, y: 0 };
           this.globalZoom = 1;
-          // --- 追加: ズーム制限 ---
-          this.minZoom = 0.2; // 最小ズーム率
-          this.maxZoom = 3.0; // 最大ズーム率
-          // --- 追加: デフォルトのノード種類 ---
           this.defaultNodeType = "standard";
-          // --- 追加: デフォルトの線種 ---
           this.defaultLineType = "standard";
-          // --- 追加: 復帰時かどうかのフラグ ---
+          this.defaultDashType = "solid";
           this.restored = false;
           this.updateGlobalTransform();
           this.initEventListeners();
-          const storedData = localStorage.getItem("yaNoteData");
-          if (storedData) {
-            this.loadFromLocalStorage();
-            this.restored = true;
-          } else {
-            const initialX = 5000, initialY = 5000;
-            let node = this.createNode("中心ノード", initialX, initialY);
+
+          const stored = localStorage.getItem("yaNoteData");
+          if (stored) { this.loadFromLocalStorage(); this.restored = true; }
+          else {
+            const cx = 5000, cy = 5000;
+            let node = this.createNode("中心ノード", cx, cy);
             node.setType(this.defaultNodeType);
             this.saveState();
           }
-          // --- 変更: 復帰時はキャンバス位置を保持するため、load時の recalcCenter を実行しない ---
           if (!this.restored) {
-            window.addEventListener("load", () => this.recalcCenter());
             window.addEventListener("resize", () => this.recalcCenter());
+            window.addEventListener("load", () => this.recalcCenter());
           }
-          // --- 追加: コントロールパネルのボタン状態を初期化 ---
           this.updateControlButtonsState();
           Logger.log("YaNoteApp initialized");
         }
         updateGlobalTransform() {
-          this.canvas.style.transform =
-            `translate(-5000px, -5000px) translate(${this.globalPan.x}px, ${this.globalPan.y}px) scale(${this.globalZoom})`;
+          this.canvas.style.transform = `translate(-5000px, -5000px) translate(${this.globalPan.x}px, ${this.globalPan.y}px) scale(${this.globalZoom})`;
         }
         recalcCenter() {
-          if (this.restored) return;
-          let centerNode = this.nodes.find(n => n.element.textContent.trim() === "中心ノード");
-          if (!centerNode && this.nodes.length > 0) {
-            centerNode = this.nodes[0];
-          }
-          if (centerNode) {
-            const rect = centerNode.element.getBoundingClientRect();
-            const nodeCenterX = rect.left + rect.width / 2;
-            const nodeCenterY = rect.top + rect.height / 2;
-            this.globalPan.x = (window.innerWidth / 2) - nodeCenterX;
-            this.globalPan.y = (window.innerHeight / 2) - nodeCenterY;
+          let center = this.nodes.find(n => n.element.textContent.trim() === "中心ノード") || this.nodes[0];
+          if (center) {
+            const rect = center.element.getBoundingClientRect();
+            const cx = rect.left + rect.width/2;
+            const cy = rect.top + rect.height/2;
+            this.globalPan.x = (window.innerWidth/2) - cx;
+            this.globalPan.y = (window.innerHeight/2) - cy;
             this.updateGlobalTransform();
             this.updateAllConnections();
           }
         }
         eventToLogical(e) {
-          const canvasRect = this.canvas.getBoundingClientRect();
-          const renderedX = e.clientX - canvasRect.left;
-          const renderedY = e.clientY - canvasRect.top;
-          return { x: renderedX / this.globalZoom, y: renderedY / this.globalZoom };
+          const rect = this.canvas.getBoundingClientRect();
+          return { x: (e.clientX - rect.left)/this.globalZoom, y: (e.clientY - rect.top)/this.globalZoom };
         }
         initEventListeners() {
-          this.canvas.addEventListener("mousedown", (e) => {
-            if (e.button === 2) { this.startPan(e); }
-          });
-          this.canvas.addEventListener("contextmenu", (e) => {
-            if (this.canvas.style.cursor === "grabbing") { e.preventDefault(); }
-          });
-          this.canvas.addEventListener("mousedown", (e) => {
-            if (e.button === 0) this.onCanvasMouseDown(e);
-          });
+          this.canvas.addEventListener("mousedown", e => { if (e.button === 2) this.startPan(e); });
+          this.canvas.addEventListener("contextmenu", e => { if (this.canvas.style.cursor === "grabbing") e.preventDefault(); });
+          this.canvas.addEventListener("mousedown", e => { if (e.button === 0) this.onCanvasMouseDown(e); });
           window.addEventListener("resize", () => this.updateAllConnections());
-          document.addEventListener("mousedown", (e) => {
+          document.addEventListener("mousedown", e => {
             if (!e.target.closest(".node") && !e.target.closest(".html-handle") && e.target.tagName.toLowerCase() !== "line") {
               this.hideAllHandles();
             }
           });
-          document.addEventListener("keydown", (e) => {
+          document.addEventListener("keydown", e => {
             if (document.activeElement && document.activeElement.isContentEditable) return;
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
-              e.preventDefault();
-              this.undo();
-            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
-              e.preventDefault();
-              this.redo();
-            } else if (e.key === "Backspace" || e.key === "Delete") {
-              e.preventDefault();
-              this.deleteSelection();
-              this.saveState();
-            }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); this.undo(); }
+            else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") { e.preventDefault(); this.redo(); }
+            else if (["Backspace", "Delete"].includes(e.key)) { e.preventDefault(); this.deleteSelection(); this.saveState(); }
           });
-          window.addEventListener("storage", (e) => {
-            if (e.key === "yaNoteData") { location.reload(); }
-          });
-
-          // --- 追加: ホイールイベントによるパン処理 ---
-          this.canvas.addEventListener("wheel", (e) => {
-            e.preventDefault(); // 標準のスクロールを防止
-
-            // Ctrlキーまたはmetaキー(Mac)が押されている場合はズーム処理をスキップ
-            if (e.ctrlKey || e.metaKey) {
-              // ズーム処理は一時的に無効化
-              // this.handleZoom(e);
-              return; // 何もせずに終了
-            }
-            // Shiftキーが押されている場合は横方向のパン
-            else if (e.shiftKey) {
-              // シフトキー押下時は、deltaYの値を横方向の移動に適用
-              // 一部のマウスでは、shiftキー押下時に自動的にdeltaXに値が入る場合があるため、
-              // 両方をチェックしてより大きい方の値を使用
+          window.addEventListener("storage", e => { if (e.key === "yaNoteData") location.reload(); });
+          this.canvas.addEventListener("wheel", e => {
+            if (e.ctrlKey || e.metaKey) return;
+            e.preventDefault();
+            if (e.shiftKey) {
               const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-              this.globalPan.x -= dx * 0.5; // 感度調整係数
-              this.updateGlobalTransform();
-              this.updateAllConnections();
+              this.globalPan.x -= dx * 0.5;
+            } else {
+              if (e.deltaY !== 0) this.globalPan.y -= e.deltaY * 0.5;
+              if (e.deltaX !== 0) this.globalPan.x -= e.deltaX * 0.5;
             }
-            // 通常のホイールやトラックパッド操作
-            else {
-              // 縦横両方向のパン
-              if (e.deltaY !== 0) {
-                const dy = e.deltaY * 0.5; // 感度調整係数
-                this.globalPan.y -= dy;
-              }
-
-              if (e.deltaX !== 0) {
-                const dx = e.deltaX * 0.5; // 感度調整係数
-                this.globalPan.x -= dx;
-              }
-
-              this.updateGlobalTransform();
-              this.updateAllConnections();
-            }
+            this.updateGlobalTransform();
+            this.updateAllConnections();
           }, { passive: false });
-
-          // --- 追加: ノード種類変更ボタンのイベント ---
+          this.initControlPanel();
+        }
+        initControlPanel() {
           const changeTypeBtn = document.getElementById("changeTypeBtn");
+          const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
+          const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
+          const boldTextBtn = document.getElementById("boldTextBtn");
+
           changeTypeBtn.addEventListener("click", () => {
             if (this.selectedNodes.length > 0) {
-              // グループ選択の場合：全ノードの種類を一括トグル
-              // すべてが "text-only" なら "standard"、それ以外なら "text-only" とする
-              const allTextOnly = this.selectedNodes.every(n => n.nodeType === "text-only");
-              const targetType = allTextOnly ? "standard" : "text-only";
-              this.selectedNodes.forEach(n => n.setType(targetType));
-              this.defaultNodeType = targetType;
+              const allText = this.selectedNodes.every(n => n.nodeType === "text-only");
+              const target = allText ? "standard" : "text-only";
+              this.selectedNodes.forEach(n => n.setType(target));
+              this.defaultNodeType = target;
               this.saveState();
-              // --- 追加: 状態変更後にボタン状態を更新 ---
               this.updateControlButtonsState();
-              // --- 追加: ツールチップを表示 ---
-              Utils.showTooltip(changeTypeBtn, `ノード種類: ${targetType === "standard" ? "標準" : "テキストのみ"}`);
+              Utils.showTooltip(changeTypeBtn, `ノード種類: ${target === "standard" ? "標準" : "テキストのみ"}`);
             } else if (this.selectedNode) {
-              // 単一選択の場合
               const newType = this.selectedNode.nodeType === "standard" ? "text-only" : "standard";
               this.selectedNode.setType(newType);
               this.defaultNodeType = newType;
               this.saveState();
-              // --- 追加: 状態変更後にボタン状態を更新 ---
               this.updateControlButtonsState();
-              // --- 追加: ツールチップを表示 ---
               Utils.showTooltip(changeTypeBtn, `ノード種類: ${newType === "standard" ? "標準" : "テキストのみ"}`);
             } else {
-              // --- 変更: 選択がなくても切り替え可能にする ---
               const newType = this.defaultNodeType === "standard" ? "text-only" : "standard";
               this.defaultNodeType = newType;
               this.saveState();
-              // --- 追加: 状態変更後にボタン状態を更新 ---
               this.updateControlButtonsState();
-              // --- 追加: ツールチップを表示 ---
               Utils.showTooltip(changeTypeBtn, `デフォルトノード種類: ${newType === "standard" ? "標準" : "テキストのみ"}`);
             }
           });
-
-          // --- 追加: ノード種類変更ボタンのマウスオーバーイベント ---
           changeTypeBtn.addEventListener("mouseenter", () => {
-            let tooltipText = `現在のノード種類: ${this.defaultNodeType === "standard" ? "標準" : "テキストのみ"}`;
+            let tip = `現在のノード種類: ${this.defaultNodeType === "standard" ? "標準" : "テキストのみ"}`;
             if (this.selectedNodes.length > 0) {
-              const allTextOnly = this.selectedNodes.every(n => n.nodeType === "text-only");
-              const allStandard = this.selectedNodes.every(n => n.nodeType === "standard");
-              if (allTextOnly) {
-                tooltipText = "選択中のノード: テキストのみ";
-              } else if (allStandard) {
-                tooltipText = "選択中のノード: 標準";
-              } else {
-                tooltipText = "選択中のノード: 混在";
-              }
+              const allText = this.selectedNodes.every(n => n.nodeType === "text-only");
+              const allStd = this.selectedNodes.every(n => n.nodeType === "standard");
+              tip = allText ? "選択中: テキストのみ" : allStd ? "選択中: 標準" : "選択中: 混在";
             } else if (this.selectedNode) {
-              tooltipText = `選択中のノード: ${this.selectedNode.nodeType === "standard" ? "標準" : "テキストのみ"}`;
+              tip = `選択中: ${this.selectedNode.nodeType === "standard" ? "標準" : "テキストのみ"}`;
             }
-            Utils.showTooltip(changeTypeBtn, tooltipText);
+            Utils.showTooltip(changeTypeBtn, tip);
           });
 
-          // --- 追加: 線種変更ボタンのイベント ---
-          const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
           changeLineTypeBtn.addEventListener("click", () => {
+            let next;
             if (this.selectedConnections.length > 0) {
-              // 選択されている線の種類を判断
-              const currentTypes = new Set(this.selectedConnections.map(conn => conn.lineType));
-
-              // 次の線種を決定（ローテーション方式）
-              let nextType;
-              if (currentTypes.size === 1) {
-                // 全て同じタイプの場合は次のタイプにローテーション
-                const currentType = this.selectedConnections[0].lineType;
-                switch (currentType) {
-                  case "standard": nextType = "no-arrow"; break;
-                  case "no-arrow": nextType = "reverse-arrow"; break;
-                  case "reverse-arrow": nextType = "both-arrow"; break;
-                  case "both-arrow": nextType = "standard"; break;
-                  default: nextType = "standard";
-                }
-              } else {
-                // 複数のタイプが混在している場合は standard に統一
-                nextType = "standard";
-              }
-
-              // 選択されている全ての線のタイプを変更
-              this.selectedConnections.forEach(conn => {
-                conn.setLineType(nextType);
-              });
-
-              // デフォルトの線種を更新
-              this.defaultLineType = nextType;
-              this.saveState();
-              // --- 追加: 状態変更後にボタン状態を更新 ---
-              this.updateControlButtonsState();
-              // --- 追加: ツールチップを表示 ---
-              Utils.showTooltip(changeLineTypeBtn, `線種: ${this.getLineTypeName(nextType)}`);
-            } else if (this.selectedConnection) {
-              // 単一選択の場合、ローテーション方式で線種を変更
-              let nextType;
-              switch (this.selectedConnection.lineType) {
-                case "standard": nextType = "no-arrow"; break;
-                case "no-arrow": nextType = "reverse-arrow"; break;
-                case "reverse-arrow": nextType = "both-arrow"; break;
-                case "both-arrow": nextType = "standard"; break;
-                default: nextType = "standard";
-              }
-              this.selectedConnection.setLineType(nextType);
-              this.defaultLineType = nextType;
-              this.saveState();
-              // --- 追加: 状態変更後にボタン状態を更新 ---
-              this.updateControlButtonsState();
-              // --- 追加: ツールチップを表示 ---
-              Utils.showTooltip(changeLineTypeBtn, `線種: ${this.getLineTypeName(nextType)}`);
-            } else {
-              // --- 変更: 線が選択されていなくても線種を変更できるようにする ---
-              let nextType;
-              switch (this.defaultLineType) {
-                case "standard": nextType = "no-arrow"; break;
-                case "no-arrow": nextType = "reverse-arrow"; break;
-                case "reverse-arrow": nextType = "both-arrow"; break;
-                case "both-arrow": nextType = "standard"; break;
-                default: nextType = "standard";
-              }
-              this.defaultLineType = nextType;
-              this.saveState();
-              // --- 追加: 状態変更後にボタン状態を更新 ---
-              this.updateControlButtonsState();
-              // --- 追加: ツールチップを表示 ---
-              Utils.showTooltip(changeLineTypeBtn, `デフォルト線種: ${this.getLineTypeName(nextType)}`);
-            }
-          });
-
-          // --- 追加: 線種変更ボタンのマウスオーバーイベント ---
-          changeLineTypeBtn.addEventListener("mouseenter", () => {
-            let tooltipText = `現在の線種: ${this.getLineTypeName(this.defaultLineType)}`;
-            if (this.selectedConnections.length > 0) {
-              const types = new Set(this.selectedConnections.map(conn => conn.lineType));
+              const types = new Set(this.selectedConnections.map(c => c.lineType));
               if (types.size === 1) {
-                tooltipText = `選択中の線種: ${this.getLineTypeName(this.selectedConnections[0].lineType)}`;
+                const current = this.selectedConnections[0].lineType;
+                next = current === "standard" ? "no-arrow" : current === "no-arrow" ? "reverse-arrow" : current === "reverse-arrow" ? "both-arrow" : "standard";
               } else {
-                tooltipText = "選択中の線種: 混在";
+                next = "standard";
               }
+              this.selectedConnections.forEach(c => c.setLineType(next));
+              this.defaultLineType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeLineTypeBtn, `線種: ${this.getLineTypeName(next)}`);
             } else if (this.selectedConnection) {
-              tooltipText = `選択中の線種: ${this.getLineTypeName(this.selectedConnection.lineType)}`;
+              const current = this.selectedConnection.lineType;
+              next = current === "standard" ? "no-arrow" : current === "no-arrow" ? "reverse-arrow" : current === "reverse-arrow" ? "both-arrow" : "standard";
+              this.selectedConnection.setLineType(next);
+              this.defaultLineType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeLineTypeBtn, `線種: ${this.getLineTypeName(next)}`);
+            } else {
+              const current = this.defaultLineType;
+              next = current === "standard" ? "no-arrow" : current === "no-arrow" ? "reverse-arrow" : current === "reverse-arrow" ? "both-arrow" : "standard";
+              this.defaultLineType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeLineTypeBtn, `デフォルト線種: ${this.getLineTypeName(next)}`);
             }
-            Utils.showTooltip(changeLineTypeBtn, tooltipText);
           });
-          // --- 追加: Boldボタンのイベント ---
-          const boldTextBtn = document.getElementById("boldTextBtn");
+          changeLineTypeBtn.addEventListener("mouseenter", () => {
+            let tip = `現在の線種: ${this.getLineTypeName(this.defaultLineType)}`;
+            if (this.selectedConnections.length > 0) {
+              const types = new Set(this.selectedConnections.map(c => c.lineType));
+              tip = types.size === 1 ? `選択中: ${this.getLineTypeName([...types][0])}` : "選択中: 混在";
+            } else if (this.selectedConnection) {
+              tip = `選択中: ${this.getLineTypeName(this.selectedConnection.lineType)}`;
+            }
+            Utils.showTooltip(changeLineTypeBtn, tip);
+          });
+
+          changeDashTypeBtn.addEventListener("click", () => {
+            let next;
+            if (this.selectedConnections.length > 0) {
+              const types = new Set(this.selectedConnections.map(c => c.dashType));
+              next = types.size === 1 ? (this.selectedConnections[0].dashType === "solid" ? "dashed" : "solid") : "solid";
+              this.selectedConnections.forEach(c => c.setDashType(next));
+              this.defaultDashType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeDashTypeBtn, `線タイプ: ${this.getDashTypeName(next)}`);
+            } else if (this.selectedConnection) {
+              next = this.selectedConnection.dashType === "solid" ? "dashed" : "solid";
+              this.selectedConnection.setDashType(next);
+              this.defaultDashType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeDashTypeBtn, `線タイプ: ${this.getDashTypeName(next)}`);
+            } else {
+              next = this.defaultDashType === "solid" ? "dashed" : "solid";
+              this.defaultDashType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeDashTypeBtn, `デフォルト線タイプ: ${this.getDashTypeName(next)}`);
+            }
+          });
+          changeDashTypeBtn.addEventListener("mouseenter", () => {
+            let tip = `現在の線タイプ: ${this.getDashTypeName(this.defaultDashType)}`;
+            if (this.selectedConnections.length > 0) {
+              const types = new Set(this.selectedConnections.map(c => c.dashType));
+              tip = types.size === 1 ? `選択中: ${this.getDashTypeName([...types][0])}` : "選択中: 混在";
+            } else if (this.selectedConnection) {
+              tip = `選択中: ${this.getDashTypeName(this.selectedConnection.dashType)}`;
+            }
+            Utils.showTooltip(changeDashTypeBtn, tip);
+          });
+
           boldTextBtn.addEventListener("click", () => {
             if (this.selectedNodes.length > 0) {
-              // 全てのノードがBoldかどうか判定
               const allBold = this.selectedNodes.every(n => n.boldText);
-
-              // 全てBoldなら全てオフに、そうでなければ全てオンに
-              const newBoldState = !allBold;
-
-              this.selectedNodes.forEach(n => n.setBold(newBoldState));
+              const newState = !allBold;
+              this.selectedNodes.forEach(n => n.setBold(newState));
               this.saveState();
-
-              // 状態変更後にボタン状態を更新
               this.updateControlButtonsState();
-
-              // ツールチップを表示
-              Utils.showTooltip(boldTextBtn, `太字: ${newBoldState ? "オン" : "オフ"}`);
+              Utils.showTooltip(boldTextBtn, `太字: ${newState ? "オン" : "オフ"}`);
             } else if (this.selectedNode) {
-              // 単一ノード選択の場合
-              const newBoldState = !this.selectedNode.boldText;
-              this.selectedNode.setBold(newBoldState);
+              const newState = !this.selectedNode.boldText;
+              this.selectedNode.setBold(newState);
               this.saveState();
-
-              // 状態変更後にボタン状態を更新
               this.updateControlButtonsState();
-
-              // ツールチップを表示
-              Utils.showTooltip(boldTextBtn, `太字: ${newBoldState ? "オン" : "オフ"}`);
+              Utils.showTooltip(boldTextBtn, `太字: ${newState ? "オン" : "オフ"}`);
             }
           });
-
-          // Boldボタンのマウスオーバーイベント
           boldTextBtn.addEventListener("mouseenter", () => {
-            let tooltipText = "太字";
+            let tip = "太字";
             if (this.selectedNodes.length > 0) {
               const allBold = this.selectedNodes.every(n => n.boldText);
               const noneBold = this.selectedNodes.every(n => !n.boldText);
-
-              if (allBold) {
-                tooltipText = "選択中のノード: 太字";
-              } else if (noneBold) {
-                tooltipText = "選択中のノード: 通常";
-              } else {
-                tooltipText = "選択中のノード: 混在";
-              }
+              tip = allBold ? "選択中: 太字" : noneBold ? "選択中: 通常" : "選択中: 混在";
             } else if (this.selectedNode) {
-              tooltipText = `選択中のノード: ${this.selectedNode.boldText ? "太字" : "通常"}`;
+              tip = `選択中: ${this.selectedNode.boldText ? "太字" : "通常"}`;
             }
-            Utils.showTooltip(boldTextBtn, tooltipText);
+            Utils.showTooltip(boldTextBtn, tip);
           });
         }
-
-        /**
-         * マウスホイールによるズーム処理
-         * @param {WheelEvent} e ホイールイベント
-         */
-        // updateGlobalTransform メソッドの修正
-        updateGlobalTransform() {
-          // transform を使って、移動とズームを適用
-          this.canvas.style.transform =
-            `translate(-5000px, -5000px) translate(${this.globalPan.x}px, ${this.globalPan.y}px) scale(${this.globalZoom})`;
-        }
-
-        // handleZoom メソッドの完全な書き直し
-        handleZoom(e) {
-          // ズーム量の計算（Chromeと他のブラウザでの値の違いを考慮）
-          const wheelDelta = e.deltaY || -e.wheelDelta;
-          const zoomDelta = -wheelDelta / 500; // 感度調整
-
-          // 現在のズーム率を保存
-          const oldZoom = this.globalZoom;
-
-          // 新しいズーム率を計算（制限内に）
-          const newZoom = Math.max(this.minZoom, Math.min(this.maxZoom, oldZoom * (1 + zoomDelta)));
-
-          // 変化がなければ何もしない
-          if (newZoom === oldZoom) return;
-
-          // マウス位置（ビューポート内）
-          const mouseViewportX = e.clientX;
-          const mouseViewportY = e.clientY;
-
-          // キャンバス内でのマウス位置
-          const canvasRect = this.canvas.getBoundingClientRect();
-          const mouseCanvasX = mouseViewportX - canvasRect.left;
-          const mouseCanvasY = mouseViewportY - canvasRect.top;
-
-          // ズーム前のキャンバス内でのマウス位置（論理座標）
-          const mouseLogicalX = (mouseCanvasX - this.globalPan.x) / oldZoom;
-          const mouseLogicalY = (mouseCanvasY - this.globalPan.y) / oldZoom;
-
-          // ズーム後のパン位置（マウス位置を固定）
-          this.globalPan.x = mouseCanvasX - mouseLogicalX * newZoom;
-          this.globalPan.y = mouseCanvasY - mouseLogicalY * newZoom;
-
-          // ズーム率更新
-          this.globalZoom = newZoom;
-
-          // 変換適用
-          this.updateGlobalTransform();
-
-          // 接続線更新
-          this.updateAllConnections();
-
-          // ズーム表示更新
-          Utils.updateZoomDisplay(this.globalZoom);
-        }
-
-        /**
-         * 線種の名称を取得する
-         * @param {string} type 線種コード("standard", "no-arrow", "reverse-arrow", "both-arrow")
-         * @returns {string} 線種の日本語名称
-         */
         getLineTypeName(type) {
           switch (type) {
             case "standard": return "標準矢印";
@@ -1187,52 +764,9 @@
             default: return "標準矢印";
           }
         }
-
-        /**
-         * コントロールパネルのボタン状態を更新する
-         */
-        updateControlButtonsState() {
-          const changeTypeBtn = document.getElementById("changeTypeBtn");
-          const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
-
-          // ノード種類ボタンの状態を更新
-          changeTypeBtn.classList.remove("active");
-          if (this.selectedNodes.length > 0) {
-            if (this.selectedNodes.every(n => n.nodeType === "standard")) {
-              changeTypeBtn.classList.add("active");
-            }
-          } else if (this.selectedNode && this.selectedNode.nodeType === "standard") {
-            changeTypeBtn.classList.add("active");
-          } else if (this.defaultNodeType === "standard") {
-            changeTypeBtn.classList.add("active");
-          }
-
-          // --- 線種ボタンの状態を更新 ---
-          changeLineTypeBtn.textContent = this.getLineTypeSymbol(
-            this.selectedConnections.length > 0 ? this.selectedConnections[0].lineType :
-              this.selectedConnection ? this.selectedConnection.lineType :
-                this.defaultLineType
-          );
-
-          // --- Boldボタンの状態を更新 ---
-          const boldTextBtn = document.getElementById("boldTextBtn");
-          boldTextBtn.classList.remove("active");
-          boldTextBtn.disabled = !(this.selectedNodes.length > 0 || this.selectedNode);
-
-          if (this.selectedNodes.length > 0) {
-            if (this.selectedNodes.every(n => n.boldText)) {
-              boldTextBtn.classList.add("active");
-            }
-          } else if (this.selectedNode && this.selectedNode.boldText) {
-            boldTextBtn.classList.add("active");
-          }
+        getDashTypeName(type) {
+          return type === "solid" ? "実線" : "点線";
         }
-
-        /**
-         * 線種を表すシンボルを取得する
-         * @param {string} type 線種コード("standard", "no-arrow", "reverse-arrow", "both-arrow")
-         * @returns {string} 線種を表すシンボル
-         */
         getLineTypeSymbol(type) {
           switch (type) {
             case "standard": return "→";
@@ -1242,37 +776,33 @@
             default: return "→";
           }
         }
-
+        getDashTypeSymbol(type) {
+          return type === "solid" ? "—" : "‥";
+        }
         startPan(e) {
           if (e.button !== 2) return;
           e.preventDefault();
           const startX = e.clientX, startY = e.clientY;
-          const initialPan = { x: this.globalPan.x, y: this.globalPan.y };
+          const initPan = Object.assign({}, this.globalPan);
           this.canvas.style.cursor = "grabbing";
-          let hasMoved = false;
-          const threshold = 5;
-          const onMouseMove = (e) => {
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-            if (!hasMoved && Math.sqrt(dx * dx + dy * dy) > threshold) { hasMoved = true; }
-            if (hasMoved) {
-              this.globalPan.x = initialPan.x + dx;
-              this.globalPan.y = initialPan.y + dy;
-              window.requestAnimationFrame(() => {
-                this.updateGlobalTransform();
-                this.updateAllConnections();
-              });
+          let moved = false;
+          const onMove = e => {
+            const dx = e.clientX - startX, dy = e.clientY - startY;
+            if (!moved && Math.sqrt(dx*dx+dy*dy) > 5) moved = true;
+            if (moved) {
+              this.globalPan.x = initPan.x + dx;
+              this.globalPan.y = initPan.y + dy;
+              requestAnimationFrame(() => { this.updateGlobalTransform(); this.updateAllConnections(); });
             }
           };
-          const onMouseUp = (e) => {
-            document.removeEventListener("mousemove", onMouseMove);
-            document.removeEventListener("mouseup", onMouseUp);
-            if (hasMoved) { this.canvas.style.cursor = "default"; }
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            if (moved) this.canvas.style.cursor = "default";
           };
-          document.addEventListener("mousemove", onMouseMove);
-          document.addEventListener("mouseup", onMouseUp);
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
         }
-
         onCanvasMouseDown(e) {
           if (e.target.closest(".node")) return;
           if (e.detail === 1) {
@@ -1283,134 +813,116 @@
             selRect.style.top = e.clientY + "px";
             document.body.appendChild(selRect);
             const startX = e.clientX, startY = e.clientY;
-            const onMouseMove = (e) => {
+            const onMove = e => {
               const x = Math.min(startX, e.clientX);
               const y = Math.min(startY, e.clientY);
-              const width = Math.abs(e.clientX - startX);
-              const height = Math.abs(e.clientY - startY);
               selRect.style.left = x + "px";
               selRect.style.top = y + "px";
-              selRect.style.width = width + "px";
-              selRect.style.height = height + "px";
+              selRect.style.width = Math.abs(e.clientX - startX) + "px";
+              selRect.style.height = Math.abs(e.clientY - startY) + "px";
             };
-            const onMouseUp = (e) => {
-              document.removeEventListener("mousemove", onMouseMove);
-              document.removeEventListener("mouseup", onMouseUp);
+            const onUp = e => {
+              document.removeEventListener("mousemove", onMove);
+              document.removeEventListener("mouseup", onUp);
               const selBox = selRect.getBoundingClientRect();
-              this.nodes.forEach(node => {
-                const nodeBox = node.element.getBoundingClientRect();
-                if (!(nodeBox.right < selBox.left || nodeBox.left > selBox.right ||
-                  nodeBox.bottom < selBox.top || nodeBox.top > selBox.bottom)) {
-                  this.selectedNodes.push(node);
-                  node.element.classList.add("selected");
+              this.nodes.forEach(n => {
+                const nBox = n.element.getBoundingClientRect();
+                if (!(nBox.right < selBox.left || nBox.left > selBox.right || nBox.bottom < selBox.top || nBox.top > selBox.bottom)) {
+                  this.selectedNodes.push(n);
+                  n.element.classList.add("selected");
                 }
               });
-              this.connections.forEach(conn => {
-                const lineRect = conn.line.getBoundingClientRect();
-                if (!(lineRect.right < selBox.left || lineRect.left > selBox.right ||
-                  lineRect.bottom < selBox.top || lineRect.top > selBox.bottom)) {
-                  this.selectedConnections.push(conn);
-                  conn.line.classList.add("selected-line");
-                  conn.showHandles();
+              this.connections.forEach(c => {
+                const lBox = c.line.getBoundingClientRect();
+                if (!(lBox.right < selBox.left || lBox.left > selBox.right || lBox.bottom < selBox.top || lBox.top > selBox.bottom)) {
+                  this.selectedConnections.push(c);
+                  c.line.classList.add("selected-line");
+                  c.showHandles();
                 }
               });
               document.body.removeChild(selRect);
-              // --- 追加: 選択状態が変わったらコントロールパネルを更新 ---
               this.updateControlButtonsState();
               this.saveState();
             };
-            document.addEventListener("mousemove", onMouseMove);
-            document.addEventListener("mouseup", onMouseUp);
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
           } else if (e.detail === 2) {
             this.startBlankDoubleClick(e);
           }
         }
-
         startMove(e, node) {
           if (!this.selectedNodes.includes(node)) {
             this.clearSelection();
             this.selectNode(node);
           }
-          if ((this.selectedNodes.length + this.selectedConnections.length) > 1) {
-            this.startGroupMove(e);
-            return;
-          }
-          let group = [node];
+          if (this.selectedNodes.length + this.selectedConnections.length > 1) { this.startGroupMove(e); return; }
+          const group = [node];
           this.clearSelection();
           group.forEach(n => n.element.classList.add("selected"));
           this.selectedNodes = group;
           this.selectedNode = node;
           const start = this.eventToLogical(e);
-          const initialPositions = new Map();
-          group.forEach(n => {
-            initialPositions.set(n, { x: n.x, y: n.y });
-          });
-          let isDragging = false;
-          const onMouseMove = (e) => {
-            const current = this.eventToLogical(e);
-            const dx = current.x - start.x;
-            const dy = current.y - start.y;
-            if (!isDragging && Math.sqrt(dx * dx + dy * dy) > 5) { isDragging = true; }
-            if (isDragging) {
+          const initPos = new Map(group.map(n => [n, { x: n.x, y: n.y }]));
+          let dragging = false;
+          const onMove = e => {
+            const cur = this.eventToLogical(e);
+            const dx = cur.x - start.x, dy = cur.y - start.y;
+            if (!dragging && Math.sqrt(dx*dx+dy*dy) > 5) dragging = true;
+            if (dragging) {
               group.forEach(n => {
-                const pos = initialPositions.get(n);
+                const pos = initPos.get(n);
                 n.setPosition(pos.x + dx, pos.y + dy);
               });
               this.updateAllConnections();
             }
           };
-          const onMouseUp = (e) => {
-            document.removeEventListener("mousemove", onMouseMove);
-            document.removeEventListener("mouseup", onMouseUp);
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
             this.saveState();
           };
-          document.addEventListener("mousemove", onMouseMove);
-          document.addEventListener("mouseup", onMouseUp);
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
         }
-
         startGroupMove(e) {
           const start = this.eventToLogical(e);
-          const nodeInitialPositions = new Map();
-          this.selectedNodes.forEach(node => {
-            nodeInitialPositions.set(node, { x: node.x, y: node.y });
+          const initPos = new Map(this.selectedNodes.map(n => [n, { x: n.x, y: n.y }]));
+          const connInit = new Map();
+          this.selectedConnections.forEach(c => {
+            if (c.fromCoord && c.toCoord)
+              connInit.set(c, { from: Object.assign({}, c.fromCoord), to: Object.assign({}, c.toCoord) });
           });
-          const connectionInitialPositions = new Map();
-          this.selectedConnections.forEach(conn => {
-            if (conn.fromCoord && conn.toCoord) {
-              connectionInitialPositions.set(conn, {
-                from: { x: conn.fromCoord.x, y: conn.fromCoord.y },
-                to: { x: conn.toCoord.x, y: conn.toCoord.y }
-              });
+          const connected = new Set();
+          this.connections.forEach(c => {
+            if ((c.fromNode && this.selectedNodes.includes(c.fromNode)) || (c.toNode && this.selectedNodes.includes(c.toNode))) {
+              if (!this.selectedConnections.includes(c)) connected.add(c);
             }
           });
-          const onMouseMove = (e) => {
-            const current = this.eventToLogical(e);
-            const dx = current.x - start.x;
-            const dy = current.y - start.y;
-            this.selectedNodes.forEach(node => {
-              const pos = nodeInitialPositions.get(node);
-              node.setPosition(pos.x + dx, pos.y + dy);
+          const onMove = e => {
+            const cur = this.eventToLogical(e);
+            const dx = cur.x - start.x, dy = cur.y - start.y;
+            this.selectedNodes.forEach(n => {
+              const pos = initPos.get(n);
+              n.setPosition(pos.x + dx, pos.y + dy);
             });
-            this.selectedConnections.forEach(conn => {
-              if (connectionInitialPositions.has(conn)) {
-                const pos = connectionInitialPositions.get(conn);
-                conn.fromCoord.x = pos.from.x + dx;
-                conn.fromCoord.y = pos.from.y + dy;
-                conn.toCoord.x = pos.to.x + dx;
-                conn.toCoord.y = pos.to.y + dy;
+            this.selectedConnections.forEach(c => {
+              if (connInit.has(c)) {
+                const pos = connInit.get(c);
+                c.fromCoord = { x: pos.from.x + dx, y: pos.from.y + dy };
+                c.toCoord = { x: pos.to.x + dx, y: pos.to.y + dy };
               }
-              conn.update();
+              c.update();
             });
+            connected.forEach(c => c.update());
           };
-          const onMouseUp = (e) => {
-            document.removeEventListener("mousemove", onMouseMove);
-            document.removeEventListener("mouseup", onMouseUp);
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
             this.saveState();
           };
-          document.addEventListener("mousemove", onMouseMove);
-          document.addEventListener("mouseup", onMouseUp);
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
         }
-
         handleNodeMouseDown(e, node) {
           if (this.selectedConnection) {
             this.selectedConnection.line.classList.remove("selected-line");
@@ -1422,599 +934,423 @@
             this.startDoubleClick(e, node);
             return;
           }
-          const mouseDownTime = Date.now();
-          this.moveTimer = setTimeout(() => {
-            this.startMove(e, node);
-            this.moveTimer = null;
-          }, 250);
-          const cancelMove = (e) => {
-            if (Date.now() - mouseDownTime < 250) {
+          const startTime = Date.now();
+          this.moveTimer = setTimeout(() => { this.startMove(e, node); this.moveTimer = null; }, 250);
+          const cancel = () => {
+            if (Date.now() - startTime < 250) {
               clearTimeout(this.moveTimer);
               this.moveTimer = null;
               this.clearSelection();
               this.selectNode(node);
               this.hideAllHandles();
-              // --- 追加: 選択状態が変わったらコントロールパネルを更新 ---
               this.updateControlButtonsState();
             }
-            document.removeEventListener("mouseup", cancelMove);
+            document.removeEventListener("mouseup", cancel);
           };
-          document.addEventListener("mouseup", cancelMove);
+          document.addEventListener("mouseup", cancel);
         }
-
         startDoubleClick(e, node) {
           const start = { x: e.clientX, y: e.clientY };
-          let branchMode = false;
-          const onDCMouseMove = (e) => {
+          let branch = false;
+          const onMove = e => {
             const dx = e.clientX - start.x, dy = e.clientY - start.y;
-            if (!branchMode && Math.sqrt(dx * dx + dy * dy) > 10) {
-              branchMode = true;
-              document.removeEventListener("mousemove", onDCMouseMove);
-              document.removeEventListener("mouseup", onDCMouseUp);
+            if (!branch && Math.sqrt(dx*dx+dy*dy) > 10) {
+              branch = true;
+              document.removeEventListener("mousemove", onMove);
+              document.removeEventListener("mouseup", onUp);
               this.startBranchCreation(e, node);
             }
           };
-          const onDCMouseUp = (e) => {
-            document.removeEventListener("mousemove", onDCMouseMove);
-            document.removeEventListener("mouseup", onDCMouseUp);
-            if (!branchMode) { this.startEditingNode(node); }
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            if (!branch) this.startEditingNode(node);
           };
-          document.addEventListener("mousemove", onDCMouseMove);
-          document.addEventListener("mouseup", onDCMouseUp);
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
         }
-
         startBranchCreation(e, node) {
-          const canvasRect = this.canvas.getBoundingClientRect();
-          const nodeRect = node.element.getBoundingClientRect();
-          const nodeCenterX = nodeRect.left + nodeRect.width / 2 - canvasRect.left;
-          const nodeCenterY = nodeRect.top + nodeRect.height / 2 - canvasRect.top;
-          const mouseX = e.clientX - canvasRect.left;
-          const mouseY = e.clientY - canvasRect.top;
+          const cRect = this.canvas.getBoundingClientRect();
+          const nRect = node.element.getBoundingClientRect();
+          const cx = nRect.left + nRect.width/2 - cRect.left;
+          const cy = nRect.top + nRect.height/2 - cRect.top;
+          const mx = e.clientX - cRect.left, my = e.clientY - cRect.top;
           const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
           tempLine.setAttribute("stroke", "#007bff");
           tempLine.setAttribute("stroke-width", "2");
           tempLine.setAttribute("stroke-dasharray", "4");
-          tempLine.setAttribute("x1", nodeCenterX);
-          tempLine.setAttribute("y1", nodeCenterY);
-          tempLine.setAttribute("x2", mouseX);
-          tempLine.setAttribute("y2", mouseY);
+          tempLine.setAttribute("x1", cx);
+          tempLine.setAttribute("y1", cy);
+          tempLine.setAttribute("x2", mx);
+          tempLine.setAttribute("y2", my);
           this.svg.appendChild(tempLine);
-          const onBCMouseMove = (e) => {
-            const mx = e.clientX - canvasRect.left;
-            const my = e.clientY - canvasRect.top;
-            tempLine.setAttribute("x2", mx);
-            tempLine.setAttribute("y2", my);
+          const onMove = e => {
+            const nx = e.clientX - cRect.left, ny = e.clientY - cRect.top;
+            tempLine.setAttribute("x2", nx);
+            tempLine.setAttribute("y2", ny);
           };
-          const onBCMouseUp = (e) => {
-            document.removeEventListener("mousemove", onBCMouseMove);
-            document.removeEventListener("mouseup", onBCMouseUp);
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
             this.svg.removeChild(tempLine);
             this.branchCreationJustHappened = true;
             setTimeout(() => { this.branchCreationJustHappened = false; }, 300);
-            const dropElem = document.elementFromPoint(e.clientX, e.clientY);
-            const dropNodeElem = dropElem ? dropElem.closest(".node") : null;
-            let dropNode = this.nodes.find(n => n.element === dropNodeElem);
+            const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+            const dropNodeEl = dropEl ? dropEl.closest(".node") : null;
+            let dropNode = this.nodes.find(n => n.element === dropNodeEl);
             if (dropNode && dropNode !== node) {
-              // --- 変更: 接続作成時にデフォルトの線種を適用 ---
               const conn = this.createConnection(node, dropNode);
               conn.setLineType(this.defaultLineType);
+              conn.setDashType(this.defaultDashType);
               this.clearSelection();
               this.selectNode(dropNode);
             } else {
-              const logicalPos = this.eventToLogical(e);
-              const newNode = this.createNode("", logicalPos.x, logicalPos.y);
-              // --- 追加: 分岐作成時にノード種類の継承 ---
+              const pos = this.eventToLogical(e);
+              const newNode = this.createNode("", pos.x, pos.y);
               newNode.setType(node.nodeType);
               this.startEditingNode(newNode);
-              // --- 変更: 接続作成時にデフォルトの線種を適用 ---
               const conn = this.createConnection(node, newNode);
               conn.setLineType(this.defaultLineType);
+              conn.setDashType(this.defaultDashType);
               this.clearSelection();
               this.selectNode(newNode);
             }
-            // --- 追加: コントロールボタンの状態を更新 ---
             this.updateControlButtonsState();
             this.saveState();
           };
-          document.addEventListener("mousemove", onBCMouseMove);
-          document.addEventListener("mouseup", onBCMouseUp);
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
         }
-
         startBlankDoubleClick(e) {
-          const canvasRect = this.canvas.getBoundingClientRect();
-          const startX = e.clientX - canvasRect.left;
-          const startY = e.clientY - canvasRect.top;
+          const cRect = this.canvas.getBoundingClientRect();
+          const sx = e.clientX - cRect.left, sy = e.clientY - cRect.top;
           const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
           tempLine.setAttribute("stroke", "#007bff");
           tempLine.setAttribute("stroke-width", "2");
           tempLine.setAttribute("stroke-dasharray", "4");
-          tempLine.setAttribute("x1", startX);
-          tempLine.setAttribute("y1", startY);
-          tempLine.setAttribute("x2", startX);
-          tempLine.setAttribute("y2", startY);
-          const initialClient = { x: e.clientX, y: e.clientY };
-          let isLineMode = false;
+          tempLine.setAttribute("x1", sx);
+          tempLine.setAttribute("y1", sy);
+          tempLine.setAttribute("x2", sx);
+          tempLine.setAttribute("y2", sy);
+          const initClient = { x: e.clientX, y: e.clientY };
+          let lineMode = false;
           let fromCoord = null;
-          const onDCMouseMove = (e) => {
-            const dx = e.clientX - initialClient.x;
-            const dy = e.clientY - initialClient.y;
-            if (!isLineMode && Math.sqrt(dx * dx + dy * dy) > 10) {
-              isLineMode = true;
-              fromCoord = this.eventToLogical({ clientX: initialClient.x, clientY: initialClient.y });
+          const onMove = e => {
+            const dx = e.clientX - initClient.x, dy = e.clientY - initClient.y;
+            if (!lineMode && Math.sqrt(dx*dx+dy*dy) > 10) {
+              lineMode = true;
+              fromCoord = this.eventToLogical({ clientX: initClient.x, clientY: initClient.y });
               this.svg.appendChild(tempLine);
             }
-            if (isLineMode) {
-              const mx = e.clientX - canvasRect.left;
-              const my = e.clientY - canvasRect.top;
-              tempLine.setAttribute("x2", mx);
-              tempLine.setAttribute("y2", my);
+            if (lineMode) {
+              const nx = e.clientX - cRect.left, ny = e.clientY - cRect.top;
+              tempLine.setAttribute("x2", nx);
+              tempLine.setAttribute("y2", ny);
             }
           };
-          const onDCMouseUp = (e) => {
-            document.removeEventListener("mousemove", onDCMouseMove);
-            document.removeEventListener("mouseup", onDCMouseUp);
-            if (isLineMode) {
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            if (lineMode) {
               this.svg.removeChild(tempLine);
-              const dropElem = document.elementFromPoint(e.clientX, e.clientY);
-              const dropNodeElem = dropElem ? dropElem.closest(".node") : null;
-              if (dropNodeElem) {
-                const targetNode = this.nodes.find(n => n.element === dropNodeElem);
-                // --- 変更: 接続作成時にデフォルトの線種を適用 ---
-                const conn = this.createConnection(null, targetNode);
+              const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+              const dropNodeEl = dropEl ? dropEl.closest(".node") : null;
+              if (dropNodeEl) {
+                const target = this.nodes.find(n => n.element === dropNodeEl);
+                const conn = this.createConnection(null, target);
                 conn.setLineType(this.defaultLineType);
+                conn.setDashType(this.defaultDashType);
                 conn.fromCoord = fromCoord;
                 conn.update();
               } else {
-                // --- 変更: 接続作成時にデフォルトの線種を適用 ---
                 const conn = this.createConnection(null, null);
                 conn.setLineType(this.defaultLineType);
+                conn.setDashType(this.defaultDashType);
                 conn.fromCoord = fromCoord;
-                const current = this.eventToLogical(e);
-                conn.toCoord = current;
+                conn.toCoord = this.eventToLogical(e);
                 conn.update();
               }
               this.saveState();
             } else {
-              const logicalPos = this.eventToLogical(e);
-              const newNode = this.createNode("", logicalPos.x, logicalPos.y);
-              // --- 追加: キャンバス上で新規作成するノードにデフォルトの種類を適用 ---
+              const pos = this.eventToLogical(e);
+              const newNode = this.createNode("", pos.x, pos.y);
               newNode.setType(this.defaultNodeType);
               this.startEditingNode(newNode);
               this.selectNode(newNode);
-              // --- 追加: コントロールボタンの状態を更新 ---
               this.updateControlButtonsState();
               this.saveState();
             }
           };
-          document.addEventListener("mousemove", onDCMouseMove);
-          document.addEventListener("mouseup", onDCMouseUp);
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
         }
-
         createHtmlHandle() {
           const handle = document.createElement("div");
           handle.className = "html-handle";
           this.canvas.appendChild(handle);
           return handle;
         }
-
-        addHandleDrag(handle, connection, which) {
-          handle.addEventListener("mousedown", (e) => {
+        addHandleDrag(handle, conn, which) {
+          handle.addEventListener("mousedown", e => {
             e.stopPropagation();
             e.preventDefault();
-            const startX = e.clientX;
-            const startY = e.clientY;
-            const initialLeft = parseFloat(handle.style.left);
-            const initialTop = parseFloat(handle.style.top);
-            const onMouseMove = (e) => {
-              const dx = e.clientX - startX;
-              const dy = e.clientY - startY;
-              handle.style.left = (initialLeft + dx) + "px";
-              handle.style.top = (initialTop + dy) + "px";
+            const startX = e.clientX, startY = e.clientY;
+            const initLeft = parseFloat(handle.style.left);
+            const initTop = parseFloat(handle.style.top);
+            const onMove = e => {
+              const dx = e.clientX - startX, dy = e.clientY - startY;
+              handle.style.left = (initLeft + dx) + "px";
+              handle.style.top = (initTop + dy) + "px";
               if (which === "from") {
-                connection.fromNode = null;
-                connection.fromCoord = { x: initialLeft + dx + 4, y: initialTop + dy + 4 };
+                conn.fromNode = null;
+                conn.fromCoord = { x: initLeft + dx + 4, y: initTop + dy + 4 };
               } else {
-                connection.toNode = null;
-                connection.toCoord = { x: initialLeft + dx + 4, y: initialTop + dy + 4 };
+                conn.toNode = null;
+                conn.toCoord = { x: initLeft + dx + 4, y: initTop + dy + 4 };
               }
-              connection.update();
+              conn.update();
             };
-            const onMouseUp = (e) => {
-              document.removeEventListener("mousemove", onMouseMove);
-              document.removeEventListener("mouseup", onMouseUp);
+            const onUp = e => {
+              document.removeEventListener("mousemove", onMove);
+              document.removeEventListener("mouseup", onUp);
               handle.style.display = "none";
-              const dropElem = document.elementFromPoint(e.clientX, e.clientY);
+              const dropEl = document.elementFromPoint(e.clientX, e.clientY);
               handle.style.display = "";
-              const dropNodeElem = dropElem ? dropElem.closest(".node") : null;
-              const dropNode = this.nodes.find(n => n.element === dropNodeElem);
+              const dropNodeEl = dropEl ? dropEl.closest(".node") : null;
+              const dropNode = this.nodes.find(n => n.element === dropNodeEl);
               if (dropNode) {
-                if (which === "from") {
-                  connection.fromNode = dropNode;
-                  connection.fromCoord = null;
-                } else {
-                  connection.toNode = dropNode;
-                  connection.toCoord = null;
-                }
+                if (which === "from") { conn.fromNode = dropNode; conn.fromCoord = null; }
+                else { conn.toNode = dropNode; conn.toCoord = null; }
               }
-              connection.update();
+              conn.update();
               this.saveState();
             };
-            document.addEventListener("mousemove", onMouseMove);
-            document.addEventListener("mouseup", onMouseUp);
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
           });
         }
-
         captureState() {
           return {
-            nodes: this.nodes.map(node => ({
-              id: node.id,
-              text: node.element.textContent,
-              x: node.x,
-              y: node.y,
-              nodeType: node.nodeType,
-              boldText: node.boldText // Bold状態を追加
+            nodes: this.nodes.map(n => ({
+              id: n.id,
+              text: n.element.textContent,
+              x: n.x,
+              y: n.y,
+              nodeType: n.nodeType,
+              boldText: n.boldText
             })),
-            connections: this.connections.map(conn => ({
-              fromId: conn.fromNode ? conn.fromNode.id : null,
-              toId: conn.toNode ? conn.toNode.id : null,
-              fromCoord: conn.fromCoord,
-              toCoord: conn.toCoord,
-              lineType: conn.lineType
+            connections: this.connections.map(c => ({
+              fromId: c.fromNode ? c.fromNode.id : null,
+              toId: c.toNode ? c.toNode.id : null,
+              fromCoord: c.fromCoord,
+              toCoord: c.toCoord,
+              lineType: c.lineType,
+              dashType: c.dashType
             })),
-            globalPan: { x: this.globalPan.x, y: this.globalPan.y },
+            globalPan: Object.assign({}, this.globalPan),
             globalZoom: this.globalZoom,
             defaultNodeType: this.defaultNodeType,
-            defaultLineType: this.defaultLineType
+            defaultLineType: this.defaultLineType,
+            defaultDashType: this.defaultDashType
           };
         }
-
         saveState() {
-          const snapshot = this.captureState();
-          this.undoStack.push(snapshot);
+          const snap = this.captureState();
+          this.undoStack.push(snap);
           this.redoStack = [];
           this.saveToLocalStorage();
         }
-
         restoreState(state) {
-          this.nodes.forEach(node => {
-            if (node.element.parentNode) node.element.parentNode.removeChild(node.element);
-          });
-          this.connections.forEach(conn => {
-            if (conn.line.parentNode) conn.line.parentNode.removeChild(conn.line);
-            conn.hideHandles();
-          });
+          this.nodes.forEach(n => { if (n.element.parentNode) n.element.parentNode.removeChild(n.element); });
+          this.connections.forEach(c => { if (c.line.parentNode) c.line.parentNode.removeChild(c.line); c.hideHandles(); });
           this.nodes = [];
           this.connections = [];
-          const nodeMap = {};
-
-          state.nodes.forEach(nodeData => {
-            const node = new NoteNode(nodeData.text, parseInt(nodeData.x), parseInt(nodeData.y), this, nodeData.id);
-            node.setType(nodeData.nodeType || "standard");
-
-            // Bold状態の復元
-            if (nodeData.boldText) {
-              node.setBold(true);
-            }
-
+          const map = {};
+          state.nodes.forEach(nd => {
+            const node = new NoteNode(nd.text, nd.x, nd.y, this, nd.id);
+            node.setType(nd.nodeType || "standard");
+            if (nd.boldText) node.setBold(true);
             this.nodes.push(node);
-            nodeMap[nodeData.id] = node;
+            map[nd.id] = node;
           });
-
-          state.connections.forEach(connData => {
-            let fromNode = connData.fromId in nodeMap ? nodeMap[connData.fromId] : null;
-            let toNode = connData.toId in nodeMap ? nodeMap[connData.toId] : null;
-            const conn = new Connection(fromNode, toNode, this);
-            // --- 線種を復元 ---
-            if (connData.lineType) {
-              conn.setLineType(connData.lineType);
-            }
-            conn.fromCoord = connData.fromCoord;
-            conn.toCoord = connData.toCoord;
+          state.connections.forEach(cd => {
+            let from = cd.fromId in map ? map[cd.fromId] : null;
+            let to = cd.toId in map ? map[cd.toId] : null;
+            const conn = new Connection(from, to, this);
+            if (cd.lineType) conn.setLineType(cd.lineType);
+            if (cd.dashType) conn.setDashType(cd.dashType);
+            conn.fromCoord = cd.fromCoord;
+            conn.toCoord = cd.toCoord;
             conn.update();
             this.connections.push(conn);
           });
-
-          // --- デフォルト設定の復元 ---
-          if (state.defaultNodeType) {
-            this.defaultNodeType = state.defaultNodeType;
-          }
-          if (state.defaultLineType) {
-            this.defaultLineType = state.defaultLineType;
-          }
+          if (state.defaultNodeType) this.defaultNodeType = state.defaultNodeType;
+          if (state.defaultLineType) this.defaultLineType = state.defaultLineType;
+          if (state.defaultDashType) this.defaultDashType = state.defaultDashType;
           this.globalPan = state.globalPan;
           this.globalZoom = state.globalZoom;
           this.updateGlobalTransform();
           this.updateAllConnections();
-          // コントロールパネルのボタン状態を更新
           this.updateControlButtonsState();
         }
-
         saveToLocalStorage() {
-          const state = {
-            version: VERSION,
-            data: this.captureState()
-          };
+          const state = { version: VERSION, data: this.captureState() };
           localStorage.setItem("yaNoteData", JSON.stringify(state));
         }
-
         loadFromLocalStorage() {
           const data = localStorage.getItem("yaNoteData");
           if (data) {
             try {
-              const stateObj = JSON.parse(data);
-              // バージョンチェックとマイグレーション
-              if (stateObj.version) {
-                const versionCompare = Utils.compareVersions(stateObj.version, VERSION);
-
-                // 将来のバージョンからのインポートを防止
-                if (versionCompare > 0) {
-                  alert(`保存データが将来のバージョン(${stateObj.version})で作成されています。現在のバージョン(${VERSION})では互換性がない可能性があります。`);
-                }
-
-                // 旧バージョンからのデータ変換
-                if (versionCompare < 0) {
-                  Logger.log(`旧バージョン(${stateObj.version})からのデータをマイグレーションします。`);
-
-                  // v1.1.0より前のデータ形式の場合（nodeTypeプロパティがない）
-                  if (Utils.compareVersions(stateObj.version, "v1.1.0") < 0) {
-                    Logger.log('v1.1.0へのマイグレーション：nodeTypeプロパティを追加');
-                    stateObj.data.nodes.forEach(node => {
-                      if (!node.hasOwnProperty('nodeType')) {
-                        node.nodeType = "standard";
-                      }
-                    });
-                  }
-
-                  // v1.2.0より前のデータ形式の場合（globalZoomプロパティがない）
-                  if (Utils.compareVersions(stateObj.version, "v1.2.0") < 0) {
-                    Logger.log('v1.2.0へのマイグレーション：globalZoomプロパティを追加');
-                    if (!stateObj.data.hasOwnProperty('globalZoom')) {
-                      stateObj.data.globalZoom = 1;
-                    }
-                  }
-
-                  // --- 追加: v1.2.4より前のデータ形式の場合（lineTypeプロパティがない） ---
-                  if (Utils.compareVersions(stateObj.version, "v1.2.4") < 0) {
-                    Logger.log('v1.2.4へのマイグレーション：lineTypeプロパティを追加');
-                    stateObj.data.connections.forEach(conn => {
-                      if (!conn.hasOwnProperty('lineType')) {
-                        conn.lineType = "standard";
-                      }
-                    });
-                    if (!stateObj.data.hasOwnProperty('defaultLineType')) {
-                      stateObj.data.defaultLineType = "standard";
-                    }
-                  }
-
-                  // --- 追加: v1.2.6より前のデータ形式の場合（boldTextプロパティがない） ---
-                  if (Utils.compareVersions(stateObj.version, "v1.2.6") < 0) {
-                    Logger.log('v1.2.6へのマイグレーション：boldTextプロパティを追加');
-                    stateObj.data.nodes.forEach(node => {
-                      if (!node.hasOwnProperty('boldText')) {
-                        node.boldText = false;
-                      }
-                    });
-                  }
-
-                  // バージョン情報を更新
-                  stateObj.version = VERSION;
-
-                  // 更新したデータを保存
-                  localStorage.setItem("yaNoteData", JSON.stringify(stateObj));
-                  Logger.log('マイグレーション完了：現在のバージョン=' + VERSION);
-                }
-              } else {
-                // バージョン情報がない古いデータ形式の場合
-                Logger.log('バージョン情報なしのデータ：バージョン情報を追加');
-                stateObj.version = VERSION;
-
-                // 更新したデータを保存
-                localStorage.setItem("yaNoteData", JSON.stringify(stateObj));
-              }
-
-              this.restoreState(stateObj.data);
-            } catch (e) {
-              alert("データの読み込みエラー: " + e.message);
-              Logger.log('データ読み込みエラー:', e);
-            }
+              const obj = JSON.parse(data);
+              this.restoreState(obj.data);
+            } catch (e) { alert("データ読み込みエラー: " + e.message); }
           }
         }
-
         undo() {
           if (this.undoStack.length > 1) {
-            const currentState = this.undoStack.pop();
-            this.redoStack.push(currentState);
-            const previousState = this.undoStack[this.undoStack.length - 1];
-            this.restoreState(previousState);
+            const cur = this.undoStack.pop();
+            this.redoStack.push(cur);
+            const prev = this.undoStack[this.undoStack.length - 1];
+            this.restoreState(prev);
           }
         }
-
         redo() {
           if (this.redoStack.length > 0) {
-            const nextState = this.redoStack.pop();
-            this.undoStack.push(nextState);
-            this.restoreState(nextState);
+            const nxt = this.redoStack.pop();
+            this.undoStack.push(nxt);
+            this.restoreState(nxt);
           }
         }
-
         createNode(text, x, y) {
-          const node = new NoteNode(text, x, y, this);
-          // --- 追加: 新規作成ノードにグローバルの defaultNodeType を適用 ---
-          node.setType(this.defaultNodeType);
-          this.nodes.push(node);
-          return node;
+          const n = new NoteNode(text, x, y, this);
+          n.setType(this.defaultNodeType);
+          this.nodes.push(n);
+          return n;
         }
-
-        createConnection(fromNode, toNode) {
-          const connection = new Connection(fromNode, toNode, this);
-          // --- 追加: 新規作成接続線にグローバルのデフォルト線種を適用 ---
-          connection.setLineType(this.defaultLineType);
-          this.connections.push(connection);
-          return connection;
+        createConnection(from, to) {
+          const c = new Connection(from, to, this);
+          c.setLineType(this.defaultLineType);
+          c.setDashType(this.defaultDashType);
+          this.connections.push(c);
+          return c;
         }
-
         updateAllConnections() {
-          this.connections.forEach(conn => conn.update());
+          this.connections.forEach(c => c.update());
         }
-
         clearSelection() {
-          if (this.selectedNode) {
-            this.selectedNode.element.classList.remove("selected");
-            this.selectedNode = null;
-          }
-          if (this.selectedConnection) {
-            this.selectedConnection.line.classList.remove("selected-line");
-            this.selectedConnection.hideHandles();
-            this.selectedConnection = null;
-          }
+          if (this.selectedNode) { this.selectedNode.element.classList.remove("selected"); this.selectedNode = null; }
+          if (this.selectedConnection) { this.selectedConnection.line.classList.remove("selected-line"); this.selectedConnection.hideHandles(); this.selectedConnection = null; }
           this.selectedNodes.forEach(n => n.element.classList.remove("selected"));
           this.selectedNodes = [];
-          this.selectedConnections.forEach(conn => {
-            conn.line.classList.remove("selected-line");
-            conn.hideHandles();
-          });
+          this.selectedConnections.forEach(c => { c.line.classList.remove("selected-line"); c.hideHandles(); });
           this.selectedConnections = [];
-          // --- 追加: 選択クリア時にコントロールパネルの状態も更新 ---
           this.updateControlButtonsState();
         }
-
         hideAllHandles() {
-          this.connections.forEach(conn => conn.hideHandles());
+          this.connections.forEach(c => c.hideHandles());
         }
-
-        selectNode(node) {
+        selectNode(n) {
           this.clearSelection();
-          this.selectedNode = node;
-          this.selectedNodes = [node];
-          node.element.classList.add("selected");
-          // --- 追加: 選択変更時にコントロールパネルの状態を更新 ---
+          this.selectedNode = n;
+          this.selectedNodes = [n];
+          n.element.classList.add("selected");
           this.updateControlButtonsState();
         }
-
-        selectConnection(connection) {
+        selectConnection(c) {
           this.clearSelection();
-          this.selectedConnection = connection;
-          this.selectedConnections = [connection];
-          connection.line.classList.add("selected-line");
-          connection.showHandles();
-          // --- 追加: 選択変更時にコントロールパネルの状態を更新 ---
+          this.selectedConnection = c;
+          this.selectedConnections = [c];
+          c.line.classList.add("selected-line");
+          c.showHandles();
           this.updateControlButtonsState();
         }
-
-        startEditingNode(node) {
+        startEditingNode(n) {
           this.clearSelection();
-          this.selectedNode = node;
-          this.selectedNodes = [node];
-          node.element.classList.add("selected");
-          node.element.contentEditable = "true";
-          node.element.classList.add("editing");
-          node._enterPressCount = 0;
-          // --- 追加: 編集中の input イベントで接続線更新 ---
-          const onInput = () => { this.updateAllConnections(); };
-          node.element.addEventListener("input", onInput);
-          node.element.focus();
+          this.selectedNode = n;
+          this.selectedNodes = [n];
+          n.element.classList.add("selected");
+          n.element.contentEditable = "true";
+          n.element.classList.add("editing");
+          n._enterPressCount = 0;
+          n.element.focus();
           const range = document.createRange();
-          range.selectNodeContents(node.element);
+          range.selectNodeContents(n.element);
           range.collapse(false);
           const sel = window.getSelection();
           sel.removeAllRanges();
           sel.addRange(range);
-
-          // --- 変更: Shift+Enterで改行を可能に ---
-          const onKeyDown = (e) => {
+          const onKeyDown = e => {
             if (e.key === "Enter") {
-              // Shiftキーと一緒に押された場合は改行を挿入
               if (e.shiftKey) {
-                e.stopPropagation(); // デフォルトの処理を阻止しない（改行を許可）
-                // 改行後にノードの高さを調整
+                e.stopPropagation();
                 setTimeout(() => {
+                  n.anchorOffset = n.element.scrollHeight;
+                  n.setPosition(n.x, n.y);
                   this.updateAllConnections();
-                  const h = node.element.offsetHeight;
-                  node.anchorOffset = h;
-                  node.setPosition(node.x, node.y);
                 }, 0);
-                // 連続Enter押下カウンタをリセット
-                node._enterPressCount = 0;
+                n._enterPressCount = 0;
               } else {
-                // 通常のEnterキーの場合は編集終了カウント
                 e.preventDefault();
-                node._enterPressCount = (node._enterPressCount || 0) + 1;
-                if (node._enterPressCount >= 2) {
-                  node.element.blur();
-                }
+                n._enterPressCount = (n._enterPressCount || 0) + 1;
+                if (n._enterPressCount >= 2) n.element.blur();
               }
             } else {
-              node._enterPressCount = 0;
+              n._enterPressCount = 0;
             }
           };
-
+          const onInput = e => {
+            n.anchorOffset = n.element.scrollHeight;
+            n.setPosition(n.x, n.y);
+            this.updateAllConnections();
+          };
           const finishEditing = () => {
-            node.element.contentEditable = "false";
-            node.element.classList.remove("editing");
-            node.element.removeEventListener("keydown", onKeyDown);
-            node.element.removeEventListener("input", onInput);
-            this.clearSelection();
-            if (node.element.textContent.trim() === "") {
-              // --- 変更: ノードが空の場合、内部配列からも除去する ---
-              this.connections = this.connections.filter(conn => {
-                if (conn.fromNode === node || conn.toNode === node) {
-                  if (conn.line.parentNode) conn.line.parentNode.removeChild(conn.line);
-                  return false;
-                }
-                return true;
-              });
-              if (node.element.parentNode) node.element.parentNode.removeChild(node.element);
-              this.nodes = this.nodes.filter(n => n !== node);
-              this.clearSelection();
+            n.element.contentEditable = "false";
+            n.element.classList.remove("editing");
+            n.element.removeEventListener("keydown", onKeyDown);
+            n.element.removeEventListener("input", onInput);
+            // もし内容が空なら削除する
+            if (n.element.textContent.trim() === "") {
+              this.selectNode(n);
+              this.deleteSelection();
               this.saveState();
               return;
             }
-            this.selectNode(node);
+            this.selectNode(n);
             this.saveState();
           };
-          node.element.addEventListener("keydown", onKeyDown);
-          node.element.addEventListener("blur", finishEditing, { once: true });
+          n.element.addEventListener("keydown", onKeyDown);
+          n.element.addEventListener("input", onInput);
+          n.element.addEventListener("blur", finishEditing, { once: true });
         }
-
         deleteSelection() {
           if (this.selectedConnections.length > 0) {
-            this.selectedConnections.forEach(conn => {
-              conn.hideHandles();
-              if (conn.line.parentNode) {
-                conn.line.parentNode.removeChild(conn.line);
-              }
+            this.selectedConnections.forEach(c => {
+              c.hideHandles();
+              if (c.line.parentNode) c.line.parentNode.removeChild(c.line);
             });
-            this.connections = this.connections.filter(conn => !this.selectedConnections.includes(conn));
+            this.connections = this.connections.filter(c => !this.selectedConnections.includes(c));
             this.selectedConnections = [];
           }
           if (this.selectedNodes.length > 0) {
-            this.selectedNodes.forEach(node => {
-              this.connections = this.connections.filter(conn => {
-                if (conn.fromNode === node || conn.toNode === node) {
-                  conn.hideHandles();
-                  if (conn.line.parentNode) {
-                    conn.line.parentNode.removeChild(conn.line);
-                  }
+            this.selectedNodes.forEach(n => {
+              this.connections = this.connections.filter(c => {
+                if (c.fromNode === n || c.toNode === n) {
+                  c.hideHandles();
+                  if (c.line.parentNode) c.line.parentNode.removeChild(c.line);
                   return false;
                 }
                 return true;
               });
-              if (node.element.parentNode) {
-                node.element.parentNode.removeChild(node.element);
-              }
+              if (n.element.parentNode) n.element.parentNode.removeChild(n.element);
             });
-            this.nodes = this.nodes.filter(node => !this.selectedNodes.includes(node));
+            this.nodes = this.nodes.filter(n => !this.selectedNodes.includes(n));
             this.selectedNodes = [];
           } else if (this.selectedNode) {
-            if (this.selectedNode.element.parentNode) {
-              this.selectedNode.element.parentNode.removeChild(this.selectedNode.element);
-            }
-            this.connections = this.connections.filter(conn => {
-              if (conn.fromNode === this.selectedNode || conn.toNode === this.selectedNode) {
-                conn.hideHandles();
-                if (conn.line.parentNode) {
-                  conn.line.parentNode.removeChild(conn.line);
-                }
+            if (this.selectedNode.element.parentNode) this.selectedNode.element.parentNode.removeChild(this.selectedNode.element);
+            this.connections = this.connections.filter(c => {
+              if (c.fromNode === this.selectedNode || c.toNode === this.selectedNode) {
+                c.hideHandles();
+                if (c.line.parentNode) c.line.parentNode.removeChild(c.line);
                 return false;
               }
               return true;
@@ -2023,29 +1359,69 @@
           }
           this.clearSelection();
         }
-
         exportState() {
           const state = this.undoStack[this.undoStack.length - 1];
-          const exportObj = { version: VERSION, data: state };
-          return JSON.stringify(exportObj, null, 2);
+          return JSON.stringify({ version: VERSION, data: state }, null, 2);
+        }
+        updateControlButtonsState() {
+          const changeTypeBtn = document.getElementById("changeTypeBtn");
+          const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
+          const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
+          changeTypeBtn.classList.remove("active");
+          if (this.selectedNodes.length > 0) {
+            if (this.selectedNodes.every(n => n.nodeType === "standard")) changeTypeBtn.classList.add("active");
+          } else if (this.selectedNode && this.selectedNode.nodeType === "standard") {
+            changeTypeBtn.classList.add("active");
+          } else if (this.defaultNodeType === "standard") {
+            changeTypeBtn.classList.add("active");
+          }
+          changeLineTypeBtn.textContent = this.selectedConnections.length > 0 ?
+            this.getLineTypeSymbol(this.selectedConnections[0].lineType) :
+            (this.selectedConnection ? this.getLineTypeSymbol(this.selectedConnection.lineType) : this.getLineTypeSymbol(this.defaultLineType));
+          changeDashTypeBtn.textContent = this.selectedConnections.length > 0 ?
+            this.getDashTypeSymbol(this.selectedConnections[0].dashType) :
+            (this.selectedConnection ? this.getDashTypeSymbol(this.selectedConnection.dashType) : this.getDashTypeSymbol(this.defaultDashType));
+          changeDashTypeBtn.classList.remove("active");
+          if (this.selectedConnections.length > 0) {
+            if (this.selectedConnections.every(c => c.dashType === "dashed")) changeDashTypeBtn.classList.add("active");
+          } else if (this.selectedConnection && this.selectedConnection.dashType === "dashed") {
+            changeDashTypeBtn.classList.add("active");
+          } else if (this.defaultDashType === "dashed") {
+            changeDashTypeBtn.classList.add("active");
+          }
+          const boldTextBtn = document.getElementById("boldTextBtn");
+          boldTextBtn.classList.remove("active");
+          boldTextBtn.disabled = !(this.selectedNodes.length > 0 || this.selectedNode);
+          if (this.selectedNodes.length > 0) {
+            if (this.selectedNodes.every(n => n.boldText)) boldTextBtn.classList.add("active");
+          } else if (this.selectedNode && this.selectedNode.boldText) {
+            boldTextBtn.classList.add("active");
+          }
+        }
+        getLineTypeSymbol(type) {
+          switch (type) {
+            case "standard": return "→";
+            case "no-arrow": return "—";
+            case "reverse-arrow": return "←";
+            case "both-arrow": return "↔";
+            default: return "→";
+          }
+        }
+        getDashTypeSymbol(type) {
+          return type === "solid" ? "—" : "‥";
         }
       }
 
-      // --- 7. インスタンス生成およびコントロールパネル設定 ---
+      /* ===== 6. インスタンス生成とコントロールパネル設定 ===== */
       window.app = new YaNoteApp();
-
-      document.getElementById("resetBtn").addEventListener("click", () => {
-        localStorage.removeItem("yaNoteData");
-        location.reload();
-      });
-
+      document.getElementById("resetBtn").addEventListener("click", () => { localStorage.removeItem("yaNoteData"); location.reload(); });
       document.getElementById("exportBtn").addEventListener("click", () => {
         try {
-          const exportJson = app.exportState();
-          const blob = new Blob([exportJson], { type: "application/json" });
+          const json = app.exportState();
+          const blob = new Blob([json], { type: "application/json" });
           const url = URL.createObjectURL(blob);
           const now = new Date();
-          const pad = (n) => n.toString().padStart(2, '0');
+          const pad = n => n.toString().padStart(2, "0");
           const filename = `yaNote_export_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
           const a = document.createElement("a");
           a.href = url;
@@ -2054,124 +1430,28 @@
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-        } catch (e) {
-          alert("エクスポートエラー: " + e.message);
-        }
+        } catch (e) { alert("エクスポートエラー: " + e.message); }
       });
-
       document.getElementById("importBtn").addEventListener("click", () => {
         document.getElementById("importInput").click();
       });
-
-      document.getElementById("importInput").addEventListener("change", (e) => {
+      document.getElementById("importInput").addEventListener("change", e => {
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        reader.onload = (event) => {
+        reader.onload = event => {
           try {
-            const result = event.target.result;
-            const importObj = JSON.parse(result);
-
-            // バージョン検証とマイグレーション処理
-            if (importObj.version) {
-              const versionCompare = Utils.compareVersions(importObj.version, VERSION);
-
-              // 将来のバージョンからのインポートを防止
-              if (versionCompare > 0) {
-                throw new Error(`インポートするファイルは将来のバージョン(${importObj.version})で作成されています。現在のバージョン(${VERSION})では読み込めません。`);
-              }
-
-              // 旧バージョンからのデータ変換
-              if (versionCompare < 0) {
-                Logger.log(`旧バージョン(${importObj.version})からのデータをマイグレーションします。`);
-
-                // v1.1.0より前のデータ形式の場合（nodeTypeプロパティがない）
-                if (Utils.compareVersions(importObj.version, "v1.1.0") < 0) {
-                  Logger.log('v1.1.0へのマイグレーション：nodeTypeプロパティを追加');
-                  importObj.data.nodes.forEach(node => {
-                    if (!node.hasOwnProperty('nodeType')) {
-                      node.nodeType = "standard";
-                    }
-                  });
-                }
-
-                // v1.2.0より前のデータ形式の場合（globalZoomプロパティがない）
-                if (Utils.compareVersions(importObj.version, "v1.2.0") < 0) {
-                  Logger.log('v1.2.0へのマイグレーション：globalZoomプロパティを追加');
-                  if (!importObj.data.hasOwnProperty('globalZoom')) {
-                    importObj.data.globalZoom = 1;
-                  }
-                }
-
-                // --- 追加: v1.2.4より前のデータ形式の場合（lineTypeプロパティがない） ---
-                if (Utils.compareVersions(importObj.version, "v1.2.4") < 0) {
-                  Logger.log('v1.2.4へのマイグレーション：lineTypeプロパティを追加');
-                  if (importObj.data.connections) {
-                    importObj.data.connections.forEach(conn => {
-                      if (!conn.hasOwnProperty('lineType')) {
-                        conn.lineType = "standard";
-                      }
-                    });
-                  }
-                  if (!importObj.data.hasOwnProperty('defaultLineType')) {
-                    importObj.data.defaultLineType = "standard";
-                  }
-                }
-
-                // --- 追加: v1.2.6より前のデータ形式の場合（boldTextプロパティがない） ---
-                if (Utils.compareVersions(importObj.version, "v1.2.6") < 0) {
-                  Logger.log('v1.2.6へのマイグレーション：boldTextプロパティを追加');
-                  if (importObj.data.nodes) {
-                    importObj.data.nodes.forEach(node => {
-                      if (!node.hasOwnProperty('boldText')) {
-                        node.boldText = false;
-                      }
-                    });
-                  }
-                }
-
-                // バージョン情報を更新
-                importObj.version = VERSION;
-              }
-            } else {
-              // バージョン情報がない古いデータ形式の場合
-              importObj.version = VERSION;
-              Logger.log('バージョン情報なしのデータをインポート');
-
-              // --- 追加: lineTypeプロパティを設定 ---
-              if (importObj.data.connections) {
-                importObj.data.connections.forEach(conn => {
-                  if (!conn.hasOwnProperty('lineType')) {
-                    conn.lineType = "standard";
-                  }
-                });
-              }
-              if (!importObj.data.hasOwnProperty('defaultLineType')) {
-                importObj.data.defaultLineType = "standard";
-              }
-
-              // --- 追加: boldTextプロパティを設定 ---
-              if (importObj.data.nodes) {
-                importObj.data.nodes.forEach(node => {
-                  if (!node.hasOwnProperty('boldText')) {
-                    node.boldText = false;
-                  }
-                });
-              }
-            }
-
-            app.restoreState(importObj.data);
+            const imp = JSON.parse(event.target.result);
+            app.restoreState(imp.data);
             app.saveState();
-          } catch (err) {
-            alert("インポートエラー: " + err.message);
-          }
+          } catch (err) { alert("インポートエラー: " + err.message); }
         };
         reader.readAsText(file);
         e.target.value = "";
       });
 
-    })();
+      Logger.log("DOM fully loaded and YaNoteApp initialized.");
+    });
   </script>
 </body>
-
 </html>
