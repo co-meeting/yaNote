@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.9)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.10)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.9</title>
+  <title>yaNote v1.2.10</title>
   <style>
     /* ===== 共通CSS ===== */
     html,
@@ -97,6 +97,13 @@
       border: none;
     }
 
+    /* 新たに追加するノードタイプ：枠が点線、背景は薄いグレー */
+    .node.dotted {
+      background-color: #f0f0f0;
+      color: #404040;
+      border: 1px dashed #404040;
+    }
+
     /* 選択状態：各タイプごとに個別に設定 */
     .node.standard.selected {
       border: 2px solid #888888;
@@ -104,8 +111,14 @@
       transform: scale(1.02);
     }
 
+    .node.dotted.selected {
+      border: 2px dashed #888888;
+      box-shadow: 0 0 5px rgba(136, 136, 136, 0.5);
+      transform: scale(1.02);
+    }
+
     .node.text-only.selected {
-      background-color: rgba(64, 64, 64, 0.05);
+      background-color: rgba(255, 255, 255, 0.05);
       border: 1px dashed #888888;
       transform: scale(1.02);
     }
@@ -216,7 +229,6 @@
       padding: 0;
     }
 
-
     /* ノード変更ボタン：各ノードタイプに応じたスタイル */
     #changeTypeBtn.standard {
       background-color: #FFFFFF;
@@ -226,7 +238,7 @@
     }
 
     #changeTypeBtn.text-only {
-      background-color: transparent;
+      background-color: #FFFFFF;
       border: 1px dashed #404040;
       color: #404040;
     }
@@ -404,7 +416,8 @@
 
       /* ===== 3. タイトルフィールド設定 ===== */
       const titleField = document.getElementById("titleField");
-      titleField.addEventListener("dblclick", function (e) {
+      // 変更：ダブルクリックからシングルクリックで編集開始
+      titleField.addEventListener("click", function (e) {
         titleField.readOnly = false;
         titleField.style.borderBottom = "1px dashed #000";
         titleField.style.width = "150px";
@@ -500,8 +513,8 @@
         }
         setType(newType) {
           this.nodeType = newType;
-          // 既存のタイプクラス（standard, text-only, grey, red）をすべて除去し、新しいクラスを追加
-          this.element.classList.remove("standard", "text-only", "grey", "red");
+          // 既存のタイプクラス（standard, text-only, grey, red, dotted）をすべて除去し、新しいクラスを追加
+          this.element.classList.remove("standard", "text-only", "grey", "red", "dotted");
           this.element.classList.add(newType);
           this.app.connections.forEach(conn => {
             if (conn.fromNode === this) conn.update();
@@ -818,8 +831,8 @@
           const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
           const boldTextBtn = document.getElementById("boldTextBtn");
 
-          // ノードタイプ変更：4種類 (standard, text-only, grey, red) を循環
-          const nodeTypes = ["standard", "text-only", "grey", "red"];
+          // ノードタイプ変更：4種類 (standard, text-only, grey, red, dotted) を循環
+          const nodeTypes = ["standard", "text-only", "grey", "red", "dotted"];
           const getNextType = (current) => {
             const index = nodeTypes.indexOf(current);
             return nodeTypes[(index + 1) % nodeTypes.length];
@@ -830,6 +843,7 @@
               case "text-only": return "テキスト専用";
               case "grey": return "グレー";
               case "red": return "赤";
+              case "dotted": return "点線";
               default: return type;
             }
           };
@@ -979,7 +993,7 @@
           });
 
           // ノード変更ボタンのクラスを現在のデフォルトに合わせる
-          changeTypeBtn.classList.remove("standard", "text-only", "grey", "red");
+          changeTypeBtn.classList.remove("standard", "text-only", "grey", "red", "dotted");
           changeTypeBtn.classList.add(this.defaultNodeType);
           changeTypeBtn.textContent = getLabel(this.defaultNodeType);
         }
@@ -1235,7 +1249,7 @@
             } else {
               const pos = this.eventToLogical(e);
               const newNode = this.createNode("", pos.x, pos.y);
-              newNode.setType(node.nodeType);
+              newNode.setType("text-only");
               this.startEditingNode(newNode);
               const conn = this.createConnection(node, newNode);
               conn.setLineType(this.defaultLineType);
@@ -1604,7 +1618,7 @@
           const changeTypeBtn = document.getElementById("changeTypeBtn");
           const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
           const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
-          changeTypeBtn.classList.remove("standard", "text-only", "grey", "red");
+          changeTypeBtn.classList.remove("standard", "text-only", "grey", "red", "dotted");
           // ボタンのクラスを現在のデフォルトに合わせる
           changeTypeBtn.classList.add(this.defaultNodeType);
           // ボタンのテキストも現在のノードタイプの名称にする
@@ -1614,6 +1628,7 @@
               case "text-only": return "T";
               case "grey": return "GL";
               case "red": return "R";
+              case "dotted": return "d";
               default: return type;
             }
           };
