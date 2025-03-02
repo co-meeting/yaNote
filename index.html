@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.8.1)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.9)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.8.1</title>
+  <title>yaNote v1.2.9</title>
   <style>
     /* ===== 共通CSS ===== */
     html,
@@ -54,17 +54,16 @@
       z-index: 10000;
     }
 
+    /* ===== ノードCSS ===== */
     .node {
       position: absolute;
-      background-color: #fff;
-      border: 1px solid #ccc;
       padding: 8px 12px;
       border-radius: 5px;
       box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
       user-select: none;
       white-space: pre-wrap;
       cursor: pointer;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
       z-index: 300;
       min-height: 30px;
       display: flex;
@@ -72,8 +71,55 @@
       justify-content: center;
     }
 
-    .node.selected {
-      border-color: blue;
+    /* ノードタイプごとのスタイル */
+    .node.standard {
+      background-color: #FFFFFF;
+      color: #404040;
+      border: 1px solid #404040;
+    }
+
+    .node.text-only {
+      background-color: transparent;
+      color: #404040;
+      border: none;
+      box-shadow: none;
+    }
+
+    .node.grey {
+      background-color: #595959;
+      color: #FFFFFF;
+      border: none;
+    }
+
+    .node.red {
+      background-color: #BF1304;
+      color: #FFFFFF;
+      border: none;
+    }
+
+    /* 選択状態：各タイプごとに個別に設定 */
+    .node.standard.selected {
+      border: 2px solid #888888;
+      box-shadow: 0 0 5px rgba(136, 136, 136, 0.5);
+      transform: scale(1.02);
+    }
+
+    .node.text-only.selected {
+      background-color: rgba(64, 64, 64, 0.05);
+      border: 1px dashed #888888;
+      transform: scale(1.02);
+    }
+
+    .node.grey.selected {
+      border: 2px solid #666666;
+      box-shadow: 0 0 5px rgba(102, 102, 102, 0.5);
+      transform: scale(1.02);
+    }
+
+    .node.red.selected {
+      border: 2px solid #666666;
+      box-shadow: 0 0 5px rgba(102, 102, 102, 0.5);
+      transform: scale(1.02);
     }
 
     .node.editing {
@@ -81,16 +127,13 @@
       border-color: #007bff;
     }
 
-    .node.text-only {
-      background-color: transparent;
-      border: none;
-      box-shadow: none;
+    /* 編集モード：赤・グレーは文字色を黒に */
+    .node.red.editing,
+    .node.grey.editing {
+      color: #000000;
     }
 
-    .node.text-only.selected {
-      border: 1px dashed blue;
-    }
-
+    /* ===== 接続線等 ===== */
     .selected-line {
       stroke: red;
     }
@@ -109,7 +152,6 @@
     /* ===== コントロールパネル ===== */
     #controlPanel {
       position: fixed;
-      /* fixed に変更 */
       top: 10px;
       right: 10px;
       z-index: 20000;
@@ -118,7 +160,6 @@
       align-items: center;
     }
 
-    /* タイトルフィールド：コントロールパネルの左側に配置 */
     #titleField {
       width: 150px;
       margin-right: 10px;
@@ -160,19 +201,50 @@
       font-size: 14px;
     }
 
-    #controlPanel button.active {
-      background-color: #007bff;
-      color: white;
-      font-weight: bold;
-    }
-
     #importInput {
       display: none;
     }
 
+    /* ノード変更ボタン：基本スタイル */
+    #changeTypeBtn {
+      background-color: transparent;
+      border: 1px solid #ccc;
+      width: 30px;
+      height: 30px;
+      text-align: center;
+      font-size: 14px;
+      padding: 0;
+    }
+
+
+    /* ノード変更ボタン：各ノードタイプに応じたスタイル */
+    #changeTypeBtn.standard {
+      background-color: #FFFFFF;
+      border-color: #404040;
+      color: #404040;
+      border: 1px solid #595959;
+    }
+
+    #changeTypeBtn.text-only {
+      background-color: transparent;
+      border: 1px dashed #404040;
+      color: #404040;
+    }
+
+    #changeTypeBtn.grey {
+      background-color: #595959;
+      border-color: #595959;
+      color: #FFFFFF;
+    }
+
+    #changeTypeBtn.red {
+      background-color: #BF1304;
+      border-color: #BF1304;
+      color: #FFFFFF;
+    }
+
     .tooltip {
       position: fixed;
-      /* absolute から fixed に変更 */
       background-color: rgba(0, 0, 0, 0.8);
       color: #fff;
       padding: 5px 8px;
@@ -183,7 +255,6 @@
       white-space: nowrap;
       transform: translateY(30px);
     }
-
 
     .node.bold-text {
       font-weight: bold;
@@ -218,10 +289,9 @@
 <body>
   <!-- ===== コントロールパネル ===== -->
   <div id="controlPanel">
-    <!-- タイトルフィールド：ダブルクリックまたはEnterで編集確定 -->
     <input type="text" id="titleField" value="" placeholder="タイトル" readonly>
     <button id="boldTextBtn">B</button>
-    <button id="changeTypeBtn">◻︎</button>
+    <button id="changeTypeBtn" class="standard">◻︎</button>
     <button id="changeLineTypeBtn">ー</button>
     <button id="changeDashTypeBtn">—</button>
     <button id="resetBtn">新規</button>
@@ -232,24 +302,24 @@
   <div id="canvas">
     <svg id="svg" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <!-- マーカー定義 -->
+        <!-- マーカー定義（すべての矢印マーカーの色を #404040 に統一） -->
         <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
           markerUnits="strokeWidth">
-          <path d="M0,0 L0,10 L10,5 Z" fill="#000" />
+          <path d="M0,0 L0,10 L10,5 Z" fill="#404040" />
         </marker>
         <marker id="no-arrow" markerWidth="0" markerHeight="0" refX="0" refY="0" orient="auto"
           markerUnits="strokeWidth"></marker>
         <marker id="start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
           markerUnits="strokeWidth">
-          <path d="M10,0 L10,10 L0,5 Z" fill="#000" />
+          <path d="M10,0 L10,10 L0,5 Z" fill="#404040" />
         </marker>
         <marker id="both-end-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
           markerUnits="strokeWidth">
-          <path d="M0,0 L0,10 L10,5 Z" fill="#000" />
+          <path d="M0,0 L0,10 L10,5 Z" fill="#404040" />
         </marker>
         <marker id="both-start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
           markerUnits="strokeWidth">
-          <path d="M10,0 L10,10 L0,5 Z" fill="#000" />
+          <path d="M10,0 L10,10 L0,5 Z" fill="#404040" />
         </marker>
       </defs>
     </svg>
@@ -262,13 +332,12 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.2.8";
+      const VERSION = "v1.2.9";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
       };
 
-      // タイトルフィールドの自動更新フラグ（初回のみ中心ノードから反映）
       let titleAutoUpdated = false;
 
       /* ===== 2. ユーティリティ関数 ===== */
@@ -304,7 +373,7 @@
           else if (dx === 0) t = hh / Math.abs(dy);
           else if (dy === 0) t = hw / Math.abs(dx);
           else t = Math.min(hw / Math.abs(dx), hh / Math.abs(dy));
-          return { arrowX: tcx + t * dx, arrowY: tcy + t * dy };
+          return { arrowX: tcx + t * dx, arrowY: t * dy + tcy };
         },
         compareVersions: (v1, v2) => {
           const parts1 = v1.replace(/^v/, "").split('.').map(Number);
@@ -338,8 +407,8 @@
       titleField.addEventListener("dblclick", function (e) {
         titleField.readOnly = false;
         titleField.style.borderBottom = "1px dashed #000";
-        titleField.style.width = "150px";  // 編集中は固定幅
-        titleField.style.textAlign = "left"; // 編集中は左寄せ
+        titleField.style.width = "150px";
+        titleField.style.textAlign = "left";
         titleField.focus();
       });
       titleField.addEventListener("keydown", function (e) {
@@ -355,20 +424,16 @@
           titleField.value = "無題";
         }
         adjustTitleFieldWidth();
-        titleField.style.textAlign = "right"; // 表示時は右寄せ
+        titleField.style.textAlign = "right";
       });
-
-
       titleField.addEventListener("blur", function (e) {
         titleField.readOnly = true;
         titleField.style.borderBottom = "none";
         if (titleField.value.trim() === "") {
           titleField.value = "無題";
         }
-        // 編集確定後、調整してテキスト全体が表示されるように幅を計測・設定
         adjustTitleFieldWidth();
       });
-      // テキスト幅を計測してタイトルフィールドの幅を自動調整する関数
       function adjustTitleFieldWidth() {
         let tempSpan = document.createElement("span");
         const style = window.getComputedStyle(titleField);
@@ -377,7 +442,7 @@
         tempSpan.style.whiteSpace = "nowrap";
         tempSpan.textContent = titleField.value;
         document.body.appendChild(tempSpan);
-        const width = tempSpan.offsetWidth + 10; // 少し余裕をもたせる
+        const width = tempSpan.offsetWidth + 10;
         document.body.removeChild(tempSpan);
         titleField.style.width = width + "px";
       }
@@ -393,7 +458,7 @@
           this.x = x;
           this.y = y;
           this.setPosition(x, y);
-          this.nodeType = "standard"; // "standard" or "text-only"
+          this.nodeType = "standard"; // 初期値
           this.boldText = false;
           this.addEventListeners();
           if (id !== undefined) {
@@ -411,6 +476,18 @@
         }
         addEventListeners() {
           this.element.addEventListener("mousedown", e => {
+            // Shiftキーが押されている場合は複数選択
+            if (e.shiftKey) {
+              if (!this.app.selectedNodes.includes(this)) {
+                this.app.selectedNodes.push(this);
+                this.element.classList.add("selected");
+              } else {
+                this.app.selectedNodes = this.app.selectedNodes.filter(n => n !== this);
+                this.element.classList.remove("selected");
+              }
+              this.app.updateControlButtonsState();
+              return;
+            }
             if (this.element.isContentEditable || this.element.classList.contains("editing")) return;
             if (e.button === 0) {
               e.preventDefault();
@@ -423,9 +500,9 @@
         }
         setType(newType) {
           this.nodeType = newType;
-          if (newType === "text-only") this.element.classList.add("text-only");
-          else this.element.classList.remove("text-only");
-          // 接続線の更新
+          // 既存のタイプクラス（standard, text-only, grey, red）をすべて除去し、新しいクラスを追加
+          this.element.classList.remove("standard", "text-only", "grey", "red");
+          this.element.classList.add(newType);
           this.app.connections.forEach(conn => {
             if (conn.fromNode === this) conn.update();
           });
@@ -446,12 +523,13 @@
           this.toNode = toNode;
           this.fromCoord = null;
           this.toCoord = null;
-          this.lineType = "standard"; // "standard", "no-arrow", "reverse-arrow", "both-arrow"
-          this.dashType = "solid";    // "solid", "dashed"
+          this.lineType = "standard";
+          this.dashType = "solid";
           this.startHandle = null;
           this.endHandle = null;
           this.line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          this.line.setAttribute("stroke", "#000");
+          // 接続線の色を #404040 に統一
+          this.line.setAttribute("stroke", "#404040");
           this.line.setAttribute("stroke-width", "2");
           this.setLineType(this.app.defaultLineType || "standard");
           this.setDashType(this.app.defaultDashType || "solid");
@@ -499,7 +577,6 @@
             fromPoint.x = startpoint.arrowX;
             fromPoint.y = startpoint.arrowY;
           }
-          // テキストのみノードの場合の補正
           if (this.fromNode && this.fromNode.nodeType === "text-only") {
             const nodeRect = this.fromNode.element.getBoundingClientRect();
             const localRect = {
@@ -657,7 +734,6 @@
           this.updateGlobalTransform();
           this.initEventListeners();
 
-          // タイトルフィールドの初期値は空。保存時はタイトルも含める。
           this.titleField = titleField;
 
           const stored = localStorage.getItem("yaNoteData");
@@ -705,11 +781,9 @@
             }
           });
           document.addEventListener("keydown", e => {
-            // 編集モード中（コンテンツが編集可能な状態）の場合は削除処理をしない
             if (document.activeElement && document.activeElement.isContentEditable) {
               return;
             }
-            // ここから既存の処理（例：Undo／Redo, BackSpace 削除処理など）
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
               e.preventDefault();
               app.undo();
@@ -722,8 +796,6 @@
               app.saveState();
             }
           });
-
-
           window.addEventListener("storage", e => { if (e.key === "yaNoteData") location.reload(); });
           this.canvas.addEventListener("wheel", e => {
             if (e.ctrlKey || e.metaKey) return;
@@ -746,38 +818,55 @@
           const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
           const boldTextBtn = document.getElementById("boldTextBtn");
 
+          // ノードタイプ変更：4種類 (standard, text-only, grey, red) を循環
+          const nodeTypes = ["standard", "text-only", "grey", "red"];
+          const getNextType = (current) => {
+            const index = nodeTypes.indexOf(current);
+            return nodeTypes[(index + 1) % nodeTypes.length];
+          };
+          const getLabel = (type) => {
+            switch (type) {
+              case "standard": return "標準";
+              case "text-only": return "テキスト専用";
+              case "grey": return "グレー";
+              case "red": return "赤";
+              default: return type;
+            }
+          };
+
           changeTypeBtn.addEventListener("click", () => {
             if (this.selectedNodes.length > 0) {
-              const allText = this.selectedNodes.every(n => n.nodeType === "text-only");
-              const target = allText ? "standard" : "text-only";
+              const target = getNextType(this.selectedNodes[0].nodeType);
               this.selectedNodes.forEach(n => n.setType(target));
               this.defaultNodeType = target;
               this.saveState();
               this.updateControlButtonsState();
-              Utils.showTooltip(changeTypeBtn, `ノード種類: ${target === "standard" ? "標準" : "テキストのみ"}`);
+              Utils.showTooltip(changeTypeBtn, `ノード種類: ${getLabel(target)}`);
             } else if (this.selectedNode) {
-              const newType = this.selectedNode.nodeType === "standard" ? "text-only" : "standard";
-              this.selectedNode.setType(newType);
-              this.defaultNodeType = newType;
+              const target = getNextType(this.selectedNode.nodeType);
+              this.selectedNode.setType(target);
+              this.defaultNodeType = target;
               this.saveState();
               this.updateControlButtonsState();
-              Utils.showTooltip(changeTypeBtn, `ノード種類: ${newType === "standard" ? "標準" : "テキストのみ"}`);
+              Utils.showTooltip(changeTypeBtn, `ノード種類: ${getLabel(target)}`);
             } else {
-              const newType = this.defaultNodeType === "standard" ? "text-only" : "standard";
-              this.defaultNodeType = newType;
+              const target = getNextType(this.defaultNodeType);
+              this.defaultNodeType = target;
               this.saveState();
               this.updateControlButtonsState();
-              Utils.showTooltip(changeTypeBtn, `デフォルトノード種類: ${newType === "standard" ? "標準" : "テキストのみ"}`);
+              Utils.showTooltip(changeTypeBtn, `デフォルトノード種類: ${getLabel(target)}`);
             }
           });
           changeTypeBtn.addEventListener("mouseenter", () => {
-            let tip = `現在のノード種類: ${this.defaultNodeType === "standard" ? "標準" : "テキストのみ"}`;
+            let tip = "";
             if (this.selectedNodes.length > 0) {
-              const allText = this.selectedNodes.every(n => n.nodeType === "text-only");
-              const allStd = this.selectedNodes.every(n => n.nodeType === "standard");
-              tip = allText ? "選択中: テキストのみ" : allStd ? "選択中: 標準" : "選択中: 混在";
+              const firstType = this.selectedNodes[0].nodeType;
+              const allSame = this.selectedNodes.every(n => n.nodeType === firstType);
+              tip = allSame ? `選択中: ${getLabel(firstType)}` : "選択中: 混在";
             } else if (this.selectedNode) {
-              tip = `選択中: ${this.selectedNode.nodeType === "standard" ? "標準" : "テキストのみ"}`;
+              tip = `選択中: ${getLabel(this.selectedNode.nodeType)}`;
+            } else {
+              tip = `現在のノード種類: ${getLabel(this.defaultNodeType)}`;
             }
             Utils.showTooltip(changeTypeBtn, tip);
           });
@@ -888,6 +977,11 @@
             }
             Utils.showTooltip(boldTextBtn, tip);
           });
+
+          // ノード変更ボタンのクラスを現在のデフォルトに合わせる
+          changeTypeBtn.classList.remove("standard", "text-only", "grey", "red");
+          changeTypeBtn.classList.add(this.defaultNodeType);
+          changeTypeBtn.textContent = getLabel(this.defaultNodeType);
         }
         getLineTypeName(type) {
           switch (type) {
@@ -1453,7 +1547,6 @@
               this.saveState();
               return;
             }
-            // 中心ノード（ID==1）の初回編集完了時にタイトルフィールドへ自動反映
             if (!titleAutoUpdated && n.id === 1) {
               titleField.value = n.element.textContent.trim() || "無題";
               adjustTitleFieldWidth();
@@ -1511,6 +1604,21 @@
           const changeTypeBtn = document.getElementById("changeTypeBtn");
           const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
           const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
+          changeTypeBtn.classList.remove("standard", "text-only", "grey", "red");
+          // ボタンのクラスを現在のデフォルトに合わせる
+          changeTypeBtn.classList.add(this.defaultNodeType);
+          // ボタンのテキストも現在のノードタイプの名称にする
+          const getLabel = (type) => {
+            switch (type) {
+              case "standard": return "◻︎";
+              case "text-only": return "T";
+              case "grey": return "GL";
+              case "red": return "R";
+              default: return type;
+            }
+          };
+          changeTypeBtn.textContent = getLabel(this.defaultNodeType);
+
           changeTypeBtn.classList.remove("active");
           if (this.selectedNodes.length > 0) {
             if (this.selectedNodes.every(n => n.nodeType === "standard")) changeTypeBtn.classList.add("active");
@@ -1559,7 +1667,6 @@
           const url = URL.createObjectURL(blob);
           const now = new Date();
           const pad = n => n.toString().padStart(2, "0");
-          // ファイル名はタイトルフィールドの内容（空なら「無題」）を先頭に
           const title = app.titleField.value.trim() || "無題";
           const filename = `${title}_yaNote_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
           const a = document.createElement("a");
