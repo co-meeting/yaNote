@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.11)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.12)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.11</title>
+  <title>yaNote v1.2.12</title>
   <style>
     /* ===== 共通CSS ===== */
     html,
@@ -66,8 +66,14 @@
       z-index: 300;
       min-height: 30px;
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      /* 縦方向に積む */
+      align-items: flex-start;
+      /* 横方向は左寄せ */
       justify-content: center;
+      /* 縦方向は中央寄せ */
+      text-align: left;
+      /* テキスト自体も左寄せ */
     }
 
     /* ノードタイプごとのスタイル */
@@ -343,7 +349,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.2.9";
+      const VERSION = "v1.2.12";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -415,7 +421,6 @@
 
       /* ===== 3. タイトルフィールド設定 ===== */
       const titleField = document.getElementById("titleField");
-      // 変更：ダブルクリックからシングルクリックで編集開始
       titleField.addEventListener("click", function (e) {
         titleField.readOnly = false;
         titleField.style.borderBottom = "1px dashed #000";
@@ -465,7 +470,7 @@
           this.app = app;
           this.element = document.createElement("div");
           this.element.className = "node";
-          this.element.textContent = text;
+          this.setText(text);
           this.app.canvas.appendChild(this.element);
           this.x = x;
           this.y = y;
@@ -488,7 +493,6 @@
         }
         addEventListeners() {
           this.element.addEventListener("mousedown", e => {
-            // Shiftキーが押されている場合は複数選択
             if (e.shiftKey) {
               if (!this.app.selectedNodes.includes(this)) {
                 this.app.selectedNodes.push(this);
@@ -507,12 +511,24 @@
             }
           });
         }
+        setText(text) {
+          this.rawText = text; // 生のMarkdownテキストを保持
+          this.element.innerHTML = this.convertMarkdownLinks(text);
+        }
+        convertMarkdownLinks(text) {
+          // 改行を <br> に変換
+          let htmlText = text.replace(/\n/g, "<br>");
+          // Markdown形式のリンク [リンクテキスト](URL) にマッチする正規表現
+          const mdLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+          return htmlText.replace(mdLinkRegex, (match, linkText, url) => {
+            return `<a href="${url}" target="_blank">${linkText}</a>`;
+          });
+        }
         startEditing() {
           this.app.startEditingNode(this);
         }
         setType(newType) {
           this.nodeType = newType;
-          // 既存のタイプクラス（standard, text-only, grey, red, dotted）をすべて除去し、新しいクラスを追加
           this.element.classList.remove("standard", "text-only", "grey", "red", "dotted");
           this.element.classList.add(newType);
           this.app.connections.forEach(conn => {
@@ -540,7 +556,6 @@
           this.startHandle = null;
           this.endHandle = null;
           this.line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-          // 接続線の色を #404040 に統一
           this.line.setAttribute("stroke", "#404040");
           this.line.setAttribute("stroke-width", "2");
           this.setLineType(this.app.defaultLineType || "standard");
@@ -794,25 +809,25 @@
             }
           });
           document.addEventListener("keydown", e => {
-            // ctrl/cmd+Enter は、編集中でも機能させる
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "enter") {
               e.preventDefault();
-              const offset = 60; // 現在のノードの真下に80px下げる
-              // 現在のノード（選択中または編集中）を取得
+              const offset = 60;
               let currentNode = app.selectedNode || app.nodes.find(n => n.element === document.activeElement);
-              // 現在のノードが必ず存在する前提
               const baseX = currentNode.x;
               const baseY = currentNode.y + offset;
               const newNode = app.createNode("", baseX, baseY);
-              // 現在のノードの種類を引き継ぐ
               newNode.setType(currentNode.nodeType);
               app.startEditingNode(newNode);
               app.selectNode(newNode);
               app.updateControlButtonsState();
               app.saveState();
+            } else if (e.key === "e") {
+              // 選択状態で、かつすでに編集モードに入っていない場合に編集モードに入る
+              if (app.selectedNode) {
+                e.preventDefault();
+                app.startEditingNode(app.selectedNode);
+              }
             } else {
-              // ctrl/cmd+Enter 以外の場合、通常のショートカット処理
-              // 編集中なら他のショートカットは無効にする
               if (document.activeElement && document.activeElement.isContentEditable) {
                 return;
               }
@@ -851,7 +866,6 @@
           const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
           const boldTextBtn = document.getElementById("boldTextBtn");
 
-          // ノードタイプ変更：4種類 (standard, text-only, grey, red, dotted) を循環
           const nodeTypes = ["standard", "text-only", "grey", "red", "dotted"];
           const getNextType = (current) => {
             const index = nodeTypes.indexOf(current);
@@ -1012,7 +1026,6 @@
             Utils.showTooltip(boldTextBtn, tip);
           });
 
-          // ノード変更ボタンのクラスを現在のデフォルトに合わせる
           changeTypeBtn.classList.remove("standard", "text-only", "grey", "red", "dotted");
           changeTypeBtn.classList.add(this.defaultNodeType);
           changeTypeBtn.textContent = getLabel(this.defaultNodeType);
@@ -1287,7 +1300,6 @@
               this.clearSelection();
               this.selectNode(newNode);
             }
-
             this.updateControlButtonsState();
             this.saveState();
           };
@@ -1407,7 +1419,7 @@
             title: this.titleField.value,
             nodes: this.nodes.map(n => ({
               id: n.id,
-              text: n.element.textContent,
+              text: n.rawText,
               x: n.x,
               y: n.y,
               nodeType: n.nodeType,
@@ -1528,12 +1540,17 @@
           this.connections.forEach(c => c.hideHandles());
         }
         selectNode(n) {
+          // 現在編集中の要素があれば blur() を呼び出して編集完了させる
+          if (document.activeElement && document.activeElement.isContentEditable) {
+            document.activeElement.blur();
+          }
           this.clearSelection();
           this.selectedNode = n;
           this.selectedNodes = [n];
           n.element.classList.add("selected");
           this.updateControlButtonsState();
         }
+
         selectConnection(c) {
           this.clearSelection();
           this.selectedConnection = c;
@@ -1547,6 +1564,8 @@
           this.selectedNode = n;
           this.selectedNodes = [n];
           n.element.classList.add("selected");
+          // 編集開始時は、元の Markdown テキストをプレーンテキストとして表示する
+          n.element.textContent = n.rawText;
           n.element.contentEditable = "true";
           n.element.classList.add("editing");
           n._enterPressCount = 0;
@@ -1597,6 +1616,8 @@
               adjustTitleFieldWidth();
               titleAutoUpdated = true;
             }
+            // 編集完了後、Markdown記法のリンク変換を実施
+            n.setText(n.element.innerText.trim());
             this.selectNode(n);
             this.saveState();
           };
@@ -1650,9 +1671,7 @@
           const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
           const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
           changeTypeBtn.classList.remove("standard", "text-only", "grey", "red", "dotted");
-          // ボタンのクラスを現在のデフォルトに合わせる
           changeTypeBtn.classList.add(this.defaultNodeType);
-          // ボタンのテキストも現在のノードタイプの名称にする
           const getLabel = (type) => {
             switch (type) {
               case "standard": return "◻︎";
