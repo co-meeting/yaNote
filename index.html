@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.10.1)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.11)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.10.1</title>
+  <title>yaNote v1.2.11</title>
   <style>
     /* ===== 共通CSS ===== */
     html,
@@ -739,7 +739,8 @@
           this.redoStack = [];
           this.globalPan = { x: 0, y: 0 };
           this.globalZoom = 1;
-          this.defaultNodeType = "standard";
+          this.firstNodeType = "standard";
+          this.defaultNodeType = "dotted";
           this.defaultLineType = "standard";
           this.defaultDashType = "solid";
           this.restored = false;
@@ -753,7 +754,7 @@
           else {
             const cx = 5000, cy = 5000;
             let node = this.createNode("中心ノード", cx, cy);
-            node.setType(this.defaultNodeType);
+            node.setType(this.firstNodeType);
             this.saveState();
           }
           if (!this.restored) {
@@ -793,19 +794,39 @@
             }
           });
           document.addEventListener("keydown", e => {
-            if (document.activeElement && document.activeElement.isContentEditable) {
-              return;
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+            // ctrl/cmd+Enter は、編集中でも機能させる
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "enter") {
               e.preventDefault();
-              app.undo();
-            } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
-              e.preventDefault();
-              app.redo();
-            } else if (["Backspace", "Delete"].includes(e.key)) {
-              e.preventDefault();
-              app.deleteSelection();
+              const offset = 60; // 現在のノードの真下に80px下げる
+              // 現在のノード（選択中または編集中）を取得
+              let currentNode = app.selectedNode || app.nodes.find(n => n.element === document.activeElement);
+              // 現在のノードが必ず存在する前提
+              const baseX = currentNode.x;
+              const baseY = currentNode.y + offset;
+              const newNode = app.createNode("", baseX, baseY);
+              // 現在のノードの種類を引き継ぐ
+              newNode.setType(currentNode.nodeType);
+              app.startEditingNode(newNode);
+              app.selectNode(newNode);
+              app.updateControlButtonsState();
               app.saveState();
+            } else {
+              // ctrl/cmd+Enter 以外の場合、通常のショートカット処理
+              // 編集中なら他のショートカットは無効にする
+              if (document.activeElement && document.activeElement.isContentEditable) {
+                return;
+              }
+              if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+                e.preventDefault();
+                app.undo();
+              } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+                e.preventDefault();
+                app.redo();
+              } else if (["Backspace", "Delete"].includes(e.key)) {
+                e.preventDefault();
+                app.deleteSelection();
+                app.saveState();
+              }
             }
           });
           window.addEventListener("storage", e => { if (e.key === "yaNoteData") location.reload(); });
@@ -1241,8 +1262,13 @@
             let dropNode = this.nodes.find(n => n.element === dropNodeEl);
             if (dropNode && dropNode !== node) {
               const conn = this.createConnection(node, dropNode);
-              conn.setLineType(this.defaultLineType);
-              conn.setDashType(this.defaultDashType);
+              if (node.nodeType === "dotted") {
+                conn.setLineType("no-arrow");
+                conn.setDashType("dashed");
+              } else {
+                conn.setLineType("standard");
+                conn.setDashType("solid");
+              }
               this.clearSelection();
               this.selectNode(dropNode);
             } else {
@@ -1251,11 +1277,17 @@
               newNode.setType("text-only");
               this.startEditingNode(newNode);
               const conn = this.createConnection(node, newNode);
-              conn.setLineType(this.defaultLineType);
-              conn.setDashType(this.defaultDashType);
+              if (node.nodeType === "dotted") {
+                conn.setLineType("no-arrow");
+                conn.setDashType("dashed");
+              } else {
+                conn.setLineType("standard");
+                conn.setDashType("solid");
+              }
               this.clearSelection();
               this.selectNode(newNode);
             }
+
             this.updateControlButtonsState();
             this.saveState();
           };
