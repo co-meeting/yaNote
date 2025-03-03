@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.12)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.12.1)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.12</title>
+  <title>yaNote v1.2.12.1</title>
   <style>
     /* ===== 共通CSS ===== */
     html,
@@ -349,7 +349,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.2.12";
+      const VERSION = "v1.2.12.1";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -1540,8 +1540,10 @@
           this.connections.forEach(c => c.hideHandles());
         }
         selectNode(n) {
-          // 現在編集中の要素があれば blur() を呼び出して編集完了させる
-          if (document.activeElement && document.activeElement.isContentEditable) {
+          // 現在編集中の要素があり、かつそのテキストが空でない場合のみ編集状態を終了する
+          if (document.activeElement &&
+            document.activeElement.isContentEditable &&
+            document.activeElement.textContent.trim() !== "") {
             document.activeElement.blur();
           }
           this.clearSelection();
