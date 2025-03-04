@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.13)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.13.1)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.13</title>
+  <title>yaNote v1.2.13.1</title>
   <style>
     /* ===== 共通CSS ===== */
     html,
@@ -357,7 +357,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.2.13";
+      const VERSION = "v1.2.13.1";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -512,6 +512,7 @@
               this.app.updateControlButtonsState();
               return;
             }
+            // 編集中の場合は処理を行わない
             if (this.element.isContentEditable || this.element.classList.contains("editing")) return;
             if (e.button === 0) {
               e.preventDefault();
@@ -780,6 +781,8 @@
           this.defaultLineType = "standard";
           this.defaultDashType = "solid";
           this.restored = false;
+          // 編集中ノードの管理（v1.2.13.1 の追加）
+          this.editingNode = null;
           this.updateGlobalTransform();
           this.initEventListeners();
 
@@ -830,23 +833,30 @@
             }
           });
           document.addEventListener("keydown", e => {
+            // cmd+Enter のショートカット：編集中のノードがあれば終了してから新規作成
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "enter") {
               e.preventDefault();
+              if (this.editingNode) {
+                this.finishEditingNode(this.editingNode);
+              }
+              // 既存の処理：現在選択中のノードの直下に新規ノードを追加する
               const offset = 60;
-              let currentNode = app.selectedNode || app.nodes.find(n => n.element === document.activeElement);
-              const baseX = currentNode.x;
-              const baseY = currentNode.y + offset;
-              const newNode = app.createNode("", baseX, baseY);
-              newNode.setType(currentNode.nodeType);
-              app.startEditingNode(newNode);
-              app.selectNode(newNode);
-              app.updateControlButtonsState();
-              app.saveState();
+              let currentNode = this.selectedNode || this.nodes.find(n => n.element === document.activeElement);
+              if (currentNode) {
+                const baseX = currentNode.x;
+                const baseY = currentNode.y + offset;
+                const newNode = this.createNode("", baseX, baseY);
+                newNode.setType(currentNode.nodeType);
+                this.startEditingNode(newNode);
+                this.selectNode(newNode);
+                this.updateControlButtonsState();
+                this.saveState();
+              }
             } else if (e.key === "e") {
-              // 選択状態で、かつすでに編集モードに入っていない場合に編集モードに入る
-              if (app.selectedNode) {
+              // eキーで、もし編集中でなければ選択中のノードを編集モードに移行
+              if (this.selectedNode && !this.editingNode) {
                 e.preventDefault();
-                app.startEditingNode(app.selectedNode);
+                this.startEditingNode(this.selectedNode);
               }
             } else {
               if (document.activeElement && document.activeElement.isContentEditable) {
@@ -854,14 +864,14 @@
               }
               if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
                 e.preventDefault();
-                app.undo();
+                this.undo();
               } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
                 e.preventDefault();
-                app.redo();
+                this.redo();
               } else if (["Backspace", "Delete"].includes(e.key)) {
                 e.preventDefault();
-                app.deleteSelection();
-                app.saveState();
+                this.deleteSelection();
+                this.saveState();
               }
             }
           });
@@ -1100,6 +1110,9 @@
           document.addEventListener("mouseup", onUp);
         }
         onCanvasMouseDown(e) {
+          if (this.editingNode) {
+            this.finishEditingNode(this.editingNode);
+          }
           if (e.target.closest(".node")) return;
           if (e.detail === 1) {
             this.clearSelection();
@@ -1136,6 +1149,11 @@
                   c.showHandles();
                 }
               });
+
+              if (this.editingNode && hasSelection) {
+                this.finishEditingNode(this.editingNode);
+              }
+
               document.body.removeChild(selRect);
               this.updateControlButtonsState();
               this.saveState();
@@ -1220,6 +1238,10 @@
           document.addEventListener("mouseup", onUp);
         }
         handleNodeMouseDown(e, node) {
+          // 他のノード選択時、もし編集中のノードがあれば強制終了
+          if (this.editingNode && this.editingNode !== node) {
+            this.finishEditingNode(this.editingNode);
+          }
           if (this.selectedConnection) {
             this.selectedConnection.line.classList.remove("selected-line");
             this.selectedConnection.hideHandles();
@@ -1561,11 +1583,9 @@
           this.connections.forEach(c => c.hideHandles());
         }
         selectNode(n) {
-          // 現在編集中の要素があり、かつそのテキストが空でない場合のみ編集状態を終了する
-          if (document.activeElement &&
-            document.activeElement.isContentEditable &&
-            document.activeElement.textContent.trim() !== "") {
-            document.activeElement.blur();
+          // 他のノードが選択された場合、もし編集中のノードがあれば終了させる（v1.2.13.1）
+          if (this.editingNode && this.editingNode !== n) {
+            this.finishEditingNode(this.editingNode);
           }
           this.clearSelection();
           this.selectedNode = n;
@@ -1582,12 +1602,40 @@
           c.showHandles();
           this.updateControlButtonsState();
         }
+
+        // v1.2.13.1 用：finishEditingNode 共通処理
+        finishEditingNode(n) {
+          // 終了処理：contentEditable を false に、editing クラスを削除、テキスト変換・状態保存
+          n.element.contentEditable = "false";
+          n.element.classList.remove("editing");
+          if (n.element.textContent.trim() === "") {
+            this.selectNode(n);
+            this.deleteSelection();
+            this.saveState();
+            this.editingNode = null;
+            return;
+          }
+          if (!titleAutoUpdated && n.id === 1) {
+            titleField.value = n.element.textContent.trim() || "無題";
+            adjustTitleFieldWidth();
+            titleAutoUpdated = true;
+          }
+          n.setText(n.element.innerText.trim());
+          this.selectNode(n);
+          this.saveState();
+          this.editingNode = null;
+        }
+
         startEditingNode(n) {
+          // もし他のノードが編集中なら終了させる
+          if (this.editingNode && this.editingNode !== n) {
+            this.finishEditingNode(this.editingNode);
+          }
           this.clearSelection();
           this.selectedNode = n;
           this.selectedNodes = [n];
           n.element.classList.add("selected");
-          // 編集開始時は、元の Markdown テキストをプレーンテキストとして表示する
+          // 編集開始時は元の Markdown テキストを表示
           n.element.textContent = n.rawText;
           n.element.contentEditable = "true";
           n.element.classList.add("editing");
@@ -1599,6 +1647,9 @@
           const sel = window.getSelection();
           sel.removeAllRanges();
           sel.addRange(range);
+          // v1.2.13.1 用：編集中のノードを管理
+          this.editingNode = n;
+
           const onKeyDown = e => {
             if (e.key === "Enter") {
               if (e.shiftKey) {
@@ -1612,7 +1663,10 @@
               } else {
                 e.preventDefault();
                 n._enterPressCount = (n._enterPressCount || 0) + 1;
-                if (n._enterPressCount >= 2) n.element.blur();
+                // Enter キー2回で終了
+                if (n._enterPressCount >= 2) {
+                  this.finishEditingNode(n);
+                }
               }
             } else {
               n._enterPressCount = 0;
@@ -1623,30 +1677,9 @@
             n.setPosition(n.x, n.y);
             this.updateAllConnections();
           };
-          const finishEditing = () => {
-            n.element.contentEditable = "false";
-            n.element.classList.remove("editing");
-            n.element.removeEventListener("keydown", onKeyDown);
-            n.element.removeEventListener("input", onInput);
-            if (n.element.textContent.trim() === "") {
-              this.selectNode(n);
-              this.deleteSelection();
-              this.saveState();
-              return;
-            }
-            if (!titleAutoUpdated && n.id === 1) {
-              titleField.value = n.element.textContent.trim() || "無題";
-              adjustTitleFieldWidth();
-              titleAutoUpdated = true;
-            }
-            // 編集完了後、Markdown記法のリンク変換を実施
-            n.setText(n.element.innerText.trim());
-            this.selectNode(n);
-            this.saveState();
-          };
           n.element.addEventListener("keydown", onKeyDown);
           n.element.addEventListener("input", onInput);
-          n.element.addEventListener("blur", finishEditing, { once: true });
+          // ※ blur イベントによる終了処理は削除（v1.2.13.1）
         }
         deleteSelection() {
           if (this.selectedConnections.length > 0) {
