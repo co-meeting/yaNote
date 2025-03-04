@@ -2,7 +2,8 @@
     "name": "yaNote",
     "short_name": "yaNote",
     "description": "ブラウザ上で動作するジグザグ型ノートアプリ",
-    "start_url": "./index.html",
+    "start_url": "/",
+    "scope": "/",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#ffffff",
@@ -18,5 +19,4 @@
         "type": "image/png"
       }
     ]
-  }
-  
+}
