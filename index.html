@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.13.2)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.13.3)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.13.2</title>
+  <title>yaNote v1.2.13.3</title>
   <style>
     /* ===== 共通CSS ===== */
     html,
@@ -357,7 +357,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.2.13.2";
+      const VERSION = "v1.2.13.3";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -843,8 +843,9 @@
                 this.finishEditingNode(this.editingNode);
               }
               // 既存の処理：現在選択中のノードの直下に新規ノードを追加する
-              const offset = 60;
+
               let currentNode = this.selectedNode || this.nodes.find(n => n.element === document.activeElement);
+              const offset = currentNode.element.offsetHeight + 10;
               if (currentNode) {
                 const baseX = currentNode.x;
                 const baseY = currentNode.y + offset;
@@ -1546,6 +1547,8 @@
             try {
               const obj = JSON.parse(data);
               this.restoreState(obj.data);
+              // ここで復元後の状態を undoStack に追加
+              this.undoStack.push(this.captureState());
             } catch (e) { alert("データ読み込みエラー: " + e.message); }
           }
         }
@@ -1806,7 +1809,19 @@
 
       /* ===== 7. インスタンス生成とコントロールパネル設定 ===== */
       window.app = new YaNoteApp();
-      document.getElementById("resetBtn").addEventListener("click", () => { localStorage.removeItem("yaNoteData"); location.reload(); });
+      document.getElementById("resetBtn").addEventListener("click", () => {
+        const shouldSave = confirm("現在の状態を保存しましたか？\n保存していない場合、作業内容が失われます。保存しますか？");
+        if (shouldSave) {
+          // ここでエクスポート処理や保存処理を呼び出すか、ユーザーに促す処理を実行
+          // 例: app.exportState() を使って保存ダイアログを表示するなど
+          // もしくは、ここで実際に保存した上で、新規状態に移行する
+        } else {
+          // 保存しない場合は、そのまま新規状態へ移行
+          localStorage.removeItem("yaNoteData");
+          location.reload();
+        }
+      });
+
       document.getElementById("exportBtn").addEventListener("click", () => {
         try {
           const json = app.exportState();
@@ -1826,8 +1841,19 @@
         } catch (e) { alert("エクスポートエラー: " + e.message); }
       });
       document.getElementById("importBtn").addEventListener("click", () => {
-        document.getElementById("importInput").click();
+        const shouldSave = confirm("現在の状態を保存しましたか？\n保存していない場合、作業内容が失われます。保存しますか？");
+        if (shouldSave) {
+          // ここで保存処理（エクスポートダイアログの表示など）を実行してから、
+          // その後にファイルのインポート処理を進めるようにするか、
+          // ユーザーに保存済みか確認してから開く処理を実行します。
+          // 例: エクスポートダイアログを表示する関数を呼ぶ
+          // showExportDialog();
+        } else {
+          // 保存済みでない場合は、そのまま「開く」処理へ進む
+          document.getElementById("importInput").click();
+        }
       });
+
       document.getElementById("importInput").addEventListener("change", e => {
         const file = e.target.files[0];
         if (!file) return;
