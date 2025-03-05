@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.13.1)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.2.13.2)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.2.13.1</title>
+  <title>yaNote v1.2.13.2</title>
   <style>
     /* ===== 共通CSS ===== */
     html,
@@ -357,7 +357,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.2.13.1";
+      const VERSION = "v1.2.13.2";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -501,6 +501,8 @@
         }
         addEventListeners() {
           this.element.addEventListener("mousedown", e => {
+            // ノード上ならイベントの伝搬を停止する
+            e.stopPropagation();
             if (e.shiftKey) {
               if (!this.app.selectedNodes.includes(this)) {
                 this.app.selectedNodes.push(this);
@@ -525,26 +527,27 @@
           this.element.innerHTML = this.convertMarkdownLinks(text);
         }
         convertMarkdownLinks(text) {
-          // 改行を <br> に変換
-          let htmlText = text.replace(/\n/g, "<br>");
+          // まず、連続する改行を 1 つの <br> にまとめる（display 用）
+          let htmlText = text.replace(/\n+/g, "<br>");
           // Markdown形式のリンク変換
           const mdLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
           htmlText = htmlText.replace(mdLinkRegex, (match, linkText, url) => {
             return `<a href="${url}" target="_blank">${linkText}</a>`;
           });
-          // 自動URLリンク変換：http:// または https:// で始まるプレーンなURLを対象とする
-          // ※既に href 属性内は対象外とするため、負の先読み (?<!href=") を使用
+          // 自動URLリンク変換
           const urlRegex = /(?<!href=")(https?:\/\/[^\s<]+)/g;
           htmlText = htmlText.replace(urlRegex, (match) => {
             let display = match;
-            // 30文字を超える場合、先頭30文字に「...」を付与
             if (display.length > 30) {
               display = display.substring(0, 30) + "...";
             }
             return `<a href="${match}" target="_blank">${display}</a>`;
           });
+          // リンク閉じタグ直後の余分な <br> を除去（display 用）
+          htmlText = htmlText.replace(/(<\/a>)<br>/g, "$1");
           return htmlText;
         }
+
 
         startEditing() {
           this.app.startEditingNode(this);
@@ -1110,10 +1113,17 @@
           document.addEventListener("mouseup", onUp);
         }
         onCanvasMouseDown(e) {
+          // クリックされた要素が編集中のノード内の場合、
+          // かつクリックがシングル（e.detail === 1）なら何もしない
+          if (this.editingNode && e.target.closest(".node") === this.editingNode.element && e.detail === 1) {
+            return;
+          }
+          // それ以外で編集中なら、まず編集を終了する
           if (this.editingNode) {
             this.finishEditingNode(this.editingNode);
           }
-          if (e.target.closest(".node")) return;
+          // ノード上でのシングルクリックの場合は何もしない（選択処理等はノード側で）
+          if (e.target.closest(".node") && e.detail === 1) return;
           if (e.detail === 1) {
             this.clearSelection();
             const selRect = document.createElement("div");
@@ -1603,28 +1613,41 @@
           this.updateControlButtonsState();
         }
 
-        // v1.2.13.1 用：finishEditingNode 共通処理
         finishEditingNode(n) {
-          // 終了処理：contentEditable を false に、editing クラスを削除、テキスト変換・状態保存
+          // 以前登録したイベントリスナーを解除
+          if (n._onKeyDown) {
+            n.element.removeEventListener("keydown", n._onKeyDown);
+            delete n._onKeyDown;
+          }
+          if (n._onInput) {
+            n.element.removeEventListener("input", n._onInput);
+            delete n._onInput;
+          }
+
           n.element.contentEditable = "false";
           n.element.classList.remove("editing");
-          if (n.element.textContent.trim() === "") {
+
+          // ユーザーが入力したテキストを取得（プレーンテキスト）
+          let newRaw = n.element.innerText.trim();
+          if (newRaw === "") {
             this.selectNode(n);
             this.deleteSelection();
             this.saveState();
             this.editingNode = null;
             return;
           }
-          if (!titleAutoUpdated && n.id === 1) {
-            titleField.value = n.element.textContent.trim() || "無題";
-            adjustTitleFieldWidth();
-            titleAutoUpdated = true;
-          }
-          n.setText(n.element.innerText.trim());
+
+          // ユーザー入力を新たな rawText として保持
+          n.rawText = newRaw;
+          // その rawText をもとにリンク変換を行い、HTML化する
+          n.setText(n.rawText);
+
           this.selectNode(n);
           this.saveState();
           this.editingNode = null;
         }
+
+
 
         startEditingNode(n) {
           // もし他のノードが編集中なら終了させる
@@ -1640,16 +1663,7 @@
           n.element.contentEditable = "true";
           n.element.classList.add("editing");
           n._enterPressCount = 0;
-          n.element.focus();
-          const range = document.createRange();
-          range.selectNodeContents(n.element);
-          range.collapse(false);
-          const sel = window.getSelection();
-          sel.removeAllRanges();
-          sel.addRange(range);
-          // v1.2.13.1 用：編集中のノードを管理
-          this.editingNode = n;
-
+          // イベントリスナーを登録し、プロパティに保持する
           const onKeyDown = e => {
             if (e.key === "Enter") {
               if (e.shiftKey) {
@@ -1679,8 +1693,20 @@
           };
           n.element.addEventListener("keydown", onKeyDown);
           n.element.addEventListener("input", onInput);
-          // ※ blur イベントによる終了処理は削除（v1.2.13.1）
+          n._onKeyDown = onKeyDown;
+          n._onInput = onInput;
+
+          n.element.focus();
+          const range = document.createRange();
+          range.selectNodeContents(n.element);
+          range.collapse(false);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          // 編集中のノードとして管理
+          this.editingNode = n;
         }
+
         deleteSelection() {
           if (this.selectedConnections.length > 0) {
             this.selectedConnections.forEach(c => {
