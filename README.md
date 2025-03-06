@@ -6,7 +6,6 @@
 
 📌 **[デモページ](https://co-meeting.github.io/yaNote/)**  
 👉 **ブラウザで今すぐ試せます！**
-👉 **[ヘルプ](./help.md) もあります。**
 
 ---
 
