@@ -1,4 +1,4 @@
-const CACHE_NAME = "yaNote-cache-v1.3.1";
+const CACHE_NAME = "yaNote-cache-v1.3.2";
 const urlsToCache = [
   "./",
   "./index.html",
@@ -34,9 +34,18 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
-    })
-  );
+  if (event.request.mode === "navigate") {
+    // ナビゲーションリクエストの場合、ネットワークから最新のHTMLを取得する
+    event.respondWith(
+      fetch(event.request)
+        .catch(() => caches.match(event.request))
+    );
+  } else {
+    // その他のリソースは既存のキャッシュ優先戦略
+    event.respondWith(
+      caches.match(event.request).then((response) => {
+        return response || fetch(event.request);
+      })
+    );
+  }
 });

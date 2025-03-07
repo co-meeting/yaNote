@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.1)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.2)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.3.1</title>
+  <title>yaNote v1.3.2</title>
   <link rel="manifest" href="manifest.json">
   <style>
     /* ===== 共通CSS ===== */
@@ -265,6 +265,12 @@
       color: #FFFFFF;
     }
 
+    #boldTextBtn.active {
+  background-color: #007bff;
+  color: #fff;
+}
+
+
     .tooltip {
       position: fixed;
       background-color: rgba(0, 0, 0, 0.8);
@@ -362,7 +368,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.1";
+      const VERSION = "v1.3.2";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -1681,6 +1687,7 @@
           n.setText(n.rawText);
 
           this.selectNode(n);
+          this.updateAllConnections();
           this.saveState();
           this.editingNode = null;
 

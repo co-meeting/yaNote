@@ -8,6 +8,7 @@
 * [yaNote Generative AI 開発ガイド](./ChatGPT_DevGuide.md)
 * [yaNote ヘルプ](./help.md)
 * [yaNote 操作仕様書](./yaNote-OperationSpec.md)
+* [yaNote Manifesto](./yaNote-Manifesto.md)
 
 
 ---
