@@ -4,8 +4,11 @@
 矢野専用に最適化された設計で、余計な機能は排除し、シンプルで高速な動作を実現。  
 ノードの自由な配置と接続線による視覚的な情報整理で、思考の発散や選択肢の検討を効率的にサポートします。
 
-📌 **[デモページ](https://co-meeting.github.io/yaNote/)**  
-👉 **ブラウザで今すぐ試せます！**
+* **[デモページ](https://co-meeting.github.io/yaNote/)** （ブラウザで今すぐ試せます！ PWA対応しているのでインストールも可）
+* [yaNote Generative AI 開発ガイド](./ChatGPT_DevGuide.md)
+* [yaNote ヘルプ](./help.md)
+* [yaNote 操作仕様書](./yaNote-OperationSpec.md)
+
 
 ---
 
