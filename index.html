@@ -728,13 +728,27 @@
               this.app.handleNodeMouseDown(e, this);
             }
           });
-          // タッチデバイス用の処理
-          this.element.addEventListener("touchend", e => {
-            // タッチ終了時にリンク要素上だった場合
+          // タッチデバイス用のリンク処理 - より積極的なアプローチ
+          this.element.addEventListener("touchstart", e => {
+            // タッチ開始時にリンク要素上だった場合
             if (e.target.tagName.toLowerCase() === 'a') {
-              e.stopPropagation(); // ノード選択イベントの伝播を停止
-              // リンクのタップ動作を許可
-              return true;
+              // リンク情報を記録
+              this._touchedLink = e.target.href;
+              e.stopPropagation();
+            } else {
+              this._touchedLink = null;
+            }
+          });
+
+          this.element.addEventListener("touchend", e => {
+            // タッチ終了時、開始時にリンクだった場合
+            if (this._touchedLink && e.target.tagName.toLowerCase() === 'a') {
+              e.preventDefault();
+              e.stopPropagation();
+              // リンクを明示的に開く
+              window.open(this._touchedLink, '_blank');
+              this._touchedLink = null;
+              return false;
             }
           });
         }
