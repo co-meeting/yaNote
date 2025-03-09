@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.3)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.3.1)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.3.3</title>
+  <title>yaNote v1.3.3.1</title>
   <link rel="manifest" href="manifest.json">
   <style>
     /* ===== 共通CSS ===== */
@@ -22,6 +22,12 @@
       margin: 0;
       overflow: hidden;
       background-color: #f9f9f9;
+      position: fixed;
+      /* iOSでのバウンススクロールを防止 */
+      width: 100%;
+      height: 100%;
+      overscroll-behavior: none;
+      /* 最新ブラウザ向けのオーバースクロール防止 */
     }
 
     body {
@@ -39,6 +45,8 @@
       background-color: #f9f9f9;
       background-image: radial-gradient(circle, #e0e0e0 1px, transparent 1px);
       background-size: 20px 20px;
+      touch-action: none;
+      /* タッチジェスチャーの標準動作を無効化 */
     }
 
     #svg {
@@ -491,7 +499,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.3";
+      const VERSION = "v1.3.3.1";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -1080,6 +1088,24 @@
           this.updateGlobalTransform();
           this.initEventListeners();
 
+          // iOSでのスクロール防止とダブルタップズーム防止
+          document.addEventListener('touchmove', function (e) {
+            // タッチムーブイベントをキャンセル（canvas内のイベントは別途処理）
+            if (!e.target.closest('#canvas')) {
+              e.preventDefault();
+            }
+          }, { passive: false });
+
+          // iOS向けのダブルタップズーム防止
+          document.addEventListener('touchend', function (e) {
+            const now = Date.now();
+            const DOUBLE_TAP_DELAY = 300;
+            if (this.lastTouchEnd && (now - this.lastTouchEnd) < DOUBLE_TAP_DELAY) {
+              e.preventDefault();
+            }
+            this.lastTouchEnd = now;
+          }, { passive: false });
+
           this.titleField = titleField;
 
           // 新規ボタンからのリロードかどうかをチェック
@@ -1226,6 +1252,47 @@
             this.updateAllConnections();
           }, { passive: false });
           this.initControlPanel();
+
+          // タッチ操作のサポート
+          this.canvas.addEventListener("touchstart", e => {
+            if (e.touches.length === 1) {
+              e.preventDefault();
+              const touch = e.touches[0];
+              const startX = touch.clientX, startY = touch.clientY;
+              const initPan = Object.assign({}, this.globalPan);
+              this.canvas.style.cursor = "grabbing";
+              let moved = false;
+
+              const onTouchMove = e => {
+                if (e.touches.length === 1) {
+                  e.preventDefault();
+                  const dx = touch.clientX - startX, dy = touch.clientY - startY;
+                  if (!moved && Math.sqrt(dx * dx + dy * dy) > 5) moved = true;
+                  if (moved) {
+                    this.globalPan.x = initPan.x + dx;
+                    this.globalPan.y = initPan.y + dy;
+                    requestAnimationFrame(() => {
+                      this.updateGlobalTransform();
+                      this.updateAllConnections();
+                    });
+                  }
+                }
+              };
+
+              const onTouchEnd = e => {
+                this.canvas.removeEventListener("touchmove", onTouchMove);
+                this.canvas.removeEventListener("touchend", onTouchEnd);
+                this.canvas.removeEventListener("touchcancel", onTouchEnd);
+                if (moved) this.canvas.style.cursor = "default";
+              };
+
+              this.canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+              this.canvas.addEventListener("touchend", onTouchEnd);
+              this.canvas.addEventListener("touchcancel", onTouchEnd);
+            }
+          }, { passive: false });
+
+
         }
         initControlPanel() {
           const changeTypeBtn = document.getElementById("changeTypeBtn");
