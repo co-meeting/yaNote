@@ -1088,22 +1088,23 @@
           this.updateGlobalTransform();
           this.initEventListeners();
 
-          // iOSでのスクロール防止とダブルタップズーム防止
+          // iOSでのスクロール防止とダブルタップズーム防止 - 修正版
           document.addEventListener('touchmove', function (e) {
-            // タッチムーブイベントをキャンセル（canvas内のイベントは別途処理）
+            // キャンバス内のタッチは別処理するので、キャンバス外のみ処理
             if (!e.target.closest('#canvas')) {
               e.preventDefault();
             }
           }, { passive: false });
 
-          // iOS向けのダブルタップズーム防止
+          // iOS向けのダブルタップズーム防止 - 修正版
+          let lastTouchEnd = 0;
           document.addEventListener('touchend', function (e) {
             const now = Date.now();
             const DOUBLE_TAP_DELAY = 300;
-            if (this.lastTouchEnd && (now - this.lastTouchEnd) < DOUBLE_TAP_DELAY) {
+            if (now - lastTouchEnd < DOUBLE_TAP_DELAY) {
               e.preventDefault();
             }
-            this.lastTouchEnd = now;
+            lastTouchEnd = now;
           }, { passive: false });
 
           this.titleField = titleField;
@@ -1254,6 +1255,7 @@
           this.initControlPanel();
 
           // タッチ操作のサポート
+          // タッチ操作のサポート - 修正版
           this.canvas.addEventListener("touchstart", e => {
             if (e.touches.length === 1) {
               e.preventDefault();
@@ -1266,6 +1268,7 @@
               const onTouchMove = e => {
                 if (e.touches.length === 1) {
                   e.preventDefault();
+                  const touch = e.touches[0]; // ここで毎回touchを取得する
                   const dx = touch.clientX - startX, dy = touch.clientY - startY;
                   if (!moved && Math.sqrt(dx * dx + dy * dy) > 5) moved = true;
                   if (moved) {
@@ -1280,7 +1283,7 @@
               };
 
               const onTouchEnd = e => {
-                this.canvas.removeEventListener("touchmove", onTouchMove);
+                this.canvas.removeEventListener("touchmove", onTouchMove, { passive: false });
                 this.canvas.removeEventListener("touchend", onTouchEnd);
                 this.canvas.removeEventListener("touchcancel", onTouchEnd);
                 if (moved) this.canvas.style.cursor = "default";
