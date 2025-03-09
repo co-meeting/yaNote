@@ -1,0 +1,594 @@
+{
+  "version": "v1.3.2",
+  "data": {
+    "title": "yaNote - ヤノ専用ジグザグノート",
+    "nodes": [
+      {
+        "id": 1,
+        "text": "yaNote - ジグザグノート\n--- ファーストガイド ---",
+        "x": 2963,
+        "y": 4761,
+        "nodeType": "red",
+        "boldText": false
+      },
+      {
+        "id": 9,
+        "text": "ドキュメント類\n[yaNote Generative AI 開発ガイド](https://github.com/co-meeting/yaNote/blob/main/ChatGPT_DevGuide.md)\n[yaNote ヘルプ](https://github.com/co-meeting/yaNote/blob/main/help.md)\n[yaNote 操作仕様書](https://github.com/co-meeting/yaNote/blob/main/yaNote-OperationSpec.md)\n[yaNote Manifesto](https://github.com/co-meeting/yaNote/blob/main/yaNote-Manifesto.md)",
+        "x": 2772,
+        "y": 4467,
+        "nodeType": "standard",
+        "boldText": false
+      },
+      {
+        "id": 15,
+        "text": "ヤノ専用ジグザグノート",
+        "x": 2813,
+        "y": 4931,
+        "nodeType": "grey",
+        "boldText": false
+      },
+      {
+        "id": 16,
+        "text": "ソースコードと開発プロセスを\n公開しているため、自分好みに\nしたい方は自分で開発しよう。\n[→ Githubリポジトリ](https://github.com/co-meeting/yaNote/tree/main)",
+        "x": 2233,
+        "y": 5338,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 17,
+        "text": "ヤノの手癖や好みの操作感に\n最適化されています。",
+        "x": 2689,
+        "y": 5019,
+        "nodeType": "standard",
+        "boldText": false
+      },
+      {
+        "id": 18,
+        "text": "マウスでの利用特化型",
+        "x": 2516,
+        "y": 4905,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 19,
+        "text": "[作者：矢野（非エンジニア）](https://note.com/yanotaka)",
+        "x": 2624,
+        "y": 4797,
+        "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 22,
+        "text": "使い方",
+        "x": 3025.5,
+        "y": 4662,
+        "nodeType": "grey",
+        "boldText": false
+      },
+      {
+        "id": 29,
+        "text": "誰かのための機能\n追加はしない方針",
+        "x": 2578,
+        "y": 5140,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 30,
+        "text": "誰かの好みを取り入れると\n自分の好みから外れてしまう",
+        "x": 2391,
+        "y": 5228.5,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 31,
+        "text": "新規ボタン",
+        "x": 3521,
+        "y": 4559,
+        "nodeType": "standard",
+        "boldText": false
+      },
+      {
+        "id": 32,
+        "text": "新しくノートを作成",
+        "x": 3521,
+        "y": 4619,
+        "nodeType": "standard",
+        "boldText": false
+      },
+      {
+        "id": 33,
+        "text": "1つのHTMLファイルで\nできている",
+        "x": 3045,
+        "y": 4977,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 34,
+        "text": "個人向けの生産性向上\nツールはそういうのが多い",
+        "x": 2137.5,
+        "y": 5207.5,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 37,
+        "text": "iPhone/iPadでの操作は\nもうすこし何とかしたい",
+        "x": 2229.5,
+        "y": 4889,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 38,
+        "text": "マウスの操作と干渉して、\nマウスの操作性を維持したまま\nトラックパッドの操作感を\n向上するは結構難しい",
+        "x": 2180,
+        "y": 5000,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 39,
+        "text": "特徴",
+        "x": 3123,
+        "y": 4886,
+        "nodeType": "grey",
+        "boldText": false
+      },
+      {
+        "id": 40,
+        "text": "PCのフォルダに",
+        "x": 3010,
+        "y": 5085,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 41,
+        "text": "「好み」のツール、本",
+        "x": 2798.5,
+        "y": 5146,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 42,
+        "text": "[SVGCats 2](http://www.sage-p.com/svgcats2.htm)",
+        "x": 2745.5,
+        "y": 5229,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 43,
+        "text": "[企画魂](https://amzn.asia/d/5AHVZiH)",
+        "x": 2849.5,
+        "y": 5324,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 44,
+        "text": "線を引くための独特なマウス操作は\nSVG Catsが元ネタ。大好きだったが、\n後継のSnap Noteでは引き継がれず\n悲しんだ記憶がある。\n[→ Snap Note](http://www.sage-p.com/cats-doc/snote.html)\n \n作者のTAKAKIRIさんはご健在のようで、\nその後開発されたツールがHPに公開\nされている。\n[→ TAKAKIRI](https://takakiri.wixsite.com/portfolio)",
+        "x": 2505.5,
+        "y": 5318,
+        "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 45,
+        "text": "企画魂―プレゼン兄貴のかけこみ企画書相談室\n竹島 愼一郎(著)\n　\n提案書やプレゼン資料の作成が本当に苦手だった\nころにお世話になった本。この本に登場する\n「ジグザグメモ」が「ジグザクノート」の元ネタ。",
+        "x": 2627.5,
+        "y": 5596,
+        "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 46,
+        "text": "一度離れると、二度と\n自分の好みの操作感は\n戻ってこない。",
+        "x": 2013.5,
+        "y": 5312,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 47,
+        "text": "生成AIだけで開発できるが、\n「簡単」ってわけではない。\n時間と根性が必要かも。今は。",
+        "x": 2100.5,
+        "y": 5527,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 48,
+        "text": "[Mind Piece](https://mindp.kantetsu.com/)",
+        "x": 2981.5,
+        "y": 5290.5,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 49,
+        "text": "操作感は普通のマインドマップツールだが、\n限られたスペースの中できれいに作りやすい\n構造が好きで、一時期かなり使っていた。\n　\n共有はスクショでもいいんじゃん？\nみたいな考え方はyaNoteでも踏襲している。\n自分はデザイナーではないので、そこまで\n美しいとは言えないが、まあ、そこそこ。",
+        "x": 2978.5,
+        "y": 5363,
+        "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 50,
+        "text": "その他色々。最近でも使っている\nyaNote的なツールはMilanoteくらいか。\n[→ Milanote](https://milanote.com/)",
+        "x": 3101.5,
+        "y": 5202,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 51,
+        "text": "コラボレーションはMiroも完成度は大変高く、\nコラボレーション用途ではまったく問題がない。\n[→ Miro](https://miro.com/)\n \nただ、一人で思考を巡らせる用途としては\n自分には合わず、いつしかその用途で、\nこのタイプのアプリやWebサービスを利用する\nことはなくなった。\n　\n紙と鉛筆。デジタルだとiPadとApple Pencil。\nこれらを使ってジグザグメモを書く。",
+        "x": 3371.5,
+        "y": 5467.5,
+        "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 52,
+        "text": "オフラインで使える",
+        "x": 3263.5,
+        "y": 4977.5,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 53,
+        "text": "ローカルストレージ",
+        "x": 3217.5,
+        "y": 5078.5,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 54,
+        "text": "PWA対応",
+        "x": 3419.5,
+        "y": 5076.5,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 55,
+        "text": "【ジグザグメモ】\nA4タテのコピー用紙やノートに、線をひっぱり\nながらメモを自由に書いていく感じのメモのこと。\n考えや発想は派生・分岐するもので、考えを巡らせ\nて次々とそれは起こる。\n　\nその流れに逆らわずに「メモ」「線」「メモ」「線」\n丸で囲ってまたメモ。みたいな感じで書きなぐる\nのが好きだ。",
+        "x": 2854.5,
+        "y": 5810.5,
+        "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 56,
+        "text": "2000年代にはマインドマップや\n思考支援系のツールは買い漁っていた。\nマップィ！、Mind Managerとか",
+        "x": 3031.5,
+        "y": 5610.5,
+        "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 57,
+        "text": "息子の学校公開とか行くと、\nロイロノートはいいツールだと\nつくづく思う。\n[→ ロイロノート](https://n.loilo.tv/ja/)",
+        "x": 3472.5,
+        "y": 5258,
+        "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 58,
+        "text": "今のツールの多くは、KJ法っぽい考え方が\n優先されがちな作りになっているものが多い。\n　\n付箋やメモをまず洗い出して、グルーピング\nしたり線引いたりと、情報やアイデアを整理\nする段階で線が登場してくる。\n　\n違うんだ。「メモ」「線」「メモ」「線」の繰り\n返しを大事にしたいんだ。だから紙と鉛筆から\n離れられないんだ。\n　\nで、yaNoteに至る。",
+        "x": 3434.5,
+        "y": 5816.5,
+        "nodeType": "dotted",
+        "boldText": false
+      }
+    ],
+    "connections": [
+      {
+        "fromId": 1,
+        "toId": 15,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 15,
+        "toId": 17,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 18,
+        "toId": 17,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "reverse-arrow",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 19,
+        "toId": 15,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 1,
+        "toId": 22,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 17,
+        "toId": 29,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 29,
+        "toId": 30,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 30,
+        "toId": 16,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 30,
+        "toId": 34,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 18,
+        "toId": 37,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 18,
+        "toId": 38,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 1,
+        "toId": 39,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 39,
+        "toId": 33,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 33,
+        "toId": 40,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 17,
+        "toId": 41,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 41,
+        "toId": 42,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 44,
+        "toId": 42,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 45,
+        "toId": 43,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 41,
+        "toId": 43,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 34,
+        "toId": 46,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 16,
+        "toId": 47,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 41,
+        "toId": 48,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 22,
+        "toId": 9,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 19,
+        "toId": 1,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 49,
+        "toId": 48,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 41,
+        "toId": 50,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 51,
+        "toId": 50,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 39,
+        "toId": 52,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 52,
+        "toId": 53,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 52,
+        "toId": 54,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 55,
+        "toId": 45,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 55,
+        "toId": 51,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 56,
+        "toId": 49,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 58,
+        "toId": 51,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "reverse-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 58,
+        "toId": 55,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "reverse-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 57,
+        "toId": 50,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      }
+    ],
+    "globalPan": {
+      "x": 1903.5,
+      "y": 154
+    },
+    "globalZoom": 1,
+    "defaultNodeType": "dotted",
+    "defaultLineType": "reverse-arrow",
+    "defaultDashType": "solid"
+  }
+}

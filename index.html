@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.2)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.3)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.3.2</title>
+  <title>yaNote v1.3.3</title>
   <link rel="manifest" href="manifest.json">
   <style>
     /* ===== 共通CSS ===== */
@@ -266,9 +266,9 @@
     }
 
     #boldTextBtn.active {
-  background-color: #007bff;
-  color: #fff;
-}
+      background-color: #007bff;
+      color: #fff;
+    }
 
 
     .tooltip {
@@ -282,6 +282,127 @@
       pointer-events: none;
       white-space: nowrap;
       transform: translateY(30px);
+    }
+
+    /* ===== 共有モーダル ===== */
+    #shareModal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+      z-index: 30000;
+      width: 450px;
+      max-width: 90vw;
+      display: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    #shareModal .modal-title {
+      margin-top: 0;
+      margin-bottom: 16px;
+      font-size: 20px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    #shareModal p {
+      margin: 12px 0 8px;
+      color: #555;
+      line-height: 1.4;
+    }
+
+    #shareModal input {
+      width: 95%;
+      padding: 8px 10px;
+      margin: 6px 0 14px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #333;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    #shareModal input:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+
+    #shareModal #generatedUrlInput {
+      background-color: #f8f9fa;
+      font-family: monospace;
+      font-size: 12px;
+      width: 95%;
+
+    }
+
+    #shareModal .copy-message {
+      font-size: 13px;
+      color: #28a745 !important;
+      margin-top: -8px;
+      margin-bottom: 12px;
+    }
+
+    #shareModal .modal-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    #shareModal .modal-buttons button {
+      min-width: 100px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    #shareModal .modal-buttons button:hover {
+      opacity: 0.9;
+    }
+
+    #shareModal .modal-buttons button:not(.primary) {
+      background-color: #f0f0f0;
+      color: #333;
+    }
+
+    #shareModal .modal-buttons button:not(.primary):hover {
+      background-color: #e5e5e5;
+    }
+
+    #shareModal .modal-buttons button.primary {
+      background-color: #007bff;
+      color: white;
+      font-weight: 500;
+    }
+
+    #shareModal .modal-buttons button.primary:hover {
+      background-color: #0069d9;
+    }
+
+    #shareModal .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(2px);
+      z-index: 29999;
+      display: none;
+    }
+
+    #shareBtn {
+      min-width: 40px;
+      padding: 5px 10px;
+      font-size: 14px;
     }
 
     .node.bold-text {
@@ -325,6 +446,8 @@
     <button id="resetBtn">新規</button>
     <button id="importBtn">開く</button>
     <button id="exportBtn">保存</button>
+    <button id="shareBtn">共有</button> <!-- これを追加 -->
+    <button id="guideBtn">？</button>
     <input type="file" id="importInput" accept=".json">
   </div>
   <div id="canvas">
@@ -368,7 +491,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.2";
+      const VERSION = "v1.3.3";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -435,6 +558,71 @@
         },
         hideAllTooltips: () => {
           document.querySelectorAll(".tooltip").forEach(t => t.parentNode && t.parentNode.removeChild(t));
+        }
+      };
+
+      /* ===== URL共有のための暗号化/復号化ユーティリティ ===== */
+      const ShareUtils = {
+        // XORキー生成 (簡易的なランダム文字列)
+        generateKey: (length = 8) => {
+          const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+          let result = '';
+          for (let i = 0; i < length; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+          }
+          return result;
+        },
+
+        // XOR暗号化
+        xorEncrypt: (text, key) => {
+          let result = '';
+          for (let i = 0; i < text.length; i++) {
+            result += String.fromCharCode(text.charCodeAt(i) ^ key.charCodeAt(i % key.length));
+          }
+          return result;
+        },
+
+        // XOR復号化 (XORは暗号化と復号化が同じ処理)
+        xorDecrypt: (text, key) => {
+          return ShareUtils.xorEncrypt(text, key);
+        },
+
+        // URL用にエンコード
+        encodeForUrl: (text, key) => {
+          const encrypted = ShareUtils.xorEncrypt(text, key);
+          // Base64エンコード + URL安全に置換
+          const base64 = btoa(encrypted).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+          // キーとデータを結合 (キー:データの形式)
+          return `${key}:${base64}`;
+        },
+
+        // URLからデコード
+        decodeFromUrl: (encoded) => {
+          try {
+            // キーとデータを分離
+            const [key, data] = encoded.split(':');
+            if (!key || !data) throw new Error('Invalid format');
+
+            // Base64デコード (URL安全な文字を元に戻す)
+            const paddedData = data.replace(/-/g, '+').replace(/_/g, '/');
+            const padding = paddedData.length % 4;
+            const paddedBase64 = padding ? paddedData + '='.repeat(4 - padding) : paddedData;
+
+            const encrypted = atob(paddedBase64);
+            // 復号
+            return ShareUtils.xorDecrypt(encrypted, key);
+          } catch (e) {
+            console.error('Decoding error:', e);
+            return null;
+          }
+        },
+
+        // 共有用URLの生成
+        generateShareUrl: (jsonUrl) => {
+          const key = ShareUtils.generateKey();
+          const encoded = ShareUtils.encodeForUrl(jsonUrl, key);
+          const baseUrl = window.location.href.split('?')[0]; // パラメータを除いたベースURL
+          return `${baseUrl}?import=${encoded}`;
         }
       };
 
@@ -773,6 +961,98 @@
         }
       }
 
+      /* ===== 6. 共有モーダルクラス ===== */
+      class ShareModal {
+        constructor() {
+          this.modal = document.getElementById('shareModal');
+          this.overlay = document.getElementById('shareModalOverlay');
+          this.jsonUrlInput = document.getElementById('jsonUrlInput');
+          this.generatedUrlContainer = document.getElementById('generatedUrlContainer');
+          this.generatedUrlInput = document.getElementById('generatedUrlInput');
+          this.cancelBtn = document.getElementById('cancelShareBtn');
+          this.generateBtn = document.getElementById('generateUrlBtn');
+          this.copyBtn = document.getElementById('copyUrlBtn');
+          this.copyMessage = document.querySelector('#shareModal .copy-message');
+
+          this.addEventListeners();
+        }
+
+        addEventListeners() {
+          // キャンセルボタン
+          this.cancelBtn.addEventListener('click', () => this.close());
+          this.overlay.addEventListener('click', () => this.close());
+
+          // URL生成ボタン
+          this.generateBtn.addEventListener('click', () => this.generateUrl());
+
+          // コピーボタン
+          this.copyBtn.addEventListener('click', () => this.copyToClipboard());
+
+          // Enterキーの処理
+          this.jsonUrlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              this.generateUrl();
+            }
+          });
+        }
+
+        show() {
+          this.overlay.style.display = 'block';
+          this.modal.style.display = 'block';
+          this.jsonUrlInput.focus();
+
+          // 表示状態をリセット
+          this.generatedUrlContainer.style.display = 'none';
+          this.generateBtn.style.display = 'inline-block';
+          this.copyBtn.style.display = 'none';
+          this.jsonUrlInput.value = '';
+          this.generatedUrlInput.value = '';
+          if (this.copyMessage) this.copyMessage.style.display = 'none';
+        }
+
+        close() {
+          this.overlay.style.display = 'none';
+          this.modal.style.display = 'none';
+        }
+
+        generateUrl() {
+          const jsonUrl = this.jsonUrlInput.value.trim();
+          if (!jsonUrl) {
+            alert('JSONファイルのURLを入力してください');
+            return;
+          }
+
+          // URLの形式を簡易チェック
+          if (!jsonUrl.startsWith('http') || !jsonUrl.endsWith('.json')) {
+            const continueAnyway = confirm('入力されたURLが正しいJSONファイルのURLではない可能性があります。続行しますか？');
+            if (!continueAnyway) return;
+          }
+
+          try {
+            const shareUrl = ShareUtils.generateShareUrl(jsonUrl);
+            this.generatedUrlInput.value = shareUrl;
+            this.generatedUrlContainer.style.display = 'block';
+            this.generateBtn.style.display = 'none';
+            this.copyBtn.style.display = 'inline-block';
+          } catch (error) {
+            alert('URL生成中にエラーが発生しました: ' + error.message);
+          }
+        }
+
+        copyToClipboard() {
+          this.generatedUrlInput.select();
+          document.execCommand('copy');
+
+          // コピー成功メッセージを表示
+          if (this.copyMessage) {
+            this.copyMessage.style.display = 'block';
+            setTimeout(() => {
+              this.copyMessage.style.display = 'none';
+            }, 2000);
+          }
+        }
+      }
+
       /* ===== 6. アプリ全体管理クラス ===== */
       class YaNoteApp {
         constructor() {
@@ -795,25 +1075,48 @@
           this.defaultLineType = "standard";
           this.defaultDashType = "solid";
           this.restored = false;
-          // 編集中ノードの管理（v1.2.13.1 の追加）
+          // 編集中ノードの管理
           this.editingNode = null;
           this.updateGlobalTransform();
           this.initEventListeners();
 
           this.titleField = titleField;
 
+          // 新規ボタンからのリロードかどうかをチェック
           const stored = localStorage.getItem("yaNoteData");
+          const skipGuide = localStorage.getItem("skipGuideLoad");
+
           if (stored) {
+            // ローカルストレージにデータがある場合はそれを読み込む
             this.loadFromLocalStorage();
             this.restored = true;
-          } else {
+          } else if (skipGuide === "true") {
+            // 新規ボタンからのリロードの場合
+            localStorage.removeItem("skipGuideLoad"); // フラグをリセット
+
+            // 通常の新規初期化処理（中心ノードのみ作成）
             const cx = 5000, cy = 5000;
             let node = this.createNode("中心ノード", cx, cy);
             node.setType(this.firstNodeType);
-            // 追加: 中心ノードをプロパティに保持する
             this.centerNode = node;
             this.saveState();
+            this.restored = true;
+          } else {
+            // 通常の初回読み込み時（データもなく、新規ボタンからでもない場合）
+            // index.jsonからガイドを読み込む
+            this.loadGuideFromIndexJson().then(success => {
+              if (!success) {
+                // ガイド読み込みに失敗した場合は通常の初期化
+                const cx = 5000, cy = 5000;
+                let node = this.createNode("中心ノード", cx, cy);
+                node.setType(this.firstNodeType);
+                this.centerNode = node;
+                this.saveState();
+              }
+              this.restored = true;
+            });
           }
+
           if (!this.restored) {
             window.addEventListener("resize", () => this.recalcCenter());
             window.addEventListener("load", () => this.recalcCenter());
@@ -851,6 +1154,12 @@
             }
           });
           document.addEventListener("keydown", e => {
+
+            // タイトルフィールド編集中はキーイベントを処理しない
+            if (document.activeElement === titleField) {
+              return;
+            }
+
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
               // フォーカスされている要素が contentEditable なら、デフォルトの全選択を行う
               if (document.activeElement && document.activeElement.isContentEditable) {
@@ -923,7 +1232,6 @@
           const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
           const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
           const boldTextBtn = document.getElementById("boldTextBtn");
-
           const nodeTypes = ["standard", "text-only", "grey", "red", "dotted"];
           const getNextType = (current) => {
             const index = nodeTypes.indexOf(current);
@@ -1082,6 +1390,18 @@
               tip = `選択中: ${this.selectedNode.boldText ? "太字" : "通常"}`;
             }
             Utils.showTooltip(boldTextBtn, tip);
+          });
+
+          // 「？」ボタンのイベントリスナー追加
+          document.getElementById("guideBtn").addEventListener("click", () => {
+            const shouldProceed = confirm("利用ガイドを表示しますか？\n現在の作業内容は失われます。");
+            if (shouldProceed) {
+              this.loadGuideFromIndexJson().then(success => {
+                if (!success) {
+                  alert("ガイドの読み込みに失敗しました。");
+                }
+              });
+            }
           });
 
           changeTypeBtn.classList.remove("standard", "text-only", "grey", "red", "dotted");
@@ -1575,6 +1895,19 @@
             } catch (e) { alert("データ読み込みエラー: " + e.message); }
           }
         }
+        async loadGuideFromIndexJson() {
+          try {
+            const response = await fetch('index.json');
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const imp = await response.json();
+            this.restoreState(imp.data);
+            this.saveState();
+            return true;
+          } catch (err) {
+            Logger.log("index.json読み込みエラー:", err.message);
+            return false;
+          }
+        }
         undo() {
           if (this.undoStack.length > 1) {
             const cur = this.undoStack.pop();
@@ -1858,10 +2191,64 @@
 
       /* ===== 7. インスタンス生成とコントロールパネル設定 ===== */
       window.app = new YaNoteApp();
+
+      // 共有モーダルの初期化
+      const shareModal = new ShareModal();
+
+      // 共有ボタンの設定
+      document.getElementById("shareBtn").addEventListener("click", () => {
+        shareModal.show();
+      });
+
+      // URL共有パラメータのチェックと処理
+      const urlParams = new URLSearchParams(window.location.search);
+      const importParam = urlParams.get('import');
+
+      if (importParam) {
+        try {
+          const jsonUrl = ShareUtils.decodeFromUrl(importParam);
+          if (jsonUrl) {
+            // 確認なしで直接読み込む
+            fetch(jsonUrl)
+              .then(response => {
+                if (!response.ok) {
+                  throw new Error('ファイルの取得に失敗しました');
+                }
+                return response.json();
+              })
+              .then(data => {
+                // インポート処理
+                try {
+                  if (data.data) {
+                    app.restoreState(data.data);
+                  } else {
+                    app.restoreState(data);
+                  }
+                  app.saveState();
+
+                  // URLパラメータをクリア
+                  window.history.replaceState({}, document.title, window.location.pathname);
+                } catch (err) {
+                  console.error("インポートエラー:", err);
+                  alert("インポートエラー: " + err.message);
+                }
+              })
+              .catch(error => {
+                console.error("ファイル読み込みエラー:", error);
+                alert("ファイル読み込みエラー: " + error.message);
+              });
+          }
+        } catch (error) {
+          console.error("URLパラメータの解析エラー:", error);
+        }
+      }
+
       document.getElementById("resetBtn").addEventListener("click", () => {
         const shouldProceed = confirm("本当に新規作成しますか？\n現在の作業内容は失われます。");
         if (shouldProceed) {
           localStorage.removeItem("yaNoteData");
+          // ガイドを表示せず、通常の新規状態にするためのフラグを設定
+          localStorage.setItem("skipGuideLoad", "true");
           location.reload();
         }
       });
@@ -1908,6 +2295,23 @@
       Logger.log("DOM fully loaded and YaNoteApp initialized.");
     });
   </script>
+  <!-- ===== 共有モーダル ===== -->
+  <div id="shareModalOverlay" class="modal-overlay"></div>
+  <div id="shareModal">
+    <h3 class="modal-title">JSONファイルのURLを共有</h3>
+    <p>JSONファイルのURLを入力してください：</p>
+    <input type="text" id="jsonUrlInput" placeholder="https://example.com/path/to/your/note.json">
+    <div id="generatedUrlContainer" style="display:none;">
+      <p>生成されたURL：</p>
+      <input type="text" id="generatedUrlInput" readonly>
+      <p class="copy-message" style="display:none; color:green;">URLをコピーしました！</p>
+    </div>
+    <div class="modal-buttons">
+      <button id="cancelShareBtn">キャンセル</button>
+      <button id="generateUrlBtn" class="primary">URL作成</button>
+      <button id="copyUrlBtn" style="display:none;" class="primary">URLをコピー</button>
+    </div>
+  </div>
 </body>
 
 </html>
