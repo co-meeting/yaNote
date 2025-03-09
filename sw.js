@@ -1,4 +1,4 @@
-const CACHE_NAME = "yaNote-cache-v1.3.3.1";
+const CACHE_NAME = "yaNote-cache-v1.3.3.2";
 const urlsToCache = [
   "./",
   "./index.html",
