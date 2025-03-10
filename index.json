@@ -14,8 +14,8 @@
       {
         "id": 9,
         "text": "ドキュメント類\n[yaNote Generative AI 開発ガイド](https://github.com/co-meeting/yaNote/blob/main/ChatGPT_DevGuide.md)\n[yaNote ヘルプ](https://github.com/co-meeting/yaNote/blob/main/help.md)\n[yaNote 操作仕様書](https://github.com/co-meeting/yaNote/blob/main/yaNote-OperationSpec.md)\n[yaNote Manifesto](https://github.com/co-meeting/yaNote/blob/main/yaNote-Manifesto.md)",
-        "x": 2739,
-        "y": 4470,
+        "x": 2708,
+        "y": 4439,
         "nodeType": "standard",
         "boldText": false
       },
@@ -53,9 +53,9 @@
       },
       {
         "id": 19,
-        "text": "[作者：矢野（非エンジニア）](https://note.com/yanotaka)",
-        "x": 2625,
-        "y": 4791,
+        "text": "[ヤノ](https://note.com/yanotaka)",
+        "x": 2813,
+        "y": 4861,
         "nodeType": "dotted",
         "boldText": false
       },
@@ -278,8 +278,8 @@
       {
         "id": 60,
         "text": "リポジトリ\n[yaNote](https://github.com/co-meeting/yaNote)",
-        "x": 2739,
-        "y": 4614,
+        "x": 2708,
+        "y": 4583,
         "nodeType": "standard",
         "boldText": false
       },
@@ -409,6 +409,14 @@
         "x": 1907.375,
         "y": 5427.5,
         "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 82,
+        "text": "この画面も自由に編集して\n構いません。右上の「?」\nボタンより再表示可能です。",
+        "x": 2681.375,
+        "y": 4724.5,
+        "nodeType": "dotted",
         "boldText": false
       }
     ],
@@ -596,14 +604,6 @@
         "toCoord": null,
         "lineType": "standard",
         "dashType": "solid"
-      },
-      {
-        "fromId": 19,
-        "toId": 1,
-        "fromCoord": null,
-        "toCoord": null,
-        "lineType": "no-arrow",
-        "dashType": "dashed"
       },
       {
         "fromId": 49,
@@ -836,11 +836,19 @@
         "toCoord": null,
         "lineType": "standard",
         "dashType": "solid"
+      },
+      {
+        "fromId": 82,
+        "toId": 1,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
       }
     ],
     "globalPan": {
-      "x": 1980.625,
-      "y": 207
+      "x": 1955.625,
+      "y": 185
     },
     "globalZoom": 1,
     "defaultNodeType": "dotted",

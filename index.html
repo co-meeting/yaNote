@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.4)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.4.1)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.3.4</title>
+  <title>yaNote v1.3.4.1</title>
   <link rel="manifest" href="manifest.json">
   <style>
     /* ===== 共通CSS ===== */
@@ -474,21 +474,21 @@
     <svg id="svg" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <!-- マーカー定義（すべての矢印マーカーの色を #404040 に統一） -->
-        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
+        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse"
           markerUnits="strokeWidth">
           <path d="M0,0 L0,10 L10,5 Z" fill="#404040" />
         </marker>
-        <marker id="no-arrow" markerWidth="0" markerHeight="0" refX="0" refY="0" orient="auto"
+        <marker id="no-arrow" markerWidth="0" markerHeight="0" refX="0" refY="0" orient="auto-start-reverse"
           markerUnits="strokeWidth"></marker>
-        <marker id="start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
+        <marker id="start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto-start-reverse"
           markerUnits="strokeWidth">
           <path d="M10,0 L10,10 L0,5 Z" fill="#404040" />
         </marker>
-        <marker id="both-end-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
+        <marker id="both-end-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto-start-reverse"
           markerUnits="strokeWidth">
           <path d="M0,0 L0,10 L10,5 Z" fill="#404040" />
         </marker>
-        <marker id="both-start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
+        <marker id="both-start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto-start-reverse"
           markerUnits="strokeWidth">
           <path d="M10,0 L10,10 L0,5 Z" fill="#404040" />
         </marker>
@@ -511,7 +511,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.4";
+      const VERSION = "v1.3.4.1";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
