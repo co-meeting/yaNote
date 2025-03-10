@@ -1,5 +1,5 @@
 {
-  "version": "v1.3.2",
+  "version": "v1.3.4",
   "data": {
     "title": "yaNote - ヤノ専用ジグザグノート",
     "nodes": [
@@ -9,13 +9,13 @@
         "x": 2963,
         "y": 4761,
         "nodeType": "red",
-        "boldText": false
+        "boldText": true
       },
       {
         "id": 9,
         "text": "ドキュメント類\n[yaNote Generative AI 開発ガイド](https://github.com/co-meeting/yaNote/blob/main/ChatGPT_DevGuide.md)\n[yaNote ヘルプ](https://github.com/co-meeting/yaNote/blob/main/help.md)\n[yaNote 操作仕様書](https://github.com/co-meeting/yaNote/blob/main/yaNote-OperationSpec.md)\n[yaNote Manifesto](https://github.com/co-meeting/yaNote/blob/main/yaNote-Manifesto.md)",
-        "x": 2772,
-        "y": 4467,
+        "x": 2739,
+        "y": 4470,
         "nodeType": "standard",
         "boldText": false
       },
@@ -54,16 +54,16 @@
       {
         "id": 19,
         "text": "[作者：矢野（非エンジニア）](https://note.com/yanotaka)",
-        "x": 2624,
-        "y": 4797,
+        "x": 2625,
+        "y": 4791,
         "nodeType": "dotted",
         "boldText": false
       },
       {
         "id": 22,
         "text": "使い方",
-        "x": 3025.5,
-        "y": 4662,
+        "x": 3026.5,
+        "y": 4631,
         "nodeType": "grey",
         "boldText": false
       },
@@ -84,34 +84,18 @@
         "boldText": false
       },
       {
-        "id": 31,
-        "text": "新規ボタン",
-        "x": 3521,
-        "y": 4559,
-        "nodeType": "standard",
-        "boldText": false
-      },
-      {
-        "id": 32,
-        "text": "新しくノートを作成",
-        "x": 3521,
-        "y": 4619,
-        "nodeType": "standard",
-        "boldText": false
-      },
-      {
         "id": 33,
         "text": "1つのHTMLファイルで\nできている",
-        "x": 3045,
-        "y": 4977,
+        "x": 3025,
+        "y": 4978,
         "nodeType": "text-only",
         "boldText": false
       },
       {
         "id": 34,
         "text": "個人向けの生産性向上\nツールはそういうのが多い",
-        "x": 2137.5,
-        "y": 5207.5,
+        "x": 2129.5,
+        "y": 5200.5,
         "nodeType": "text-only",
         "boldText": false
       },
@@ -134,32 +118,32 @@
       {
         "id": 39,
         "text": "特徴",
-        "x": 3123,
-        "y": 4886,
+        "x": 3127,
+        "y": 4876,
         "nodeType": "grey",
         "boldText": false
       },
       {
         "id": 40,
-        "text": "PCのフォルダに",
-        "x": 3010,
-        "y": 5085,
+        "text": "ローカルに置いた\nHTMLファイルを\n開くだけでも動く",
+        "x": 3021,
+        "y": 5079,
         "nodeType": "text-only",
         "boldText": false
       },
       {
         "id": 41,
         "text": "「好み」のツール、本",
-        "x": 2798.5,
-        "y": 5146,
+        "x": 2768.5,
+        "y": 5143,
         "nodeType": "text-only",
         "boldText": false
       },
       {
         "id": 42,
         "text": "[SVGCats 2](http://www.sage-p.com/svgcats2.htm)",
-        "x": 2745.5,
-        "y": 5229,
+        "x": 2708.5,
+        "y": 5233,
         "nodeType": "text-only",
         "boldText": false
       },
@@ -189,9 +173,9 @@
       },
       {
         "id": 46,
-        "text": "一度離れると、二度と\n自分の好みの操作感は\n戻ってこない。",
-        "x": 2013.5,
-        "y": 5312,
+        "text": "一度外れると、二度と\n自分の好みの操作感は\n戻ってこない。",
+        "x": 1996.5,
+        "y": 5303,
         "nodeType": "text-only",
         "boldText": false
       },
@@ -238,24 +222,24 @@
       {
         "id": 52,
         "text": "オフラインで使える",
-        "x": 3263.5,
-        "y": 4977.5,
+        "x": 3190.5,
+        "y": 5004.5,
         "nodeType": "text-only",
         "boldText": false
       },
       {
         "id": 53,
         "text": "ローカルストレージ",
-        "x": 3217.5,
-        "y": 5078.5,
+        "x": 3216.5,
+        "y": 5145.5,
         "nodeType": "text-only",
         "boldText": false
       },
       {
         "id": 54,
         "text": "PWA対応",
-        "x": 3419.5,
-        "y": 5076.5,
+        "x": 3337.5,
+        "y": 5098.5,
         "nodeType": "text-only",
         "boldText": false
       },
@@ -277,9 +261,9 @@
       },
       {
         "id": 57,
-        "text": "息子の学校公開とか行くと、\nロイロノートはいいツールだと\nつくづく思う。\n[→ ロイロノート](https://n.loilo.tv/ja/)",
-        "x": 3472.5,
-        "y": 5258,
+        "text": "息子の学校公開とか行くと、\nロイロノートはいいツールだと\nつくづく思う。これだけのツールを\n法人展開しない徹底っぷりもすごい。\n[→ ロイロノート](https://n.loilo.tv/ja/)",
+        "x": 3469.5,
+        "y": 5280,
         "nodeType": "dotted",
         "boldText": false
       },
@@ -289,6 +273,142 @@
         "x": 3434.5,
         "y": 5816.5,
         "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 60,
+        "text": "リポジトリ\n[yaNote](https://github.com/co-meeting/yaNote)",
+        "x": 2739,
+        "y": 4614,
+        "nodeType": "standard",
+        "boldText": false
+      },
+      {
+        "id": 61,
+        "text": "ノードの操作",
+        "x": 3368.5,
+        "y": 4499,
+        "nodeType": "text-only",
+        "boldText": true
+      },
+      {
+        "id": 62,
+        "text": "ダブルクリックで作成・編集",
+        "x": 3574.5,
+        "y": 4495,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 64,
+        "text": "基本操作",
+        "x": 3207.5,
+        "y": 4566,
+        "nodeType": "standard",
+        "boldText": false
+      },
+      {
+        "id": 65,
+        "text": "線を引く",
+        "x": 3383.5,
+        "y": 4564,
+        "nodeType": "text-only",
+        "boldText": true
+      },
+      {
+        "id": 66,
+        "text": "各所をクリック＋クリックしたまま移動\n（ダブルクリックの２クリック目を離さずに移動）",
+        "x": 3572.5,
+        "y": 4553,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 68,
+        "text": "ショートカット関連",
+        "x": 3368.5,
+        "y": 4639,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 69,
+        "text": "ショートカットキー一覧\n・ダブルクリック（ノード上）: ノードを編集モードに移行\n・ダブルクリック（空白）: 新規ノードを作成して編集モードに移行\n・「e」キー: 選択中のノードを編集モードに移行\n・Ctrl/Cmd + Enter: 現在選択中のノードの直下に新規ノードを追加\n・Enter（2回連続）: ノードの編集を確定し、リンク形式に変換\n・Shift + Enter: 改行を挿入\n・Shift + クリック: 複数のノードを選択・選択解除\n・Ctrl/Cmd + Z: 直前の操作を取り消す（Undo）\n・Ctrl/Cmd + Y: 取り消した操作をやり直す（Redo）\n・Ctrl/Cmd + A: キャンバス上のすべてのノードおよび接続線を選択\n・Backspace または Delete: 選択中のノードおよび接続線を削除",
+        "x": 3619.5,
+        "y": 4649,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 71,
+        "text": "あとは触れば気づくかな",
+        "x": 3276.5,
+        "y": 4723.5,
+        "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 72,
+        "text": "コントロールパネル：機能一覧\n・太字ボタン（B）: ノードの太字切り替え\n・ノード種類変更ボタン: ノードの種類を順次切り替え\n・線種変更ボタン: 接続線の矢印タイプを順次切り替え\n・線タイプ変更ボタン: 接続線のスタイルを切り替え\n・新規ボタン: 新規ノート作成\n・開くボタン: JSONファイルからノートデータを読み込み\n・保存ボタン: ノートデータをJSONファイルに保存\n・共有ボタン: JSONファイルの共有リンクを生成\n・？ボタン: 利用ガイドを表示",
+        "x": 3601.5,
+        "y": 4206.5,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 73,
+        "text": "右上のコントロールパネル",
+        "x": 3285.5,
+        "y": 4428,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 74,
+        "text": "この２つだけ分かれば\n使えるだろうか？",
+        "x": 4006.5,
+        "y": 4515,
+        "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 76,
+        "text": "速い",
+        "x": 3263.375,
+        "y": 4842,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 77,
+        "text": "メモ帳のように使える",
+        "x": 3380.375,
+        "y": 4807,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 78,
+        "text": "クラウドサービスではない",
+        "x": 3344.375,
+        "y": 4928,
+        "nodeType": "text-only",
+        "boldText": false
+      },
+      {
+        "id": 80,
+        "text": "ノートデータはクラウド上にはない「保存」\nボタンからファイルを保存したり「開く」\nボタンでファイルを読み込んだりして使う。\nブラウザで動くけど、ただのクライアントアプリ。\n　\nファイル名も工夫してるので試してみてほしい。",
+        "x": 3606.375,
+        "y": 4997,
+        "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 81,
+        "text": "悲しい",
+        "x": 1907.375,
+        "y": 5427.5,
+        "nodeType": "text-only",
         "boldText": false
       }
     ],
@@ -580,15 +700,151 @@
         "toCoord": null,
         "lineType": "no-arrow",
         "dashType": "dashed"
+      },
+      {
+        "fromId": 22,
+        "toId": 64,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 61,
+        "toId": 62,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 64,
+        "toId": 61,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 64,
+        "toId": 65,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 65,
+        "toId": 66,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 64,
+        "toId": 68,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 68,
+        "toId": 69,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 64,
+        "toId": 71,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 64,
+        "toId": 73,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 73,
+        "toId": 72,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 74,
+        "toId": 62,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 74,
+        "toId": 66,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 39,
+        "toId": 76,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 76,
+        "toId": 77,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 39,
+        "toId": 78,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
+      },
+      {
+        "fromId": 80,
+        "toId": 78,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "no-arrow",
+        "dashType": "dashed"
+      },
+      {
+        "fromId": 46,
+        "toId": 81,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
       }
     ],
     "globalPan": {
-      "x": 1903.5,
-      "y": 154
+      "x": 1980.625,
+      "y": 207
     },
     "globalZoom": 1,
     "defaultNodeType": "dotted",
-    "defaultLineType": "reverse-arrow",
-    "defaultDashType": "solid"
+    "defaultLineType": "no-arrow",
+    "defaultDashType": "dashed"
   }
 }

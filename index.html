@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.3.2)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.4)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.3.3.2</title>
+  <title>yaNote v1.3.4</title>
   <link rel="manifest" href="manifest.json">
   <style>
     /* ===== 共通CSS ===== */
@@ -216,7 +216,8 @@
     #boldTextBtn,
     #changeTypeBtn,
     #changeLineTypeBtn,
-    #changeDashTypeBtn {
+    #changeDashTypeBtn,
+    #guideBtn {
       width: 30px;
       height: 30px;
       padding: 0;
@@ -227,9 +228,18 @@
     #resetBtn,
     #importBtn,
     #exportBtn {
+      height: 30px;
       min-width: 40px;
       padding: 5px 10px;
       font-size: 14px;
+    }
+
+    #resetViewBtn {
+      min-width: 30px;
+      height: 30px;
+      padding: 0;
+      font-size: 16px;
+      font-weight: 500;
     }
 
     #importInput {
@@ -445,16 +455,18 @@
 
 <body>
   <!-- ===== コントロールパネル ===== -->
+  <!-- コントロールパネルに新しいボタンを追加 -->
   <div id="controlPanel">
     <input type="text" id="titleField" value="" placeholder="タイトル" readonly>
     <button id="boldTextBtn">B</button>
     <button id="changeTypeBtn" class="standard">◻︎</button>
     <button id="changeLineTypeBtn">ー</button>
     <button id="changeDashTypeBtn">—</button>
+    <button id="resetViewBtn" title="表示位置をリセット">⊙</button> <!-- 新しく追加 -->
     <button id="resetBtn">新規</button>
     <button id="importBtn">開く</button>
     <button id="exportBtn">保存</button>
-    <button id="shareBtn">共有</button> <!-- これを追加 -->
+    <button id="shareBtn">共有</button>
     <button id="guideBtn">？</button>
     <input type="file" id="importInput" accept=".json">
   </div>
@@ -499,7 +511,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.3.2";
+      const VERSION = "v1.3.4";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -569,70 +581,11 @@
         }
       };
 
-      /* ===== URL共有のための暗号化/復号化ユーティリティ ===== */
-      const ShareUtils = {
-        // XORキー生成 (簡易的なランダム文字列)
-        generateKey: (length = 8) => {
-          const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-          let result = '';
-          for (let i = 0; i < length; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-          }
-          return result;
-        },
-
-        // XOR暗号化
-        xorEncrypt: (text, key) => {
-          let result = '';
-          for (let i = 0; i < text.length; i++) {
-            result += String.fromCharCode(text.charCodeAt(i) ^ key.charCodeAt(i % key.length));
-          }
-          return result;
-        },
-
-        // XOR復号化 (XORは暗号化と復号化が同じ処理)
-        xorDecrypt: (text, key) => {
-          return ShareUtils.xorEncrypt(text, key);
-        },
-
-        // URL用にエンコード
-        encodeForUrl: (text, key) => {
-          const encrypted = ShareUtils.xorEncrypt(text, key);
-          // Base64エンコード + URL安全に置換
-          const base64 = btoa(encrypted).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-          // キーとデータを結合 (キー:データの形式)
-          return `${key}:${base64}`;
-        },
-
-        // URLからデコード
-        decodeFromUrl: (encoded) => {
-          try {
-            // キーとデータを分離
-            const [key, data] = encoded.split(':');
-            if (!key || !data) throw new Error('Invalid format');
-
-            // Base64デコード (URL安全な文字を元に戻す)
-            const paddedData = data.replace(/-/g, '+').replace(/_/g, '/');
-            const padding = paddedData.length % 4;
-            const paddedBase64 = padding ? paddedData + '='.repeat(4 - padding) : paddedData;
-
-            const encrypted = atob(paddedBase64);
-            // 復号
-            return ShareUtils.xorDecrypt(encrypted, key);
-          } catch (e) {
-            console.error('Decoding error:', e);
-            return null;
-          }
-        },
-
-        // 共有用URLの生成
-        generateShareUrl: (jsonUrl) => {
-          const key = ShareUtils.generateKey();
-          const encoded = ShareUtils.encodeForUrl(jsonUrl, key);
-          const baseUrl = window.location.href.split('?')[0]; // パラメータを除いたベースURL
-          return `${baseUrl}?import=${encoded}`;
-        }
-      };
+      /* ===== URL共有のためのユーティリティ ===== */
+      function generateShareUrl(jsonUrl) {
+        const baseUrl = window.location.href.split('?')[0];
+        return `${baseUrl}?json=${encodeURIComponent(jsonUrl)}`;
+      }
 
       /* ===== 3. タイトルフィールド設定 ===== */
       const titleField = document.getElementById("titleField");
@@ -1060,7 +1013,7 @@
           }
 
           try {
-            const shareUrl = ShareUtils.generateShareUrl(jsonUrl);
+            const shareUrl = `${window.location.origin}${window.location.pathname}?json=${encodeURIComponent(jsonUrl)}`;
             this.generatedUrlInput.value = shareUrl;
             this.generatedUrlContainer.style.display = 'block';
             this.generateBtn.style.display = 'none';
@@ -1497,6 +1450,63 @@
             }
           });
 
+          // initControlPanel の中の適切な場所に追加
+          document.getElementById("resetViewBtn").addEventListener("click", () => {
+            this.resetView();
+            Utils.showTooltip(document.getElementById("resetViewBtn"), "表示位置をリセットしました");
+          });
+
+          // または、YaNoteAppクラスの外側で追加
+          document.getElementById("resetViewBtn").addEventListener("click", () => {
+            window.app.resetView();
+            Utils.showTooltip(document.getElementById("resetViewBtn"), "表示位置をリセットしました");
+          });
+
+          // 追加のコントロールパネルボタンにツールチップを設定
+          const additionalTooltips = {
+            "resetBtn": "新規ノートを作成",
+            "importBtn": "保存したノートを開く",
+            "exportBtn": "現在のノートを保存",
+            "shareBtn": "URLで共有",
+            "guideBtn": "ヘルプを表示",
+            "resetViewBtn": "表示位置をリセット"
+          };
+
+          // 各ボタンにマウスエンターイベントを追加
+          Object.keys(additionalTooltips).forEach(btnId => {
+            const btn = document.getElementById(btnId);
+            if (btn) {
+              btn.addEventListener("mouseenter", () => {
+                // 右端のボタンには特別な処理
+                if (btnId === "guideBtn" || btnId === "shareBtn") {
+                  // 特別なツールチップ表示（右端用）
+                  showRightAlignedTooltip(btn, additionalTooltips[btnId]);
+                } else {
+                  Utils.showTooltip(btn, additionalTooltips[btnId]);
+                }
+              });
+            }
+          });
+
+          // 右端のボタン用に位置調整したツールチップ表示関数
+          function showRightAlignedTooltip(el, text) {
+            Utils.hideAllTooltips();
+            const tip = document.createElement("div");
+            tip.className = "tooltip";
+            tip.textContent = text;
+            document.body.appendChild(tip);
+            const rect = el.getBoundingClientRect();
+
+            // 右端に近いボタンの場合、左寄りに表示（右端から20px離す）
+            const rightEdge = window.innerWidth - 20;
+            const idealLeft = rect.left + rect.width / 2 - tip.offsetWidth / 2;
+            const adjustedLeft = Math.min(idealLeft, rightEdge - tip.offsetWidth);
+
+            tip.style.left = adjustedLeft + "px";
+            tip.style.top = (rect.bottom) + "px";
+            setTimeout(() => { if (tip.parentNode) tip.parentNode.removeChild(tip); }, 2000);
+          }
+
           changeTypeBtn.classList.remove("standard", "text-only", "grey", "red", "dotted");
           changeTypeBtn.classList.add(this.defaultNodeType);
           changeTypeBtn.textContent = getLabel(this.defaultNodeType);
@@ -1548,6 +1558,37 @@
           };
           document.addEventListener("mousemove", onMove);
           document.addEventListener("mouseup", onUp);
+        }
+        // YaNoteApp クラス内にメソッドを追加
+        resetView() {
+          Logger.log("表示位置をリセットします");
+
+          // 中心ノードを特定
+          let centerNode = this.nodes.find(n => n.element.textContent.trim() === "中心ノード") ||
+            this.nodes.find(n => n.id === 1) ||
+            this.nodes[0];
+
+          if (centerNode) {
+            // 一度 rect を取得するために少し遅延させる
+            setTimeout(() => {
+              const rect = centerNode.element.getBoundingClientRect();
+              const viewportCenterX = window.innerWidth / 2;
+              const viewportCenterY = window.innerHeight / 2;
+              const nodeCenterX = rect.left + rect.width / 2;
+              const nodeCenterY = rect.top + rect.height / 2;
+
+              // パン位置を調整
+              this.globalPan.x += (viewportCenterX - nodeCenterX);
+              this.globalPan.y += (viewportCenterY - nodeCenterY);
+
+              // 変更を適用
+              this.updateGlobalTransform();
+              this.updateAllConnections();
+              Logger.log("リセット完了:", this.globalPan);
+            }, 50);
+          } else {
+            Logger.log("中心ノードが見つかりません");
+          }
         }
         onCanvasMouseDown(e) {
           // クリックされた要素が編集中のノード内の場合、
@@ -1995,6 +2036,10 @@
             const imp = await response.json();
             this.restoreState(imp.data);
             this.saveState();
+
+            // 追加: ガイド表示後に画面中央にリセット
+            setTimeout(() => this.resetView(), 100);
+
             return true;
           } catch (err) {
             Logger.log("index.json読み込みエラー:", err.message);
@@ -2295,45 +2340,41 @@
 
       // URL共有パラメータのチェックと処理
       const urlParams = new URLSearchParams(window.location.search);
-      const importParam = urlParams.get('import');
+      const jsonParam = urlParams.get('json');
 
-      if (importParam) {
-        try {
-          const jsonUrl = ShareUtils.decodeFromUrl(importParam);
-          if (jsonUrl) {
-            // 確認なしで直接読み込む
-            fetch(jsonUrl)
-              .then(response => {
-                if (!response.ok) {
-                  throw new Error('ファイルの取得に失敗しました');
-                }
-                return response.json();
-              })
-              .then(data => {
-                // インポート処理
-                try {
-                  if (data.data) {
-                    app.restoreState(data.data);
-                  } else {
-                    app.restoreState(data);
-                  }
-                  app.saveState();
+      if (jsonParam) {
+        fetch(jsonParam)
+          .then(response => {
+            if (!response.ok) {
+              // HTTPエラーハンドリング
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+            try {
+              // データの構造に応じて処理
+              if (data.data) {
+                app.restoreState(data.data);
+              } else {
+                app.restoreState(data);
+              }
+              app.saveState();
 
-                  // URLパラメータをクリア
-                  window.history.replaceState({}, document.title, window.location.pathname);
-                } catch (err) {
-                  console.error("インポートエラー:", err);
-                  alert("インポートエラー: " + err.message);
-                }
-              })
-              .catch(error => {
-                console.error("ファイル読み込みエラー:", error);
-                alert("ファイル読み込みエラー: " + error.message);
-              });
-          }
-        } catch (error) {
-          console.error("URLパラメータの解析エラー:", error);
-        }
+              // 追加: 共有リンクからの読み込み後に画面中央にリセット
+              setTimeout(() => app.resetView(), 100);
+
+              // URLパラメータをクリア
+              window.history.replaceState({}, document.title, window.location.pathname);
+            } catch (err) {
+              console.error("インポートエラー:", err);
+              alert("インポートできませんでした: " + err.message);
+            }
+          })
+          .catch(error => {
+            console.error("ファイル読み込みエラー:", error);
+            alert("ファイルを読み込めませんでした: " + error.message);
+          });
       }
 
       document.getElementById("resetBtn").addEventListener("click", () => {
@@ -2379,6 +2420,10 @@
             const imp = JSON.parse(event.target.result);
             app.restoreState(imp.data);
             app.saveState();
+
+            // 「開く」ボタンでは明示的にリセットしない
+            // ローカルファイルからのインポート時は元のパン位置を維持
+
           } catch (err) { alert("インポートエラー: " + err.message); }
         };
         reader.readAsText(file);
