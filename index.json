@@ -1,5 +1,5 @@
 {
-  "version": "v1.3.4",
+  "version": "v1.3.4.1",
   "data": {
     "title": "yaNote - ヤノ専用ジグザグノート",
     "nodes": [
@@ -14,8 +14,8 @@
       {
         "id": 9,
         "text": "ドキュメント類\n[yaNote Generative AI 開発ガイド](https://github.com/co-meeting/yaNote/blob/main/ChatGPT_DevGuide.md)\n[yaNote ヘルプ](https://github.com/co-meeting/yaNote/blob/main/help.md)\n[yaNote 操作仕様書](https://github.com/co-meeting/yaNote/blob/main/yaNote-OperationSpec.md)\n[yaNote Manifesto](https://github.com/co-meeting/yaNote/blob/main/yaNote-Manifesto.md)",
-        "x": 2708,
-        "y": 4439,
+        "x": 2761,
+        "y": 4414,
         "nodeType": "standard",
         "boldText": false
       },
@@ -278,8 +278,8 @@
       {
         "id": 60,
         "text": "リポジトリ\n[yaNote](https://github.com/co-meeting/yaNote)",
-        "x": 2708,
-        "y": 4583,
+        "x": 2761,
+        "y": 4558,
         "nodeType": "standard",
         "boldText": false
       },
@@ -337,14 +337,6 @@
         "x": 3619.5,
         "y": 4649,
         "nodeType": "text-only",
-        "boldText": false
-      },
-      {
-        "id": 71,
-        "text": "あとは触れば気づくかな",
-        "x": 3276.5,
-        "y": 4723.5,
-        "nodeType": "dotted",
         "boldText": false
       },
       {
@@ -414,9 +406,17 @@
       {
         "id": 82,
         "text": "この画面も自由に編集して\n構いません。右上の「?」\nボタンより再表示可能です。",
-        "x": 2681.375,
-        "y": 4724.5,
+        "x": 2676.375,
+        "y": 4661.5,
         "nodeType": "dotted",
+        "boldText": false
+      },
+      {
+        "id": 84,
+        "text": "[新しいノートの作成](https://co-meeting.github.io/yaNote/?new=true)",
+        "x": 3218.375,
+        "y": 4728.5,
+        "nodeType": "grey",
         "boldText": false
       }
     ],
@@ -759,14 +759,6 @@
       },
       {
         "fromId": 64,
-        "toId": 71,
-        "fromCoord": null,
-        "toCoord": null,
-        "lineType": "no-arrow",
-        "dashType": "dashed"
-      },
-      {
-        "fromId": 64,
         "toId": 73,
         "fromCoord": null,
         "toCoord": null,
@@ -844,14 +836,22 @@
         "toCoord": null,
         "lineType": "no-arrow",
         "dashType": "dashed"
+      },
+      {
+        "fromId": 1,
+        "toId": 84,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
       }
     ],
     "globalPan": {
-      "x": 1955.625,
-      "y": 185
+      "x": 1935.625,
+      "y": 207
     },
     "globalZoom": 1,
-    "defaultNodeType": "dotted",
+    "defaultNodeType": "grey",
     "defaultLineType": "no-arrow",
     "defaultDashType": "dashed"
   }

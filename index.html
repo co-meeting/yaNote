@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.4.1)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,8 +13,35 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote v1.3.4.1</title>
+  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5</title>
   <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192x192.png" type="image/png">
+
+  <!-- SEO対応のメタタグ -->
+  <meta name="description"
+    content="yaNoteはブラウザ上で直感的にアイデアを整理できるジグザグ型ノートアプリです。思考の整理や選択肢の検討に最適なシンプルで高速なUI、PWA対応でオフラインでも使用可能です。">
+  <meta name="keywords" content="yaNote, ジグザグノート, マインドマップ, ブラウザアプリ, 思考整理, PWA, オフライン対応">
+  <meta name="author" content="Takaaki Yano">
+
+  <!-- OGP設定 -->
+  <meta property="og:title" content="yaNote - ブラウザで動作するジグザグ型ノートアプリ">
+  <meta property="og:description" content="ブラウザ上で直感的にアイデアを整理できるジグザグ型ノートアプリ。思考の整理や選択肢の検討に最適なシンプルなUI、PWA対応でオフラインでも使用可能。">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://co-meeting.github.io/yaNote/">
+  <meta property="og:image" content="https://co-meeting.github.io/yaNote/ogp-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="yaNote - ブラウザで動作するジグザグ型ノートアプリ">
+  <meta name="twitter:description" content="ブラウザ上で直感的にアイデアを整理できるジグザグ型ノートアプリ。PWA対応でオフラインでも使用可能。">
+  <meta name="twitter:image" content="https://co-meeting.github.io/yaNote/ogp-image.png">
+
+  <link rel="shortcut icon" href="icons/icon-192x192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+  <meta name="theme-color" content="#ffffff">
+
   <style>
     /* ===== 共通CSS ===== */
     html,
@@ -113,6 +140,21 @@
       background-color: #BF1304;
       color: #FFFFFF;
       border: none;
+    }
+
+    /* ===== リンク色の調整 ===== */
+    /* Greyノード内のリンク色 */
+    .node.grey a {
+      color: #A8E6CE;
+      /* 明るい水色 */
+      text-decoration: underline;
+    }
+
+    /* Redノード内のリンク色 */
+    .node.red a {
+      color: #FFD3B5;
+      /* 明るいオレンジ */
+      text-decoration: underline;
     }
 
     /* 新たに追加するノードタイプ：枠が点線、背景は薄いグレー */
@@ -450,6 +492,26 @@
     #zoomDisplay.visible {
       opacity: 1;
     }
+
+    /* コピーライト表示 */
+    #copyright {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      font-size: 11px;
+      color: #808080;
+      opacity: 0.6;
+      z-index: 10000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      pointer-events: none;
+      user-select: none;
+      text-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
+    }
+
+    #copyright:hover {
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
   </style>
 </head>
 
@@ -511,7 +573,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.4.1";
+      const VERSION = "v1.3.5";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -710,13 +772,31 @@
           this.element.innerHTML = this.convertMarkdownLinks(text);
         }
         convertMarkdownLinks(text) {
+          // シンプルな内部リンク判定関数（メソッド内に定義）
+          const isInternalLink = (url) => {
+            try {
+              // URLを完全に解析
+              const urlObj = new URL(url, window.location.href);
+
+              // 同じホスト名のURLは内部リンク、それ以外は外部リンク
+              return urlObj.host === window.location.host;
+            } catch (e) {
+              // 相対URL（./や/で始まるパス）も内部リンクとみなす
+              return !url.startsWith('http');
+            }
+          };
+
           // まず、連続する改行を 1 つの <br> にまとめる（display 用）
           let htmlText = text.replace(/\n+/g, "<br>");
+
           // Markdown形式のリンク変換
           const mdLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
           htmlText = htmlText.replace(mdLinkRegex, (match, linkText, url) => {
-            return `<a href="${url}" target="_blank">${linkText}</a>`;
+            // 内部リンクかどうかを判定
+            const target = isInternalLink(url) ? "_top" : "_blank";
+            return `<a href="${url}" target="${target}">${linkText}</a>`;
           });
+
           // 自動URLリンク変換
           const urlRegex = /(?<!href=")(https?:\/\/[^\s<]+)/g;
           htmlText = htmlText.replace(urlRegex, (match) => {
@@ -724,10 +804,14 @@
             if (display.length > 30) {
               display = display.substring(0, 30) + "...";
             }
-            return `<a href="${match}" target="_blank">${display}</a>`;
+            // 内部リンクかどうかを判定
+            const target = isInternalLink(match) ? "_top" : "_blank";
+            return `<a href="${match}" target="${target}">${display}</a>`;
           });
+
           // リンク閉じタグ直後の余分な <br> を除去（display 用）
           htmlText = htmlText.replace(/(<\/a>)<br>/g, "$1");
+
           return htmlText;
         }
 
@@ -1125,6 +1209,11 @@
             window.addEventListener("load", () => this.recalcCenter());
           }
           this.updateControlButtonsState();
+          // コピーライト要素のバージョン情報を更新
+          const copyright = document.getElementById("copyright");
+          if (copyright) {
+            copyright.textContent = copyright.textContent.replace(/yaNote v[0-9.]+/, `yaNote ${VERSION}`);
+          }
           Logger.log("YaNoteApp initialized");
         }
         updateGlobalTransform() {
@@ -2339,8 +2428,10 @@
       });
 
       // URL共有パラメータのチェックと処理
+      // URL共有パラメータのチェックと処理
       const urlParams = new URLSearchParams(window.location.search);
       const jsonParam = urlParams.get('json');
+      const newParam = urlParams.get('new'); // 新規パラメータの検出を追加
 
       if (jsonParam) {
         fetch(jsonParam)
@@ -2375,6 +2466,18 @@
             console.error("ファイル読み込みエラー:", error);
             alert("ファイルを読み込めませんでした: " + error.message);
           });
+      }
+      // 新規パラメータ処理を追加
+      else if (newParam === 'true') {
+        // 新規ボタンと同じ処理を実行
+        localStorage.removeItem("yaNoteData");
+        localStorage.setItem("skipGuideLoad", "true");
+
+        // URLパラメータをクリア
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        // リロードして初期化
+        location.reload();
       }
 
       document.getElementById("resetBtn").addEventListener("click", () => {
@@ -2450,6 +2553,11 @@
       <button id="copyUrlBtn" style="display:none;" class="primary">URLをコピー</button>
     </div>
   </div>
+  <!-- Copyright 表示 -->
+  <div id="copyright">
+    © 2025 Takaaki Yano | yaNote v1.3.5
+  </div>
+</body>
 </body>
 
 </html>
