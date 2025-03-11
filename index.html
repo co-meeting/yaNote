@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5.1)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5.2)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5.1</title>
+  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5.2</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
 
@@ -573,24 +573,13 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.5.1";
+      const VERSION = "v1.3.5.2";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
       };
 
       let titleAutoUpdated = false;
-
-      // 2. ユーティリティ関数 セクションの先頭に配置
-      function delayIfiOSSafari(callback, delay = 200) {
-        if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
-          /Safari/.test(navigator.userAgent) &&
-          !/Chrome/.test(navigator.userAgent)) {
-          setTimeout(callback, delay);
-        } else {
-          callback();
-        }
-      }
 
       /* ===== 2. ユーティリティ関数 ===== */
       const Utils = {
@@ -2145,7 +2134,6 @@
             } else {
               requestAnimationFrame(() => {
                 this.resetView();
-                this.updateAllConnections();
               });
             }
 
@@ -2480,7 +2468,6 @@
               } else {
                 requestAnimationFrame(() => {
                   app.resetView();
-                  app.updateAllConnections();
                 });
               }
 
@@ -2561,7 +2548,6 @@
             } else {
               requestAnimationFrame(() => {
                 app.resetView();
-                app.updateAllConnections();
               });
             }
 
@@ -2596,7 +2582,7 @@
   </div>
   <!-- Copyright 表示 -->
   <div id="copyright">
-    © 2025 Takaaki Yano | yaNote v1.3.5.1
+    © 2025 Takaaki Yano | yaNote v1.3.5.2
   </div>
 </body>
 </body>
