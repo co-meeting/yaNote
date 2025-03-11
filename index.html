@@ -2137,11 +2137,17 @@
             this.restoreState(imp.data);
             this.saveState();
 
-            // ガイド読み込み完了後、中心に移動＋接続線再計算を実施
-            requestAnimationFrame(() => {
-              this.resetView();
-              this.updateAllConnections();
-            });
+            // 初回のみリロード：中心移動も含める
+            if (!localStorage.getItem("reloadAfterImport")) {
+              localStorage.setItem("reloadAfterImport", "true");
+              requestAnimationFrame(() => {
+                this.resetView();
+                this.updateAllConnections();
+                location.reload();
+              });
+            } else {
+              localStorage.removeItem("reloadAfterImport");
+            }
 
             return true;
           } catch (err) {
@@ -2149,7 +2155,6 @@
             return false;
           }
         }
-
 
         undo() {
           if (this.undoStack.length > 1) {
@@ -2466,11 +2471,17 @@
               }
               app.saveState();
 
-              // 共有リンクからの読み込み後、中心に移動＋接続線再計算を実施
-              requestAnimationFrame(() => {
-                app.resetView();
-                app.updateAllConnections();
-              });
+              // 初回のみリロード：中心移動も含める
+              if (!localStorage.getItem("reloadAfterImport")) {
+                localStorage.setItem("reloadAfterImport", "true");
+                requestAnimationFrame(() => {
+                  app.resetView();
+                  app.updateAllConnections();
+                  location.reload();
+                });
+              } else {
+                localStorage.removeItem("reloadAfterImport");
+              }
 
               window.history.replaceState({}, document.title, window.location.pathname);
             } catch (err) {
@@ -2483,6 +2494,7 @@
             alert("ファイルを読み込めませんでした: " + error.message);
           });
       }
+
 
 
 
@@ -2543,11 +2555,17 @@
             app.restoreState(imp.data);
             app.saveState();
 
-            // ローカルファイルからの読み込み後、中心に移動＋接続線再計算を実施
-            requestAnimationFrame(() => {
-              app.resetView();
-              app.updateAllConnections();
-            });
+            // 初回のみリロード：中心移動も含める
+            if (!localStorage.getItem("reloadAfterImport")) {
+              localStorage.setItem("reloadAfterImport", "true");
+              requestAnimationFrame(() => {
+                app.resetView();
+                app.updateAllConnections();
+                location.reload();
+              });
+            } else {
+              localStorage.removeItem("reloadAfterImport");
+            }
 
           } catch (err) {
             alert("インポートエラー: " + err.message);
@@ -2556,9 +2574,6 @@
         reader.readAsText(file);
         e.target.value = "";
       });
-
-
-
 
       Logger.log("DOM fully loaded and YaNoteApp initialized.");
     });
