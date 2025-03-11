@@ -1,5 +1,5 @@
 {
-  "version": "v1.3.4.1",
+  "version": "v1.3.5",
   "data": {
     "title": "yaNote - ヤノ専用ジグザグノート",
     "nodes": [
@@ -46,8 +46,8 @@
       {
         "id": 18,
         "text": "マウスでの利用特化型",
-        "x": 2516,
-        "y": 4905,
+        "x": 2515,
+        "y": 4902,
         "nodeType": "text-only",
         "boldText": false
       },
@@ -435,14 +435,6 @@
         "fromCoord": null,
         "toCoord": null,
         "lineType": "standard",
-        "dashType": "solid"
-      },
-      {
-        "fromId": 18,
-        "toId": 17,
-        "fromCoord": null,
-        "toCoord": null,
-        "lineType": "reverse-arrow",
         "dashType": "solid"
       },
       {
@@ -844,6 +836,14 @@
         "toCoord": null,
         "lineType": "standard",
         "dashType": "solid"
+      },
+      {
+        "fromId": 17,
+        "toId": 18,
+        "fromCoord": null,
+        "toCoord": null,
+        "lineType": "standard",
+        "dashType": "solid"
       }
     ],
     "globalPan": {
@@ -852,7 +852,7 @@
     },
     "globalZoom": 1,
     "defaultNodeType": "grey",
-    "defaultLineType": "no-arrow",
+    "defaultLineType": "reverse-arrow",
     "defaultDashType": "dashed"
   }
 }
