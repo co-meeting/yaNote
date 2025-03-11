@@ -2137,8 +2137,11 @@
             this.restoreState(imp.data);
             this.saveState();
 
-            // iOS/iPadOS Safariの場合のみ、ガイド読み込み後に遅延させて表示位置をリセット
-            delayIfiOSSafari(() => this.resetView(), 200);
+            // ガイド読み込み完了後、中心に移動＋接続線再計算を実施
+            requestAnimationFrame(() => {
+              this.resetView();
+              this.updateAllConnections();
+            });
 
             return true;
           } catch (err) {
@@ -2146,6 +2149,7 @@
             return false;
           }
         }
+
 
         undo() {
           if (this.undoStack.length > 1) {
@@ -2462,8 +2466,11 @@
               }
               app.saveState();
 
-              // iOS/iPadOS Safariの場合のみ、共有リンクから読み込み後に遅延させて表示位置をリセット
-              delayIfiOSSafari(() => app.resetView(), 200);
+              // 共有リンクからの読み込み後、中心に移動＋接続線再計算を実施
+              requestAnimationFrame(() => {
+                app.resetView();
+                app.updateAllConnections();
+              });
 
               window.history.replaceState({}, document.title, window.location.pathname);
             } catch (err) {
@@ -2476,6 +2483,8 @@
             alert("ファイルを読み込めませんでした: " + error.message);
           });
       }
+
+
 
       // 新規パラメータ処理を追加
       else if (newParam === 'true') {
@@ -2534,8 +2543,11 @@
             app.restoreState(imp.data);
             app.saveState();
 
-            // iOS/iPadOS Safariの場合のみ、遅延後に画面中央へリセット
-            delayIfiOSSafari(() => app.resetView(), 200);
+            // ローカルファイルからの読み込み後、中心に移動＋接続線再計算を実施
+            requestAnimationFrame(() => {
+              app.resetView();
+              app.updateAllConnections();
+            });
 
           } catch (err) {
             alert("インポートエラー: " + err.message);
@@ -2544,6 +2556,8 @@
         reader.readAsText(file);
         e.target.value = "";
       });
+
+
 
 
       Logger.log("DOM fully loaded and YaNoteApp initialized.");
