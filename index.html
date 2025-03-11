@@ -2137,16 +2137,16 @@
             this.restoreState(imp.data);
             this.saveState();
 
-            // 初回のみリロード：中心移動も含める
-            if (!localStorage.getItem("reloadAfterImport")) {
-              localStorage.setItem("reloadAfterImport", "true");
+            // iOS/iPadOS Safariの場合は必ずリロード、それ以外は中心に戻る＋再描画を実施
+            if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
+              /Safari/.test(navigator.userAgent) &&
+              !/Chrome/.test(navigator.userAgent)) {
+              location.reload();
+            } else {
               requestAnimationFrame(() => {
                 this.resetView();
                 this.updateAllConnections();
-                location.reload();
               });
-            } else {
-              localStorage.removeItem("reloadAfterImport");
             }
 
             return true;
@@ -2155,6 +2155,7 @@
             return false;
           }
         }
+
 
         undo() {
           if (this.undoStack.length > 1) {
@@ -2471,16 +2472,16 @@
               }
               app.saveState();
 
-              // 初回のみリロード：中心移動も含める
-              if (!localStorage.getItem("reloadAfterImport")) {
-                localStorage.setItem("reloadAfterImport", "true");
+              // iOS/iPadOS Safariの場合は必ずリロード、それ以外は中心に戻る＋再描画を実施
+              if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
+                /Safari/.test(navigator.userAgent) &&
+                !/Chrome/.test(navigator.userAgent)) {
+                location.reload();
+              } else {
                 requestAnimationFrame(() => {
                   app.resetView();
                   app.updateAllConnections();
-                  location.reload();
                 });
-              } else {
-                localStorage.removeItem("reloadAfterImport");
               }
 
               window.history.replaceState({}, document.title, window.location.pathname);
@@ -2494,9 +2495,6 @@
             alert("ファイルを読み込めませんでした: " + error.message);
           });
       }
-
-
-
 
       // 新規パラメータ処理を追加
       else if (newParam === 'true') {
@@ -2555,16 +2553,16 @@
             app.restoreState(imp.data);
             app.saveState();
 
-            // 初回のみリロード：中心移動も含める
-            if (!localStorage.getItem("reloadAfterImport")) {
-              localStorage.setItem("reloadAfterImport", "true");
+            // iOS/iPadOS Safariの場合は必ずリロード、それ以外は中心に戻る＋再描画を実施
+            if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
+              /Safari/.test(navigator.userAgent) &&
+              !/Chrome/.test(navigator.userAgent)) {
+              location.reload();
+            } else {
               requestAnimationFrame(() => {
                 app.resetView();
                 app.updateAllConnections();
-                location.reload();
               });
-            } else {
-              localStorage.removeItem("reloadAfterImport");
             }
 
           } catch (err) {
@@ -2574,6 +2572,7 @@
         reader.readAsText(file);
         e.target.value = "";
       });
+
 
       Logger.log("DOM fully loaded and YaNoteApp initialized.");
     });
