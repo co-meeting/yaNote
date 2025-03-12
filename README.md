@@ -5,10 +5,10 @@
 ノードの自由な配置と接続線による視覚的な情報整理で、思考の発散や選択肢の検討を効率的にサポートします。
 
 * **[デモページ](https://co-meeting.github.io/yaNote/)** （ブラウザで今すぐ試せます！ PWA対応しているのでインストールも可）
-* [yaNote Generative AI 開発ガイド](./ChatGPT_DevGuide.md)
+* [yaNote Generative AI 開発ガイド](./docs/ChatGPT_DevGuide.md)
 * [yaNote ヘルプ](./help.md)
-* [yaNote 操作仕様書](./yaNote-OperationSpec.md)
-* [yaNote Manifesto](./yaNote-Manifesto.md)
+* [yaNote 操作仕様書](./docs/yaNote-OperationSpec.md)
+* [yaNote Manifesto](./docs/yaNote-Manifesto.md)
 
 
 ---

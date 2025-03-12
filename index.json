@@ -13,7 +13,7 @@
       },
       {
         "id": 9,
-        "text": "ドキュメント類\n[yaNote Generative AI 開発ガイド](https://github.com/co-meeting/yaNote/blob/main/ChatGPT_DevGuide.md)\n[yaNote ヘルプ](https://github.com/co-meeting/yaNote/blob/main/help.md)\n[yaNote 操作仕様書](https://github.com/co-meeting/yaNote/blob/main/yaNote-OperationSpec.md)\n[yaNote Manifesto](https://github.com/co-meeting/yaNote/blob/main/yaNote-Manifesto.md)",
+        "text": "ドキュメント類\n[yaNote Generative AI 開発ガイド](https://github.com/co-meeting/yaNote/blob/main/docs/ChatGPT_DevGuide.md)\n[yaNote ヘルプ](https://github.com/co-meeting/yaNote/blob/main/help.md)\n[yaNote 操作仕様書](https://github.com/co-meeting/yaNote/blob/main/docs/yaNote-OperationSpec.md)\n[yaNote Manifesto](https://github.com/co-meeting/yaNote/blob/main/docs/yaNote-Manifesto.md)",
         "x": 2761,
         "y": 4414,
         "nodeType": "standard",
