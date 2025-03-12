@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5.2)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5.3)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5.2</title>
+  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5.3</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
 
@@ -195,9 +195,25 @@
       transform: scale(1.02);
     }
 
+    /* ノード編集時の基本スタイル */
     .node.editing {
       background-color: #ffffe0;
+      /* 薄い黄色の背景 */
       border-color: #007bff;
+      z-index: 1000;
+      /* 編集中は最前面に表示 */
+    }
+
+    /* text-onlyノード編集時の特別なスタイル */
+    .node.text-only.editing {
+      background-color: #ffffe0;
+      /* 薄い黄色の背景を透明ではなく不透明に */
+      border: 1px solid #007bff;
+      /* 境界線を追加して視認性を高める */
+      box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+      /* 軽い影を追加 */
+      padding: 8px 12px;
+      /* 標準ノードと同じパディングを明示的に設定 */
     }
 
     /* 編集モード：赤・グレーは文字色を黒に */
@@ -573,7 +589,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.5.2";
+      const VERSION = "v1.3.5.3";
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -725,6 +741,33 @@
           this.element.addEventListener("mousedown", e => {
             // ノード上ならイベントの伝搬を停止する
             e.stopPropagation();
+
+            // 右クリックの場合、編集中の場合のみデフォルト動作を許可する
+            if (e.button === 2) {
+              // 編集中でない場合は右クリックによるコンテキストメニュー表示を防止し、
+              // パン操作に渡すために stopPropagation を無効化
+              if (!this.element.isContentEditable && !this.element.classList.contains("editing")) {
+                e.preventDefault();
+                // stopPropagation をオーバーライドしてイベント伝播を許可
+                const originalStopPropagation = e.stopPropagation;
+                e.stopPropagation = function () { };
+
+                // パン処理を行うためにキャンバスのmousedownイベントを明示的に発火
+                const canvasEvent = new MouseEvent('mousedown', {
+                  bubbles: true,
+                  cancelable: true,
+                  view: window,
+                  button: 2,
+                  buttons: 2,
+                  clientX: e.clientX,
+                  clientY: e.clientY
+                });
+                this.app.canvas.dispatchEvent(canvasEvent);
+              }
+              return;
+            }
+
+            // 以下は既存のコード
             if (e.shiftKey) {
               if (!this.app.selectedNodes.includes(this)) {
                 this.app.selectedNodes.push(this);
@@ -743,7 +786,8 @@
               this.app.handleNodeMouseDown(e, this);
             }
           });
-          // タッチデバイス用のリンク処理 - より積極的なアプローチ
+
+          // タッチイベント（既存のコード）
           this.element.addEventListener("touchstart", e => {
             // タッチ開始時にリンク要素上だった場合
             if (e.target.tagName.toLowerCase() === 'a') {
@@ -764,6 +808,14 @@
               window.open(this._touchedLink, '_blank');
               this._touchedLink = null;
               return false;
+            }
+          });
+
+          // 新規追加: コンテキストメニューイベントの処理
+          this.element.addEventListener("contextmenu", e => {
+            // 編集中でない場合はコンテキストメニューを抑制
+            if (!this.element.isContentEditable && !this.element.classList.contains("editing")) {
+              e.preventDefault();
             }
           });
         }
@@ -1238,6 +1290,16 @@
         initEventListeners() {
           this.canvas.addEventListener("mousedown", e => { if (e.button === 2) this.startPan(e); });
           this.canvas.addEventListener("contextmenu", e => { if (this.canvas.style.cursor === "grabbing") e.preventDefault(); });
+
+          // キャンバス全体に対する contextmenu イベントの処理
+          this.canvas.addEventListener("contextmenu", e => {
+            // 編集中のノード上でない場合はすべての右クリックメニューを抑制
+            const editingNode = e.target.closest(".node");
+            if (!editingNode || !(editingNode.isContentEditable || editingNode.classList.contains("editing"))) {
+              e.preventDefault();
+            }
+          });
+
           this.canvas.addEventListener("mousedown", e => { if (e.button === 0) this.onCanvasMouseDown(e); });
           window.addEventListener("resize", () => this.updateAllConnections());
           document.addEventListener("mousedown", e => {
@@ -1626,25 +1688,38 @@
         }
         startPan(e) {
           if (e.button !== 2) return;
+
+          // 編集中のノード上である場合は処理をスキップ
+          const editingNode = e.target.closest(".node");
+          if (editingNode && (editingNode.isContentEditable || editingNode.classList.contains("editing"))) {
+            return;
+          }
+
           e.preventDefault();
           const startX = e.clientX, startY = e.clientY;
           const initPan = Object.assign({}, this.globalPan);
           this.canvas.style.cursor = "grabbing";
           let moved = false;
+
           const onMove = e => {
             const dx = e.clientX - startX, dy = e.clientY - startY;
             if (!moved && Math.sqrt(dx * dx + dy * dy) > 5) moved = true;
             if (moved) {
               this.globalPan.x = initPan.x + dx;
               this.globalPan.y = initPan.y + dy;
-              requestAnimationFrame(() => { this.updateGlobalTransform(); this.updateAllConnections(); });
+              requestAnimationFrame(() => {
+                this.updateGlobalTransform();
+                this.updateAllConnections();
+              });
             }
           };
+
           const onUp = e => {
             document.removeEventListener("mousemove", onMove);
             document.removeEventListener("mouseup", onUp);
             if (moved) this.canvas.style.cursor = "default";
           };
+
           document.addEventListener("mousemove", onMove);
           document.addEventListener("mouseup", onUp);
         }
@@ -2241,6 +2316,15 @@
           n.element.contentEditable = "false";
           n.element.classList.remove("editing");
 
+          // z-indexを元に戻す
+          if (n._originalZIndex !== undefined) {
+            n.element.style.zIndex = n._originalZIndex;
+            delete n._originalZIndex;
+          } else {
+            // 明示的に設定したz-indexを削除して継承に戻す
+            n.element.style.removeProperty("z-index");
+          }
+
           // ユーザーが入力したテキストを取得（プレーンテキスト）
           let newRaw = n.element.innerText.trim();
           if (newRaw === "") {
@@ -2280,10 +2364,18 @@
           this.selectedNode = n;
           this.selectedNodes = [n];
           n.element.classList.add("selected");
+
+          // 編集前のz-indexを保存
+          n._originalZIndex = n.element.style.zIndex || "";
+
           // 編集開始時は元の Markdown テキストを表示
           n.element.textContent = n.rawText;
           n.element.contentEditable = "true";
           n.element.classList.add("editing");
+
+          // 編集中ノードを最前面に表示するための明示的なz-index設定
+          n.element.style.zIndex = "1000";
+
           n._enterPressCount = 0;
           // イベントリスナーを登録し、プロパティに保持する
           const onKeyDown = e => {
@@ -2582,7 +2674,7 @@
   </div>
   <!-- Copyright 表示 -->
   <div id="copyright">
-    © 2025 Takaaki Yano | yaNote v1.3.5.2
+    © 2025 Takaaki Yano | yaNote v1.3.5.3
   </div>
 </body>
 </body>
