@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5.4)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5.5)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5.4</title>
+  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5.5</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
 
@@ -582,14 +582,95 @@
       //Service Worker の登録を含むメインスクリプト
       if ("serviceWorker" in navigator && location.protocol !== 'file:') {
         navigator.serviceWorker.register("sw.js")
-          .then(() => console.log("Service Worker registered"))
+          .then((registration) => {
+            console.log("Service Worker registered");
+            
+            // 更新チェックを追加
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  console.log('新しいサービスワーカーがインストールされました');
+                }
+              });
+            });
+            
+            // 定期的な更新チェック（例: 10分ごと）
+            setInterval(() => {
+              registration.update();
+              console.log('Service Worker update check');
+            }, 10 * 60 * 1000);
+          })
           .catch((err) => console.error("Service Worker registration failed", err));
       }
 
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.5.4";
+      const VERSION = "v1.3.5.5";
+      
+      // バージョン更新検知と通知機能
+      function checkForAppUpdates() {
+        // 現在の状態を保存
+        const currentAppVersionKey = 'yaNote-currentVersion';
+        const storedVersion = localStorage.getItem(currentAppVersionKey);
+        
+        if (!storedVersion) {
+          // 初回利用時
+          localStorage.setItem(currentAppVersionKey, VERSION);
+          return;
+        }
+        
+        // バージョンが変わった場合
+        if (storedVersion !== VERSION) {
+          console.log(`yaNote updated: ${storedVersion} → ${VERSION}`);
+          localStorage.setItem(currentAppVersionKey, VERSION);
+          
+          // 更新通知を表示
+          const notification = document.createElement('div');
+          notification.style.position = 'fixed';
+          notification.style.bottom = '50px';
+          notification.style.left = '50%';
+          notification.style.transform = 'translateX(-50%)';
+          notification.style.background = 'rgba(0,123,255,0.9)';
+          notification.style.color = 'white';
+          notification.style.padding = '10px 20px';
+          notification.style.borderRadius = '4px';
+          notification.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+          notification.style.zIndex = '30000';
+          notification.style.fontWeight = 'bold';
+          notification.textContent = `yaNote が ${VERSION} に更新されました`;
+          
+          // X（閉じる）ボタン
+          const closeBtn = document.createElement('span');
+          closeBtn.textContent = '×';
+          closeBtn.style.marginLeft = '10px';
+          closeBtn.style.cursor = 'pointer';
+          closeBtn.style.fontWeight = 'bold';
+          closeBtn.onclick = () => {
+            document.body.removeChild(notification);
+          };
+          notification.appendChild(closeBtn);
+          
+          // 5秒後に自動的に消える
+          setTimeout(() => {
+            if (document.body.contains(notification)) {
+              notification.style.opacity = '0';
+              notification.style.transition = 'opacity 0.5s ease';
+              setTimeout(() => {
+                if (document.body.contains(notification)) {
+                  document.body.removeChild(notification);
+                }
+              }, 500);
+            }
+          }, 5000);
+          
+          document.body.appendChild(notification);
+        }
+      }
+      
+      // VERSION定義後に関数を呼び出し
+      checkForAppUpdates();
       const DEBUG = true;
       const Logger = {
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
@@ -2674,7 +2755,7 @@
   </div>
   <!-- Copyright 表示 -->
   <div id="copyright">
-    © 2025 Takaaki Yano | yaNote v1.3.5.4
+    © 2025 Takaaki Yano | yaNote v1.3.5.5
   </div>
 </body>
 </body>
