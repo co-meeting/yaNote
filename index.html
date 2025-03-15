@@ -97,8 +97,8 @@
     /* ===== ノードCSS ===== */
     .node {
       position: absolute;
-      padding: 8px 12px;
-      border-radius: 5px;
+      padding: 10px 20px;
+      border-radius: 30px;
       box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
       user-select: none;
       white-space: pre-wrap;
@@ -124,6 +124,8 @@
     }
 
     .node.text-only {
+      padding: 8px 12px;
+      border-radius: 5px;
       background-color: transparent;
       color: #404040;
       border: none;
@@ -159,6 +161,8 @@
 
     /* 新たに追加するノードタイプ：枠が点線、背景は薄いグレー */
     .node.dotted {
+      padding: 8px 12px;
+      border-radius: 5px;
       background-color: #f0f0f0;
       color: #404040;
       border: 1px dashed #404040;

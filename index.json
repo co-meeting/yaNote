@@ -16,7 +16,7 @@
         "text": "ドキュメント類\n[yaNote Generative AI 開発ガイド](https://github.com/co-meeting/yaNote/blob/main/docs/yaNote_DevGuide.md)\n[yaNote ヘルプ](https://github.com/co-meeting/yaNote/blob/main/help.md)\n[yaNote 操作仕様書](https://github.com/co-meeting/yaNote/blob/main/docs/yaNote-OperationSpec.md)\n[yaNote Manifesto](https://github.com/co-meeting/yaNote/blob/main/docs/yaNote-Manifesto.md)",
         "x": 2761,
         "y": 4414,
-        "nodeType": "standard",
+        "nodeType": "dotted",
         "boldText": false
       },
       {
@@ -280,7 +280,7 @@
         "text": "リポジトリ\n[yaNote](https://github.com/co-meeting/yaNote)",
         "x": 2761,
         "y": 4558,
-        "nodeType": "standard",
+        "nodeType": "dotted",
         "boldText": false
       },
       {
@@ -847,11 +847,11 @@
       }
     ],
     "globalPan": {
-      "x": 1935.625,
-      "y": 207
+      "x": 1927.625,
+      "y": 318
     },
     "globalZoom": 1,
-    "defaultNodeType": "grey",
+    "defaultNodeType": "dotted",
     "defaultLineType": "reverse-arrow",
     "defaultDashType": "dashed"
   }
