@@ -1,4 +1,4 @@
-const CACHE_NAME = "yaNote-cache-v1.3.5.8"; // バージョン番号を最新に更新
+const CACHE_NAME = "yaNote-cache-v1.3.5.9"; // バージョン番号を最新に更新
 const APP_ASSETS = [
   "./",
   "./index.html",

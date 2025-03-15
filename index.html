@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5.8)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5.9)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5.8</title>
+  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5.9</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
 
@@ -611,7 +611,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.5.8";
+      const VERSION = "v1.3.5.9";
       
       // バージョン更新検知と通知機能
       function checkForAppUpdates() {
@@ -2615,7 +2615,10 @@
       // URL共有パラメータのチェックと処理
       const urlParams = new URLSearchParams(window.location.search);
       const jsonParam = urlParams.get('json');
-      const newParam = urlParams.get('new'); // 新規パラメータの検出を追加
+      const newParam = urlParams.get('new');
+
+      // 共有リンクからのリロード後かを判定するフラグ
+      const isAfterJsonReload = sessionStorage.getItem('yaNote-jsonReloaded');
 
       if (jsonParam) {
         fetch(jsonParam)
@@ -2634,39 +2637,53 @@
               }
               app.saveState();
 
-              // まずすべてのケースで resetView を実行
-              requestAnimationFrame(() => {
-                app.resetView();
-                
-                // 次にURLパラメータをクリア
-                window.history.replaceState({}, document.title, window.location.pathname);
+              // URLパラメータをクリア
+              window.history.replaceState({}, document.title, window.location.pathname);
 
-                // iOS/iPadOS Safariの場合のみ、追加でリロードも実行
-                if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
-                  /Safari/.test(navigator.userAgent) &&
-                  !/Chrome/.test(navigator.userAgent)) {
-                  // 少し遅延させてURLの更新を確実にする
-                  setTimeout(() => {
-                    location.reload();
-                  }, 50);
-                }
-              });
+              // iOS/iPadOS Safariの場合はリロードフラグを立ててからリロード
+              if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
+                /Safari/.test(navigator.userAgent) &&
+                !/Chrome/.test(navigator.userAgent)) {
+                // リロード後に識別できるようフラグを設定
+                sessionStorage.setItem('yaNote-jsonReloaded', 'true');
+                
+                // 少し遅延させてリロード
+                setTimeout(() => {
+                  location.reload();
+                }, 100);
+              } else {
+                // iOS以外の場合はそのままresetView
+                requestAnimationFrame(() => {
+                  app.resetView();
+                });
+              }
             } catch (err) {
               console.error("インポートエラー:", err);
               alert("インポートできませんでした: " + err.message);
-              // エラー時もURLパラメータをクリア
               window.history.replaceState({}, document.title, window.location.pathname);
+              sessionStorage.removeItem('yaNote-jsonReloaded');
             }
           })
           .catch(error => {
             console.error("ファイル読み込みエラー:", error);
             alert("ファイルを読み込めませんでした: " + error.message);
-            // エラー時もURLパラメータをクリア
             window.history.replaceState({}, document.title, window.location.pathname);
+            sessionStorage.removeItem('yaNote-jsonReloaded');
           });
+      } 
+      // リロード後の処理：iOSでリロード後にresetViewを実行
+      else if (isAfterJsonReload === 'true') {
+        // フラグをクリア
+        sessionStorage.removeItem('yaNote-jsonReloaded');
+        
+        // リロード後にresetViewを実行
+        setTimeout(() => {
+          console.log("リロード後のresetViewを実行");
+          app.resetView();
+        }, 200);
       }
       else if (newParam === 'true') {
-        // 新規ボタンと同じ処理を実行
+        // 新規パラメータ処理（既存のコード）
         localStorage.removeItem("yaNoteData");
         localStorage.setItem("skipGuideLoad", "true");
 
@@ -2767,9 +2784,8 @@
   </div>
   <!-- Copyright 表示 -->
   <div id="copyright">
-    © 2025 Takaaki Yano | yaNote v1.3.5.8
+    © 2025 Takaaki Yano | yaNote v1.3.5.9
   </div>
-</body>
 </body>
 
 </html>
