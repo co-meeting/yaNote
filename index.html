@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5.7)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5.8)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5.7</title>
+  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5.8</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
 
@@ -611,7 +611,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.5.7";
+      const VERSION = "v1.3.5.8";
       
       // バージョン更新検知と通知機能
       function checkForAppUpdates() {
@@ -2634,22 +2634,23 @@
               }
               app.saveState();
 
-              // まずURLパラメータをクリア
-              window.history.replaceState({}, document.title, window.location.pathname);
+              // まずすべてのケースで resetView を実行
+              requestAnimationFrame(() => {
+                app.resetView();
+                
+                // 次にURLパラメータをクリア
+                window.history.replaceState({}, document.title, window.location.pathname);
 
-              // iOS/iPadOS Safariの場合はクリア後にリロード、それ以外は中心に戻る＋再描画を実施
-              if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
-                /Safari/.test(navigator.userAgent) &&
-                !/Chrome/.test(navigator.userAgent)) {
-                // 少し遅延させてURLの更新を確実にする
-                setTimeout(() => {
-                  location.reload();
-                }, 50);
-              } else {
-                requestAnimationFrame(() => {
-                  app.resetView();
-                });
-              }
+                // iOS/iPadOS Safariの場合のみ、追加でリロードも実行
+                if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
+                  /Safari/.test(navigator.userAgent) &&
+                  !/Chrome/.test(navigator.userAgent)) {
+                  // 少し遅延させてURLの更新を確実にする
+                  setTimeout(() => {
+                    location.reload();
+                  }, 50);
+                }
+              });
             } catch (err) {
               console.error("インポートエラー:", err);
               alert("インポートできませんでした: " + err.message);
@@ -2720,16 +2721,20 @@
             app.restoreState(imp.data);
             app.saveState();
 
-            // iOS/iPadOS Safariの場合は必ずリロード、それ以外は中心に戻る＋再描画を実施
-            if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
-              /Safari/.test(navigator.userAgent) &&
-              !/Chrome/.test(navigator.userAgent)) {
-              location.reload();
-            } else {
-              requestAnimationFrame(() => {
-                app.resetView();
-              });
-            }
+            // まずすべてのケースで resetView を実行
+            requestAnimationFrame(() => {
+              app.resetView();
+              
+              // iOS/iPadOS Safariの場合のみ、追加でリロードも実行
+              if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
+                /Safari/.test(navigator.userAgent) &&
+                !/Chrome/.test(navigator.userAgent)) {
+                // 少し遅延させてURLの更新を確実にする
+                setTimeout(() => {
+                  location.reload();
+                }, 50);
+              }
+            });
 
           } catch (err) {
             alert("インポートエラー: " + err.message);
@@ -2762,7 +2767,7 @@
   </div>
   <!-- Copyright 表示 -->
   <div id="copyright">
-    © 2025 Takaaki Yano | yaNote v1.3.5.7
+    © 2025 Takaaki Yano | yaNote v1.3.5.8
   </div>
 </body>
 </body>
