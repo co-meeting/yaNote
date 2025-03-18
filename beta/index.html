@@ -1,0 +1,3528 @@
+<!DOCTYPE html>
+<!--
+/*****************************************************************
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4-beta.1)
+ * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
+ * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
+ * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
+ * 4. テスト・デバッグ：DEBUGフラグで制御されたログ出力を行う。
+ * 5. コーディング規約：既存フォーマットは変更せず、必要な箇所のみ修正する。
+ *****************************************************************/
+-->
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <title>yaNote Beta - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4-beta.1</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192x192.png" type="image/png">
+
+  <!-- SEO対応のメタタグ -->
+  <meta name="description"
+    content="yaNote ベータ版 - ブラウザ上で直感的にアイデアを整理できるジグザグ型ノートアプリです。">
+  <meta name="keywords" content="yaNote, ジグザグノート, マインドマップ, ブラウザアプリ, 思考整理, PWA, オフライン対応">
+  <meta name="author" content="Takaaki Yano">
+
+  <!-- OGP設定 -->
+  <meta property="og:title" content="yaNote Beta - ブラウザで動作するジグザグ型ノートアプリ">
+  <meta property="og:description" content="yaNote ベータ版 - ブラウザ上で直感的にアイデアを整理できるジグザグ型ノートアプリです。">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://co-meeting.github.io/yaNote/beta/">
+  <meta property="og:image" content="https://co-meeting.github.io/yaNote/ogp-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="yaNote Beta - ブラウザで動作するジグザグ型ノートアプリ">
+  <meta name="twitter:description" content="yaNote ベータ版 - ブラウザ上で直感的にアイデアを整理できるジグザグ型ノートアプリです。">
+  <meta name="twitter:image" content="https://co-meeting.github.io/yaNote/ogp-image.png">
+
+  <link rel="shortcut icon" href="icons/icon-192x192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+  <meta name="theme-color" content="#ffffff">
+
+  <style>
+    /* ===== 共通CSS ===== */
+    html,
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #f9f9f9;
+      position: fixed;
+      /* iOSでのバウンススクロールを防止 */
+      width: 100%;
+      height: 100%;
+      overscroll-behavior: none;
+      /* 最新ブラウザ向けのオーバースクロール防止 */
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    #canvas {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 10000px;
+      height: 10000px;
+      overflow: visible;
+      transform: translate(-5000px, -5000px) scale(1);
+      background-color: #f9f9f9;
+      background-image: radial-gradient(circle, #e0e0e0 1px, transparent 1px);
+      background-size: 20px 20px;
+      touch-action: none;
+      /* タッチジェスチャーの標準動作を無効化 */
+    }
+
+    #svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    #selectionRect {
+      position: fixed;
+      border: 1px dashed #000;
+      background-color: rgba(0, 0, 255, 0.1);
+      pointer-events: none;
+      z-index: 10000;
+    }
+
+    /* ===== ノードCSS ===== */
+    .node {
+      position: absolute;
+      padding: 10px 20px;
+      border-radius: 30px;
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+      user-select: none;
+      white-space: pre-wrap;
+      cursor: pointer;
+      z-index: 300;
+      min-height: 30px;
+      display: flex;
+      flex-direction: column;
+      /* 縦方向に積む */
+      align-items: flex-start;
+      /* 横方向は左寄せ */
+      justify-content: center;
+      /* 縦方向は中央寄せ */
+      text-align: left;
+      /* テキスト自体も左寄せ */
+    }
+
+    /* ノードタイプごとのスタイル */
+    .node.standard {
+      background-color: #FFFFFF;
+      color: #404040;
+      border: 1px solid #404040;
+    }
+
+    .node.text-only {
+      padding: 8px 12px;
+      border-radius: 5px;
+      background-color: transparent;
+      color: #404040;
+      border: none;
+      box-shadow: none;
+    }
+
+    .node.grey {
+      background-color: #595959;
+      color: #FFFFFF;
+      border: none;
+    }
+
+    .node.red {
+      background-color: #BF1304;
+      color: #FFFFFF;
+      border: none;
+    }
+
+    /* ===== リンク色の調整 ===== */
+    /* Greyノード内のリンク色 */
+    .node.grey a {
+      color: #A8E6CE;
+      /* 明るい水色 */
+      text-decoration: underline;
+    }
+
+    /* Redノード内のリンク色 */
+    .node.red a {
+      color: #FFD3B5;
+      /* 明るいオレンジ */
+      text-decoration: underline;
+    }
+
+    /* 新たに追加するノードタイプ：枠が点線、背景は薄いグレー */
+    .node.dotted {
+      padding: 8px 12px;
+      border-radius: 5px;
+      background-color: #f0f0f0;
+      color: #404040;
+      border: 1px dashed #404040;
+    }
+
+    /* 選択状態：各タイプごとに個別に設定 */
+    .node.standard.selected {
+      border: 2px solid #888888;
+      box-shadow: 0 0 5px rgba(136, 136, 136, 0.5);
+      transform: scale(1.02);
+    }
+
+    .node.dotted.selected {
+      border: 2px dashed #888888;
+      box-shadow: 0 0 5px rgba(136, 136, 136, 0.5);
+      transform: scale(1.02);
+    }
+
+    .node.text-only.selected {
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px dashed #888888;
+      transform: scale(1.02);
+    }
+
+    .node.grey.selected {
+      border: 2px solid #666666;
+      box-shadow: 0 0 5px rgba(102, 102, 102, 0.5);
+      transform: scale(1.02);
+    }
+
+    .node.red.selected {
+      border: 2px solid #666666;
+      box-shadow: 0 0 5px rgba(102, 102, 102, 0.5);
+      transform: scale(1.02);
+    }
+
+    /* ノード編集時の基本スタイル */
+    .node.editing {
+      background-color: #ffffe0;
+      /* 薄い黄色の背景 */
+      border-color: #007bff;
+      z-index: 1000;
+      /* 編集中は最前面に表示 */
+    }
+
+    /* text-onlyノード編集時の特別なスタイル */
+    .node.text-only.editing {
+      background-color: #ffffe0;
+      /* 薄い黄色の背景を透明ではなく不透明に */
+      border: 1px solid #007bff;
+      /* 境界線を追加して視認性を高める */
+      box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+      /* 軽い影を追加 */
+      padding: 8px 12px;
+      /* 標準ノードと同じパディングを明示的に設定 */
+    }
+
+    /* 編集モード：赤・グレーは文字色を黒に */
+    .node.red.editing,
+    .node.grey.editing {
+      color: #000000;
+    }
+
+    /* ===== 接続線等 ===== */
+    .selected-line {
+      stroke: red;
+    }
+
+    .html-handle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #fff;
+      border: 1px solid #000;
+      cursor: pointer;
+      z-index: 1100;
+    }
+
+    /* ===== コントロールパネル ===== */
+    #controlPanel {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 20000;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #titleField {
+      width: 150px;
+      margin-right: 10px;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 14px;
+      text-align: right;
+    }
+
+    #controlPanel button {
+      padding: 5px 10px;
+      cursor: pointer;
+      background: #ffe0b2;
+      border: none;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ボタンサイズ */
+    #boldTextBtn,
+    #changeTypeBtn,
+    #changeLineTypeBtn,
+    #changeDashTypeBtn,
+    #guideBtn {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    #resetBtn,
+    #importBtn,
+    #exportBtn {
+      height: 30px;
+      min-width: 40px;
+      padding: 5px 10px;
+      font-size: 14px;
+    }
+
+    #resetViewBtn {
+      min-width: 30px;
+      height: 30px;
+      padding: 0;
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    #importInput {
+      display: none;
+    }
+
+    /* ノード変更ボタン：基本スタイル */
+    #changeTypeBtn {
+      background-color: transparent;
+      border: 1px solid #ccc;
+      width: 30px;
+      height: 30px;
+      text-align: center;
+      font-size: 14px;
+      padding: 0;
+    }
+
+    /* ノード変更ボタン：各ノードタイプに応じたスタイル */
+    #changeTypeBtn.standard {
+      background-color: #fff3e0;
+      border-color: #404040;
+      color: #404040;
+      border: 1px solid #595959;
+    }
+
+    #changeTypeBtn.text-only {
+      background-color: #FFFFFF;
+      border: 1px dashed #404040;
+      color: #404040;
+    }
+
+    #changeTypeBtn.grey {
+      background-color: #595959;
+      border-color: #595959;
+      color: #FFFFFF;
+    }
+
+    #changeTypeBtn.red {
+      background-color: #BF1304;
+      border-color: #BF1304;
+      color: #FFFFFF;
+    }
+
+    #boldTextBtn.active {
+      background-color: #007bff;
+      color: #fff;
+    }
+
+
+    .tooltip {
+      position: fixed;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 30000;
+      pointer-events: none;
+      white-space: nowrap;
+      transform: translateY(30px);
+    }
+
+    /* ===== 共有モーダル ===== */
+    #shareModal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+      z-index: 30000;
+      width: 450px;
+      max-width: 90vw;
+      display: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    #shareModal .modal-title {
+      margin-top: 0;
+      margin-bottom: 16px;
+      font-size: 20px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    #shareModal p {
+      margin: 12px 0 8px;
+      color: #555;
+      line-height: 1.4;
+    }
+
+    #shareModal input {
+      width: 95%;
+      padding: 8px 10px;
+      margin: 6px 0 14px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #333;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    #shareModal input:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+
+    #shareModal #generatedUrlInput {
+      background-color: #f8f9fa;
+      font-family: monospace;
+      font-size: 12px;
+      width: 95%;
+
+    }
+
+    #shareModal .copy-message {
+      font-size: 13px;
+      color: #28a745 !important;
+      margin-top: -8px;
+      margin-bottom: 12px;
+    }
+
+    #shareModal .modal-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    #shareModal .modal-buttons button {
+      min-width: 100px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    #shareModal .modal-buttons button:hover {
+      opacity: 0.9;
+    }
+
+    #shareModal .modal-buttons button:not(.primary) {
+      background-color: #f0f0f0;
+      color: #333;
+    }
+
+    #shareModal .modal-buttons button:not(.primary):hover {
+      background-color: #e5e5e5;
+    }
+
+    #shareModal .modal-buttons button.primary {
+      background-color: #007bff;
+      color: white;
+      font-weight: 500;
+    }
+
+    #shareModal .modal-buttons button.primary:hover {
+      background-color: #0069d9;
+    }
+
+    #shareModal .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(2px);
+      z-index: 29999;
+      display: none;
+    }
+
+    #shareBtn {
+      min-width: 40px;
+      padding: 5px 10px;
+      font-size: 14px;
+    }
+
+    .node.bold-text {
+      font-weight: bold;
+    }
+
+    #controlPanel button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #zoomDisplay {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background-color: rgba(0, 0, 0, 0.6);
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 20000;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #zoomDisplay.visible {
+      opacity: 1;
+    }
+
+    /* コピーライト表示 */
+    #copyright {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      font-size: 11px;
+      color: #808080;
+      opacity: 0.6;
+      z-index: 10000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      pointer-events: none;
+      user-select: none;
+      text-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
+    }
+
+    #copyright:hover {
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+
+    /* タッチ操作用スタイル */
+    @keyframes touchRipple {
+      0% {
+        transform: scale(0);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1);
+        opacity: 0;
+      }
+    }
+
+    /* タッチデバイス向けの調整 */
+    @media (pointer: coarse) {
+      /* コントロールパネルのボタン */
+      #controlPanel button {
+        min-width: 44px;
+        height: 44px;
+        margin: 0 3px;
+        padding: 8px;
+        font-size: 18px;
+      }
+      
+      /* ノードの操作サイズを大きく */
+      .node {
+        padding: 12px 22px;
+        min-height: 36px;
+        min-width: 40px;
+        touch-action: none;
+      }
+      
+      /* テキストのみノードのパディング調整 */
+      .node.text-only {
+        padding: 10px 14px;
+      }
+      
+      /* ハンドル */
+      .html-handle {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        margin-left: -8px;
+        margin-top: -8px;
+        border-width: 2px;
+      }
+    }
+
+    /* iOS特有の調整 */
+    body.ios-device .node {
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+    }
+
+    body.ios-device button {
+      -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+    }
+
+    /* タッチフィードバック */
+    .touch-feedback {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: rgba(0, 123, 255, 0.3);
+      pointer-events: none;
+      z-index: 30000;
+      animation: touchRipple 0.4s ease-out;
+    }
+
+    /* ベータバナー用のスタイル */
+    #beta-banner {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background-color: #ffcc00;
+      color: #333;
+      text-align: center;
+      padding: 8px;
+      font-size: 14px;
+      z-index: 30001;
+    }
+    .close-button {
+      margin-left: 10px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="beta-banner">
+    yaNote Beta版 - テスト版のため、データのバックアップを忘れずに行ってください
+    <span class="close-button" onclick="this.parentNode.style.display='none'">×</span>
+  </div>
+  <!-- ===== コントロールパネル ===== -->
+  <!-- コントロールパネルに新しいボタンを追加 -->
+  <div id="controlPanel">
+    <input type="text" id="titleField" value="" placeholder="タイトル" readonly>
+    <button id="boldTextBtn">B</button>
+    <button id="changeTypeBtn" class="standard">◻︎</button>
+    <button id="changeLineTypeBtn">ー</button>
+    <button id="changeDashTypeBtn">—</button>
+    <button id="resetViewBtn" title="表示位置をリセット">⊙</button> <!-- 新しく追加 -->
+    <button id="resetBtn">新規</button>
+    <button id="importBtn">開く</button>
+    <button id="exportBtn">保存</button>
+    <button id="shareBtn">共有</button>
+    <button id="guideBtn">？</button>
+    <input type="file" id="importInput" accept=".json">
+  </div>
+  <div id="canvas">
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- マーカー定義（すべての矢印マーカーの色を #404040 に統一） -->
+        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
+          markerUnits="strokeWidth">
+          <path d="M0,0 L0,10 L10,5 Z" fill="#404040" />
+        </marker>
+        <marker id="no-arrow" markerWidth="0" markerHeight="0" refX="0" refY="0" orient="auto"
+          markerUnits="strokeWidth"></marker>
+        <marker id="start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
+          markerUnits="strokeWidth">
+          <path d="M10,0 L10,10 L0,5 Z" fill="#404040" />
+        </marker>
+        <marker id="both-end-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"
+          markerUnits="strokeWidth">
+          <path d="M0,0 L0,10 L10,5 Z" fill="#404040" />
+        </marker>
+        <marker id="both-start-arrow" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto"
+          markerUnits="strokeWidth">
+          <path d="M10,0 L10,10 L0,5 Z" fill="#404040" />
+        </marker>
+      </defs>
+    </svg>
+  </div>
+  <div id="zoomDisplay">100%</div>
+
+  <!-- ===== アプリ本体 ===== -->
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+      //Service Worker の登録を含むメインスクリプト
+      if ("serviceWorker" in navigator && location.protocol !== 'file:') {
+        navigator.serviceWorker.register("sw.js")
+          .then((registration) => {
+            console.log("Service Worker registered");
+            
+            // 更新チェックを追加
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  console.log('新しいサービスワーカーがインストールされました');
+                }
+              });
+            });
+            
+            // 定期的な更新チェック（例: 10分ごと）
+            setInterval(() => {
+              registration.update();
+              console.log('Service Worker update check');
+            }, 10 * 60 * 1000);
+          })
+          .catch((err) => console.error("Service Worker registration failed", err));
+      }
+
+      "use strict";
+
+      /* ===== 1. 定数・グローバル設定 ===== */
+      const VERSION = "v1.4-beta.1";
+      
+      // バージョン更新検知と通知機能
+      function checkForAppUpdates() {
+        // 現在の状態を保存
+        const currentAppVersionKey = 'yaNote-currentVersion';
+        const storedVersion = localStorage.getItem(currentAppVersionKey);
+        
+        if (!storedVersion) {
+          // 初回利用時
+          localStorage.setItem(currentAppVersionKey, VERSION);
+          return;
+        }
+        
+        // バージョンが変わった場合
+        if (storedVersion !== VERSION) {
+          console.log(`yaNote updated: ${storedVersion} → ${VERSION}`);
+          localStorage.setItem(currentAppVersionKey, VERSION);
+          
+          // 更新通知を表示
+          const notification = document.createElement('div');
+          notification.style.position = 'fixed';
+          notification.style.bottom = '50px';
+          notification.style.left = '50%';
+          notification.style.transform = 'translateX(-50%)';
+          notification.style.background = 'rgba(0,123,255,0.9)';
+          notification.style.color = 'white';
+          notification.style.padding = '10px 20px';
+          notification.style.borderRadius = '4px';
+          notification.style.boxShadow = '0 2px 10px rgba(0,0,0,0.2)';
+          notification.style.zIndex = '30000';
+          notification.style.fontWeight = 'bold';
+          notification.textContent = `yaNote が ${VERSION} に更新されました`;
+          
+          // X（閉じる）ボタン
+          const closeBtn = document.createElement('span');
+          closeBtn.textContent = '×';
+          closeBtn.style.marginLeft = '10px';
+          closeBtn.style.cursor = 'pointer';
+          closeBtn.style.fontWeight = 'bold';
+          closeBtn.onclick = () => {
+            document.body.removeChild(notification);
+          };
+          notification.appendChild(closeBtn);
+          
+          // 5秒後に自動的に消える
+          setTimeout(() => {
+            if (document.body.contains(notification)) {
+              notification.style.opacity = '0';
+              notification.style.transition = 'opacity 0.5s ease';
+              setTimeout(() => {
+                if (document.body.contains(notification)) {
+                  document.body.removeChild(notification);
+                }
+              }, 500);
+            }
+          }, 5000);
+          
+          document.body.appendChild(notification);
+        }
+      }
+      
+      // VERSION定義後に関数を呼び出し
+      checkForAppUpdates();
+      const DEBUG = true;
+      const Logger = {
+        log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
+      };
+
+      let titleAutoUpdated = false;
+
+      /* ===== 2. ユーティリティ関数 ===== */
+      const Utils = {
+        orientation: (a, b, c) => {
+          const val = (b.y - a.y) * (c.x - b.x) - (b.x - a.x) * (c.y - b.y);
+          if (Math.abs(val) < 1e-10) return 0;
+          return (val > 0) ? 1 : 2;
+        },
+        segmentsIntersect: (p1, p2, p3, p4) => {
+          const o1 = Utils.orientation(p1, p2, p3);
+          const o2 = Utils.orientation(p1, p2, p4);
+          const o3 = Utils.orientation(p3, p4, p1);
+          const o4 = Utils.orientation(p3, p4, p2);
+          return (o1 !== o2 && o3 !== o4);
+        },
+        rectIntersectsLine: (rect, p1, p2) => {
+          if (p1.x >= rect.left && p1.x <= rect.right && p1.y >= rect.top && p1.y <= rect.bottom) return true;
+          if (p2.x >= rect.left && p2.x <= rect.right && p2.y >= rect.top && p2.y <= rect.bottom) return true;
+          const edges = [
+            [{ x: rect.left, y: rect.top }, { x: rect.right, y: rect.top }],
+            [{ x: rect.left, y: rect.bottom }, { x: rect.right, y: rect.bottom }],
+            [{ x: rect.left, y: rect.top }, { x: rect.left, y: rect.bottom }],
+            [{ x: rect.right, y: rect.top }, { x: rect.right, y: rect.bottom }]
+          ];
+          return edges.some(edge => Utils.segmentsIntersect(p1, p2, edge[0], edge[1]));
+        },
+        computeEndpoint: (tcx, tcy, fx, fy, toRect) => {
+          const dx = fx - tcx, dy = fy - tcy;
+          let t = 1;
+          const hw = toRect.width / 2, hh = toRect.height / 2;
+          if (dx === 0 && dy === 0) t = 1;
+          else if (dx === 0) t = hh / Math.abs(dy);
+          else if (dy === 0) t = hw / Math.abs(dx);
+          else t = Math.min(hw / Math.abs(dx), hh / Math.abs(dy));
+          return { arrowX: tcx + t * dx, arrowY: t * dy + tcy };
+        },
+        compareVersions: (v1, v2) => {
+          const parts1 = v1.replace(/^v/, "").split('.').map(Number);
+          const parts2 = v2.replace(/^v/, "").split('.').map(Number);
+          for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+            const a = parts1[i] || 0;
+            const b = parts2[i] || 0;
+            if (a > b) return 1;
+            if (a < b) return -1;
+          }
+          return 0;
+        },
+        showTooltip: (el, text) => {
+          Utils.hideAllTooltips();
+          const tip = document.createElement("div");
+          tip.className = "tooltip";
+          tip.textContent = text;
+          document.body.appendChild(tip);
+          const rect = el.getBoundingClientRect();
+          tip.style.left = (rect.left + rect.width / 2 - tip.offsetWidth / 2) + "px";
+          tip.style.top = (rect.bottom) + "px";
+          setTimeout(() => { if (tip.parentNode) tip.parentNode.removeChild(tip); }, 2000);
+        },
+        hideAllTooltips: () => {
+          document.querySelectorAll(".tooltip").forEach(t => t.parentNode && t.parentNode.removeChild(t));
+        }
+      };
+
+      /* ===== URL共有のためのユーティリティ ===== */
+      function generateShareUrl(jsonUrl) {
+        const baseUrl = window.location.href.split('?')[0];
+        return `${baseUrl}?json=${encodeURIComponent(jsonUrl)}`;
+      }
+
+      /* ===== 3. タイトルフィールド設定 ===== */
+      const titleField = document.getElementById("titleField");
+      titleField.addEventListener("click", function (e) {
+        titleField.readOnly = false;
+        titleField.style.borderBottom = "1px dashed #000";
+        titleField.style.width = "150px";
+        titleField.style.textAlign = "left";
+        titleField.focus();
+      });
+      titleField.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" && !e.isComposing) {
+          e.preventDefault();
+          titleField.blur();
+        }
+      });
+      titleField.addEventListener("blur", function (e) {
+        titleField.readOnly = true;
+        titleField.style.borderBottom = "none";
+        if (titleField.value.trim() === "") {
+          titleField.value = "無題";
+        }
+        adjustTitleFieldWidth();
+        titleField.style.textAlign = "right";
+      });
+      titleField.addEventListener("blur", function (e) {
+        titleField.readOnly = true;
+        titleField.style.borderBottom = "none";
+        if (titleField.value.trim() === "") {
+          titleField.value = "無題";
+        }
+        adjustTitleFieldWidth();
+      });
+      function adjustTitleFieldWidth() {
+        let tempSpan = document.createElement("span");
+        const style = window.getComputedStyle(titleField);
+        tempSpan.style.font = style.font;
+        tempSpan.style.visibility = "hidden";
+        tempSpan.style.whiteSpace = "nowrap";
+        tempSpan.textContent = titleField.value;
+        document.body.appendChild(tempSpan);
+        const width = tempSpan.offsetWidth + 10;
+        document.body.removeChild(tempSpan);
+        titleField.style.width = width + "px";
+      }
+
+      /* ===== 4. ノードクラス ===== */
+      class NoteNode {
+        constructor(text, x, y, app, id) {
+          this.app = app;
+          this.element = document.createElement("div");
+          this.element.className = "node";
+          this.setText(text);
+          this.app.canvas.appendChild(this.element);
+          this.x = x;
+          this.y = y;
+          this.setPosition(x, y);
+          this.nodeType = "standard"; // 初期値
+          this.boldText = false;
+          this.addEventListeners();
+          if (id !== undefined) {
+            this.id = id;
+            if (id >= NoteNode.nextId) NoteNode.nextId = id + 1;
+          } else {
+            this.id = NoteNode.nextId++;
+          }
+          Logger.log("NoteNode created:", this.id, text, x, y);
+        }
+        setPosition(x, y) {
+          this.x = x;
+          this.y = y;
+          this.element.style.transform = `translate(${x}px, ${y}px)`;
+        }
+        addEventListeners() {
+          this.element.addEventListener("mousedown", e => {
+            // ノード上ならイベントの伝搬を停止する
+            e.stopPropagation();
+
+            // 右クリックの場合、編集中の場合のみデフォルト動作を許可する
+            if (e.button === 2) {
+              // 編集中でない場合は右クリックによるコンテキストメニュー表示を防止し、
+              // パン操作に渡すために stopPropagation を無効化
+              if (!this.element.isContentEditable && !this.element.classList.contains("editing")) {
+                e.preventDefault();
+                // stopPropagation をオーバーライドしてイベント伝播を許可
+                const originalStopPropagation = e.stopPropagation;
+                e.stopPropagation = function () { };
+
+                // パン処理を行うためにキャンバスのmousedownイベントを明示的に発火
+                const canvasEvent = new MouseEvent('mousedown', {
+                  bubbles: true,
+                  cancelable: true,
+                  view: window,
+                  button: 2,
+                  buttons: 2,
+                  clientX: e.clientX,
+                  clientY: e.clientY
+                });
+                this.app.canvas.dispatchEvent(canvasEvent);
+              }
+              return;
+            }
+
+            // 以下は既存のコード
+            if (e.shiftKey) {
+              if (!this.app.selectedNodes.includes(this)) {
+                this.app.selectedNodes.push(this);
+                this.element.classList.add("selected");
+              } else {
+                this.app.selectedNodes = this.app.selectedNodes.filter(n => n !== this);
+                this.element.classList.remove("selected");
+              }
+              this.app.updateControlButtonsState();
+              return;
+            }
+            // 編集中の場合は処理を行わない
+            if (this.element.isContentEditable || this.element.classList.contains("editing")) return;
+            if (e.button === 0) {
+              e.preventDefault();
+              this.app.handleNodeMouseDown(e, this);
+            }
+          });
+
+          // タッチイベント（既存のコード）
+          this.element.addEventListener("touchstart", e => {
+            // タッチ開始時にリンク要素上だった場合
+            if (e.target.tagName.toLowerCase() === 'a') {
+              // リンク情報を記録
+              this._touchedLink = e.target.href;
+              e.stopPropagation();
+            } else {
+              this._touchedLink = null;
+            }
+          });
+
+          this.element.addEventListener("touchend", e => {
+            // タッチ終了時、開始時にリンクだった場合
+            if (this._touchedLink && e.target.tagName.toLowerCase() === 'a') {
+              e.preventDefault();
+              e.stopPropagation();
+              // リンクを明示的に開く
+              window.open(this._touchedLink, '_blank');
+              this._touchedLink = null;
+              return false;
+            }
+          });
+
+          // 新規追加: コンテキストメニューイベントの処理
+          this.element.addEventListener("contextmenu", e => {
+            // 編集中でない場合はコンテキストメニューを抑制
+            if (!this.element.isContentEditable && !this.element.classList.contains("editing")) {
+              e.preventDefault();
+            }
+          });
+        }
+        setText(text) {
+          this.rawText = text; // 生のMarkdownテキストを保持
+          this.element.innerHTML = this.convertMarkdownLinks(text);
+        }
+        convertMarkdownLinks(text) {
+          // シンプルな内部リンク判定関数（メソッド内に定義）
+          const isInternalLink = (url) => {
+            try {
+              // URLを完全に解析
+              const urlObj = new URL(url, window.location.href);
+
+              // 同じホスト名のURLは内部リンク、それ以外は外部リンク
+              return urlObj.host === window.location.host;
+            } catch (e) {
+              // 相対URL（./や/で始まるパス）も内部リンクとみなす
+              return !url.startsWith('http');
+            }
+          };
+
+          // まず、連続する改行を 1 つの <br> にまとめる（display 用）
+          let htmlText = text.replace(/\n+/g, "<br>");
+
+          // Markdown形式のリンク変換
+          const mdLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
+          htmlText = htmlText.replace(mdLinkRegex, (match, linkText, url) => {
+            // 内部リンクかどうかを判定
+            const target = isInternalLink(url) ? "_top" : "_blank";
+            return `<a href="${url}" target="${target}">${linkText}</a>`;
+          });
+
+          // 自動URLリンク変換
+          const urlRegex = /(?<!href=")(https?:\/\/[^\s<]+)/g;
+          htmlText = htmlText.replace(urlRegex, (match) => {
+            let display = match;
+            if (display.length > 30) {
+              display = display.substring(0, 30) + "...";
+            }
+            // 内部リンクかどうかを判定
+            const target = isInternalLink(match) ? "_top" : "_blank";
+            return `<a href="${match}" target="${target}">${display}</a>`;
+          });
+
+          // リンク閉じタグ直後の余分な <br> を除去（display 用）
+          htmlText = htmlText.replace(/(<\/a>)<br>/g, "$1");
+
+          return htmlText;
+        }
+
+
+        startEditing() {
+          this.app.startEditingNode(this);
+        }
+        setType(newType) {
+          this.nodeType = newType;
+          this.element.classList.remove("standard", "text-only", "grey", "red", "dotted");
+          this.element.classList.add(newType);
+          this.app.connections.forEach(conn => {
+            if (conn.fromNode === this) conn.update();
+          });
+        }
+        setBold(isBold) {
+          this.boldText = isBold;
+          if (isBold) this.element.classList.add("bold-text");
+          else this.element.classList.remove("bold-text");
+        }
+      }
+      NoteNode.nextId = 1;
+
+      /* ===== 5. 接続線クラス ===== */
+      class Connection {
+        constructor(fromNode, toNode, app) {
+          this.app = app;
+          this.fromNode = fromNode;
+          this.toNode = toNode;
+          this.fromCoord = null;
+          this.toCoord = null;
+          this.lineType = "standard";
+          this.dashType = "solid";
+          this.startHandle = null;
+          this.endHandle = null;
+          this.line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          this.line.setAttribute("stroke", "#404040");
+          this.line.setAttribute("stroke-width", "2");
+          this.setLineType(this.app.defaultLineType || "standard");
+          this.setDashType(this.app.defaultDashType || "solid");
+          this.line.style.pointerEvents = "auto";
+          this.line.addEventListener("click", e => { e.stopPropagation(); this.app.selectConnection(this); });
+          if (this.fromNode === null && this.toNode === null) {
+            this.line.addEventListener("mousedown", e => {
+              if (e.button === 0) {
+                e.stopPropagation();
+                e.preventDefault();
+                if (this.app.selectedConnections.includes(this)) this.app.startGroupMove(e);
+                else this.startDrag(e);
+              }
+            });
+          }
+          this.app.svg.appendChild(this.line);
+          this.update();
+          Logger.log("Connection created:", this.fromNode?.id, "->", this.toNode?.id);
+        }
+        update() {
+          const canvasRect = this.app.canvas.getBoundingClientRect();
+          let fromPoint, toPoint;
+          if (this.fromNode && document.body.contains(this.fromNode.element)) {
+            const rect = this.fromNode.element.getBoundingClientRect();
+            fromPoint = { x: rect.left + rect.width / 2 - canvasRect.left, y: rect.top + rect.height / 2 - canvasRect.top };
+          } else if (this.fromCoord && typeof this.fromCoord.x === "number") {
+            fromPoint = this.fromCoord;
+          } else return;
+          if (this.toNode && document.body.contains(this.toNode.element)) {
+            const rect = this.toNode.element.getBoundingClientRect();
+            toPoint = { x: rect.left + rect.width / 2 - canvasRect.left, y: rect.top + rect.height / 2 - canvasRect.top };
+          } else if (this.toCoord && typeof this.toCoord.x === "number") {
+            toPoint = this.toCoord;
+          } else return;
+          const origFrom = Object.assign({}, fromPoint);
+          const origTo = Object.assign({}, toPoint);
+          if (this.toNode && document.body.contains(this.toNode.element)) {
+            const endpoint = Utils.computeEndpoint(origTo.x, origTo.y, origFrom.x, origFrom.y, this.toNode.element.getBoundingClientRect());
+            toPoint.x = endpoint.arrowX;
+            toPoint.y = endpoint.arrowY;
+          }
+          if ((this.lineType === "reverse-arrow" || this.lineType === "both-arrow") &&
+            this.fromNode && document.body.contains(this.fromNode.element)) {
+            const startpoint = Utils.computeEndpoint(origFrom.x, origFrom.y, origTo.x, origTo.y, this.fromNode.element.getBoundingClientRect());
+            fromPoint.x = startpoint.arrowX;
+            fromPoint.y = startpoint.arrowY;
+          }
+          if (this.fromNode && this.fromNode.nodeType === "text-only") {
+            const nodeRect = this.fromNode.element.getBoundingClientRect();
+            const localRect = {
+              left: nodeRect.left - canvasRect.left,
+              top: nodeRect.top - canvasRect.top,
+              right: nodeRect.right - canvasRect.left,
+              bottom: nodeRect.bottom - canvasRect.top
+            };
+            const cx = (localRect.left + localRect.right) / 2;
+            const cy = (localRect.top + localRect.bottom) / 2;
+            const dirX = toPoint.x - fromPoint.x;
+            const dirY = toPoint.y - fromPoint.y;
+            const len = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+            const ndx = dirX / len;
+            const ndy = dirY / len;
+            let tCandidates = [];
+            if (ndx > 0) tCandidates.push((localRect.right - cx) / ndx);
+            else if (ndx < 0) tCandidates.push((localRect.left - cx) / ndx);
+            if (ndy > 0) tCandidates.push((localRect.bottom - cy) / ndy);
+            else if (ndy < 0) tCandidates.push((localRect.top - cy) / ndy);
+            const t = Math.min(...tCandidates.filter(v => v > 0));
+            const offset = 2 + (nodeRect.width / 50);
+            fromPoint.x = cx + ndx * (t + offset);
+            fromPoint.y = cy + ndy * (t + offset);
+          }
+          if (this.toNode && this.toNode.nodeType === "text-only") {
+            const nodeRect = this.toNode.element.getBoundingClientRect();
+            const localRect = {
+              left: nodeRect.left - canvasRect.left,
+              top: nodeRect.top - canvasRect.top,
+              right: nodeRect.right - canvasRect.left,
+              bottom: nodeRect.bottom - canvasRect.top
+            };
+            const cx = (localRect.left + localRect.right) / 2;
+            const cy = (localRect.top + localRect.bottom) / 2;
+            const dirX = fromPoint.x - toPoint.x;
+            const dirY = fromPoint.y - toPoint.y;
+            const len = Math.sqrt(dirX * dirX + dirY * dirY) || 1;
+            const ndx = dirX / len;
+            const ndy = dirY / len;
+            let tCandidates = [];
+            if (ndx > 0) tCandidates.push((localRect.right - cx) / ndx);
+            else if (ndx < 0) tCandidates.push((localRect.left - cx) / ndx);
+            if (ndy > 0) tCandidates.push((localRect.bottom - cy) / ndy);
+            else if (ndy < 0) tCandidates.push((localRect.top - cy) / ndy);
+            const t = Math.min(...tCandidates.filter(v => v > 0));
+            const offset = 2 + (nodeRect.width / 50);
+            toPoint.x = cx + ndx * (t + offset);
+            toPoint.y = cy + ndy * (t + offset);
+          }
+          this.line.setAttribute("x1", fromPoint.x);
+          this.line.setAttribute("y1", fromPoint.y);
+          this.line.setAttribute("x2", toPoint.x);
+          this.line.setAttribute("y2", toPoint.y);
+          if (this.startHandle) {
+            this.startHandle.style.left = (fromPoint.x - 4) + "px";
+            this.startHandle.style.top = (fromPoint.y - 4) + "px";
+          }
+          if (this.endHandle) {
+            this.endHandle.style.left = (toPoint.x - 4) + "px";
+            this.endHandle.style.top = (toPoint.y - 4) + "px";
+          }
+        }
+        showHandles() {
+          this.hideHandles();
+          this.startHandle = this.app.createHtmlHandle();
+          this.endHandle = this.app.createHtmlHandle();
+          const x1 = parseFloat(this.line.getAttribute("x1"));
+          const y1 = parseFloat(this.line.getAttribute("y1"));
+          const x2 = parseFloat(this.line.getAttribute("x2"));
+          const y2 = parseFloat(this.line.getAttribute("y2"));
+          this.startHandle.style.left = (x1 - 4) + "px";
+          this.startHandle.style.top = (y1 - 4) + "px";
+          this.endHandle.style.left = (x2 - 4) + "px";
+          this.endHandle.style.top = (y2 - 4) + "px";
+          this.app.addHandleDrag(this.startHandle, this, "from");
+          this.app.addHandleDrag(this.endHandle, this, "to");
+        }
+        hideHandles() {
+          if (this.startHandle && this.startHandle.parentNode) this.startHandle.parentNode.removeChild(this.startHandle);
+          if (this.endHandle && this.endHandle.parentNode) this.endHandle.parentNode.removeChild(this.endHandle);
+          this.startHandle = this.endHandle = null;
+        }
+        startDrag(e) {
+          const startX = e.clientX, startY = e.clientY;
+          const initFrom = Object.assign({}, this.fromCoord);
+          const initTo = Object.assign({}, this.toCoord);
+          const onMove = e => {
+            const dx = e.clientX - startX, dy = e.clientY - startY;
+            this.fromCoord = { x: initFrom.x + dx, y: initFrom.y + dy };
+            this.toCoord = { x: initTo.x + dx, y: initTo.y + dy };
+            this.update();
+          };
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            this.app.saveState();
+          };
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        }
+        setLineType(type) {
+          this.lineType = type;
+          this.line.removeAttribute("marker-start");
+          this.line.removeAttribute("marker-end");
+          switch (type) {
+            case "standard":
+              this.line.setAttribute("marker-end", "url(#arrowhead)");
+              break;
+            case "no-arrow":
+              break;
+            case "reverse-arrow":
+              this.line.setAttribute("marker-start", "url(#start-arrow)");
+              break;
+            case "both-arrow":
+              this.line.setAttribute("marker-start", "url(#both-start-arrow)");
+              this.line.setAttribute("marker-end", "url(#both-end-arrow)");
+              break;
+            default:
+              this.line.setAttribute("marker-end", "url(#arrowhead)");
+          }
+          this.update();
+        }
+        setDashType(type) {
+          this.dashType = type;
+          this.line.removeAttribute("stroke-dasharray");
+          if (type === "dashed") {
+            this.line.setAttribute("stroke-dasharray", "4,4");
+          }
+          this.update();
+        }
+      }
+
+      /* ===== 6. 共有モーダルクラス ===== */
+      class ShareModal {
+        constructor() {
+          this.modal = document.getElementById('shareModal');
+          this.overlay = document.getElementById('shareModalOverlay');
+          this.jsonUrlInput = document.getElementById('jsonUrlInput');
+          this.generatedUrlContainer = document.getElementById('generatedUrlContainer');
+          this.generatedUrlInput = document.getElementById('generatedUrlInput');
+          this.cancelBtn = document.getElementById('cancelShareBtn');
+          this.generateBtn = document.getElementById('generateUrlBtn');
+          this.copyBtn = document.getElementById('copyUrlBtn');
+          this.copyMessage = document.querySelector('#shareModal .copy-message');
+
+          this.addEventListeners();
+        }
+
+        addEventListeners() {
+          // キャンセルボタン
+          this.cancelBtn.addEventListener('click', () => this.close());
+          this.overlay.addEventListener('click', () => this.close());
+
+          // URL生成ボタン
+          this.generateBtn.addEventListener('click', () => this.generateUrl());
+
+          // コピーボタン
+          this.copyBtn.addEventListener('click', () => this.copyToClipboard());
+
+          // Enterキーの処理
+          this.jsonUrlInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              this.generateUrl();
+            }
+          });
+        }
+
+        show() {
+          this.overlay.style.display = 'block';
+          this.modal.style.display = 'block';
+          this.jsonUrlInput.focus();
+
+          // 表示状態をリセット
+          this.generatedUrlContainer.style.display = 'none';
+          this.generateBtn.style.display = 'inline-block';
+          this.copyBtn.style.display = 'none';
+          this.jsonUrlInput.value = '';
+          this.generatedUrlInput.value = '';
+          if (this.copyMessage) this.copyMessage.style.display = 'none';
+        }
+
+        close() {
+          this.overlay.style.display = 'none';
+          this.modal.style.display = 'none';
+        }
+
+        generateUrl() {
+          const jsonUrl = this.jsonUrlInput.value.trim();
+          if (!jsonUrl) {
+            alert('JSONファイルのURLを入力してください');
+            return;
+          }
+
+          // URLの形式を簡易チェック
+          if (!jsonUrl.startsWith('http') || !jsonUrl.endsWith('.json')) {
+            const continueAnyway = confirm('入力されたURLが正しいJSONファイルのURLではない可能性があります。続行しますか？');
+            if (!continueAnyway) return;
+          }
+
+          try {
+            const shareUrl = `${window.location.origin}${window.location.pathname}?json=${encodeURIComponent(jsonUrl)}`;
+            this.generatedUrlInput.value = shareUrl;
+            this.generatedUrlContainer.style.display = 'block';
+            this.generateBtn.style.display = 'none';
+            this.copyBtn.style.display = 'inline-block';
+          } catch (error) {
+            alert('URL生成中にエラーが発生しました: ' + error.message);
+          }
+        }
+
+        copyToClipboard() {
+          this.generatedUrlInput.select();
+          document.execCommand('copy');
+
+          // コピー成功メッセージを表示
+          if (this.copyMessage) {
+            this.copyMessage.style.display = 'block';
+            setTimeout(() => {
+              this.copyMessage.style.display = 'none';
+            }, 2000);
+          }
+        }
+      }
+
+      /* ===== 6. アプリ全体管理クラス ===== */
+      class YaNoteApp {
+        constructor() {
+          this.canvas = document.getElementById("canvas");
+          this.svg = document.getElementById("svg");
+          this.nodes = [];
+          this.connections = [];
+          this.selectedNode = null;
+          this.selectedNodes = [];
+          this.selectedConnection = null;
+          this.selectedConnections = [];
+          this.branchCreationJustHappened = false;
+          this.moveTimer = null;
+          this.undoStack = [];
+          this.redoStack = [];
+          this.globalPan = { x: 0, y: 0 };
+          this.globalZoom = 1;
+          this.firstNodeType = "standard";
+          this.defaultNodeType = "dotted";
+          this.defaultLineType = "standard";
+          this.defaultDashType = "solid";
+          this.restored = false;
+          // 編集中ノードの管理
+          this.editingNode = null;
+          this.updateGlobalTransform();
+          this.initEventListeners();
+
+          // iOSでのスクロール防止とダブルタップズーム防止 - 修正版
+          document.addEventListener('touchmove', function (e) {
+            // キャンバス内のタッチは別処理するので、キャンバス外のみ処理
+            if (!e.target.closest('#canvas')) {
+              e.preventDefault();
+            }
+          }, { passive: false });
+
+          // iOS向けのダブルタップズーム防止 - 修正版
+          let lastTouchEnd = 0;
+          document.addEventListener('touchend', function (e) {
+            const now = Date.now();
+            const DOUBLE_TAP_DELAY = 300;
+            if (now - lastTouchEnd < DOUBLE_TAP_DELAY) {
+              e.preventDefault();
+            }
+            lastTouchEnd = now;
+          }, { passive: false });
+
+          this.titleField = titleField;
+
+          // 新規ボタンからのリロードかどうかをチェック
+          const stored = localStorage.getItem("yaNoteData-beta");
+          const skipGuide = localStorage.getItem("skipGuideLoad-beta");
+
+          if (stored) {
+            // ローカルストレージにデータがある場合はそれを読み込む
+            this.loadFromLocalStorage();
+            this.restored = true;
+          } else if (skipGuide === "true") {
+            // 新規ボタンからのリロードの場合
+            localStorage.removeItem("skipGuideLoad-beta"); // フラグをリセット
+
+            // 通常の新規初期化処理（中心ノードのみ作成）
+            const cx = 5000, cy = 5000;
+            let node = this.createNode("中心ノード", cx, cy);
+            node.setType(this.firstNodeType);
+            this.centerNode = node;
+            this.saveState();
+            this.restored = true;
+          } else {
+            // 通常の初回読み込み時（データもなく、新規ボタンからでもない場合）
+            // index.jsonからガイドを読み込む
+            this.loadGuideFromIndexJson().then(success => {
+              if (!success) {
+                // ガイド読み込みに失敗した場合は通常の初期化
+                const cx = 5000, cy = 5000;
+                let node = this.createNode("中心ノード", cx, cy);
+                node.setType(this.firstNodeType);
+                this.centerNode = node;
+                this.saveState();
+              }
+              this.restored = true;
+            });
+          }
+
+          if (!this.restored) {
+            window.addEventListener("resize", () => this.recalcCenter());
+            window.addEventListener("load", () => this.recalcCenter());
+          }
+          this.updateControlButtonsState();
+          // コピーライト要素のバージョン情報を更新
+          const copyright = document.getElementById("copyright");
+          if (copyright) {
+            copyright.textContent = copyright.textContent.replace(/yaNote v[0-9.]+/, `yaNote ${VERSION}`);
+          }
+          Logger.log("YaNoteApp initialized");
+
+          // タッチ操作のための状態管理変数を初期化
+          this.touchState = {
+            isTouchMoving: false,
+            startX: 0,
+            startY: 0,
+            lastX: 0,
+            lastY: 0,
+            lastTapTime: 0,
+            doubleTapTimer: null,
+            isDoubleTapMode: false,
+            touchedConnection: null,
+            startTime: 0,
+            isHandleDragging: false
+          };
+
+          // タッチサポートの初期化
+          this.initTouchSupport();
+        }
+
+        /**
+         * デバイスの機能を検出し、それに応じたクラスをbodyに追加
+         * @return {Object} 検出された機能の状態
+         */
+        detectDeviceCapabilities() {
+          // タッチ対応の判定
+          this.hasTouchSupport = (('ontouchstart' in window) || 
+                                  (navigator.maxTouchPoints > 0) || 
+                                  (navigator.msMaxTouchPoints > 0));
+          
+          // ポインター精度の判定（粗い = タッチ、細かい = マウス）
+          this.hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
+          this.hasFinePointer = window.matchMedia('(pointer: fine)').matches;
+          
+          // iOS/iPadOS の判定
+          this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+          
+          // モバイルデバイスかの判定
+          this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+          
+          // デバイス特性に応じたクラスを body に追加
+          const body = document.body;
+          if (this.hasTouchSupport) body.classList.add('has-touch');
+          if (this.hasCoarsePointer) body.classList.add('coarse-pointer');
+          if (this.hasFinePointer) body.classList.add('fine-pointer');
+          if (this.isIOS) body.classList.add('ios-device');
+          if (this.isMobile) body.classList.add('mobile-device');
+          
+          Logger.log(`デバイス検出結果: タッチ=${this.hasTouchSupport}, iOS=${this.isIOS}, モバイル=${this.isMobile}`);
+          
+          return {
+            hasTouchSupport: this.hasTouchSupport,
+            hasCoarsePointer: this.hasCoarsePointer,
+            hasFinePointer: this.hasFinePointer,
+            isIOS: this.isIOS,
+            isMobile: this.isMobile
+          };
+        }
+
+        /**
+         * タッチデバイスかどうかを判定するヘルパーメソッド
+         * @return {boolean} タッチデバイスの場合true
+         */
+        isTouchDevice() {
+          return (('ontouchstart' in window) || 
+                  (navigator.maxTouchPoints > 0) || 
+                  (navigator.msMaxTouchPoints > 0));
+        }
+
+        /**
+         * タッチサポート機能の初期化
+         */
+        initTouchSupport() {
+          // デバイス機能の検出
+          const capabilities = this.detectDeviceCapabilities();
+          
+          // タッチサポートが検出された場合のみ後続の設定を行う
+          if (capabilities.hasTouchSupport) {
+            Logger.log("タッチサポートを初期化しています");
+            
+            // iOS特有の問題に対応
+            if (this.isIOS) {
+              this.setupIOSSpecificFixes();
+            }
+            
+            // 基本的なタッチサポートメッセージをコンソールに表示
+            console.log(`yaNote: タッチサポートを有効化しました (${this.isIOS ? 'iOS' : 'その他'} デバイス)`);
+          } else {
+            Logger.log("このデバイスはタッチをサポートしていません");
+          }
+        }
+
+        /**
+         * iOS特有の問題に対応するセットアップ
+         */
+        setupIOSSpecificFixes() {
+          // バウンススクロールとズーム防止（より堅牢な実装）
+          document.addEventListener('touchmove', e => {
+            // 特定のケースではデフォルト動作を許可
+            const target = e.target;
+            const isInControlPanel = target.closest('#controlPanel') !== null;
+            const isInModal = target.closest('#shareModal') !== null;
+            const isHandleDragging = this.touchState.isHandleDragging;
+            
+            // 特定のケース以外は preventDefault
+            if (!isInControlPanel && !isInModal && !isHandleDragging) {
+              e.preventDefault();
+            }
+          }, { passive: false });
+          
+          // ダブルタップズーム防止（より堅牢な実装）
+          let lastTouchEnd = 0;
+          document.addEventListener('touchend', e => {
+            const now = Date.now();
+            if (now - lastTouchEnd < 300) {
+              e.preventDefault();
+            }
+            lastTouchEnd = now;
+          }, { passive: false });
+          
+          // タップ状態の視覚的フィードバック
+          document.addEventListener('touchstart', e => {
+            const nodeElement = e.target.closest('.node');
+            if (nodeElement) {
+              // タップしたノードにホバークラスを追加
+              nodeElement.classList.add('node-hover');
+              
+              // 少し経ったら自動的に解除
+              setTimeout(() => {
+                nodeElement.classList.remove('node-hover');
+              }, 300);
+            }
+          }, { passive: true });
+          
+          // キーボード表示時の自動スクロール調整
+          window.addEventListener('resize', () => {
+            // キーボード表示による画面サイズ変更を検出
+            if (this.editingNode && window.innerHeight < window.outerHeight) {
+              const rect = this.editingNode.element.getBoundingClientRect();
+              const visibleArea = window.innerHeight * 0.5;
+              
+              if (rect.bottom > visibleArea) {
+                // 編集中のノードが見えるようにスクロール
+                this.globalPan.y += (visibleArea - rect.bottom);
+                this.updateGlobalTransform();
+                this.updateAllConnections();
+              }
+            }
+          });
+          
+          Logger.log("iOS特有の修正を適用しました（拡張版）");
+        }
+
+        /**
+         * タッチフィードバックを表示
+         * @param {number} x - タッチX座標
+         * @param {number} y - タッチY座標
+         */
+        showTouchFeedback(x, y) {
+          // フィードバック要素を作成
+          const feedback = document.createElement('div');
+          feedback.className = 'touch-feedback';
+          feedback.style.position = 'absolute';
+          feedback.style.width = '40px';
+          feedback.style.height = '40px';
+          feedback.style.borderRadius = '50%';
+          feedback.style.backgroundColor = 'rgba(0, 123, 255, 0.3)';
+          feedback.style.left = (x - 20) + 'px';
+          feedback.style.top = (y - 20) + 'px';
+          feedback.style.pointerEvents = 'none';
+          feedback.style.zIndex = '30000';
+          feedback.style.animation = 'touchRipple 0.4s ease-out';
+          
+          document.body.appendChild(feedback);
+          
+          // アニメーション完了後に削除
+          setTimeout(() => {
+            if (document.body.contains(feedback)) {
+              document.body.removeChild(feedback);
+            }
+          }, 400);
+          
+          // 触覚フィードバック（対応デバイスのみ）
+          if (navigator.vibrate) {
+            navigator.vibrate(50);
+          }
+        }
+
+        updateGlobalTransform() {
+          this.canvas.style.transform = `translate(-5000px, -5000px) translate(${this.globalPan.x}px, ${this.globalPan.y}px) scale(${this.globalZoom})`;
+        }
+
+        /**
+         * ノード上でのタッチスタート処理
+         * @param {TouchEvent} e - タッチイベント
+         * @param {NoteNode} node - タッチされたノード
+         */
+        handleNodeTouchStart(e, node) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // タッチ状態を更新
+          this.touchState.touchedNode = node;
+          this.touchState.startTime = Date.now();
+          this.touchState.startX = e.touches[0].clientX;
+          this.touchState.startY = e.touches[0].clientY;
+          
+          // ノード上のリンク要素をチェック
+          const target = e.target;
+          if (target.tagName.toLowerCase() === 'a') {
+            this.touchState.touchedLink = target.href;
+            return;
+          }
+          
+          // 長押し検出のタイマーをセット
+          this.touchState.longPressTimer = setTimeout(() => {
+            if (!this.touchState.isTouchMoving) {
+              // 振動フィードバック（対応デバイスのみ）
+              if (navigator.vibrate) {
+                navigator.vibrate(50);
+              }
+              
+              // 長押し状態を設定
+              this.touchState.isLongPress = true;
+              
+              // ノードを選択状態にする
+              this.clearSelection();
+              this.selectNode(node);
+              
+              // 視覚的フィードバック（選択状態を強調）
+              node.element.style.transform = "scale(1.05)";
+              setTimeout(() => {
+                node.element.style.transform = "";
+              }, 200);
+            }
+          }, 500); // 500ms の長押しで発動
+          
+          // ダブルタップ検出
+          const now = Date.now();
+          const timeSinceLastTap = now - this.touchState.lastTapTime;
+          
+          if (timeSinceLastTap < 300) { // 300ms 以内の2回タップをダブルタップと判定
+            clearTimeout(this.touchState.doubleTapTimer);
+            this.touchState.doubleTapTimer = null;
+            
+            // ダブルタップでノード編集を開始
+            if (this.editingNode) {
+              this.finishEditingNode(this.editingNode);
+            }
+            this.startEditingNode(node);
+            
+            // 長押しタイマーをクリア
+            clearTimeout(this.touchState.longPressTimer);
+            
+            // ダブルタップ＋ドラッグ検出モードを開始
+            this.touchState.isDoubleTapMode = true;
+          } else {
+            // シングルタップの処理を遅延実行（ダブルタップ判定のため）
+            this.touchState.doubleTapTimer = setTimeout(() => {
+              // ダブルタップでなかった場合のシングルタップ処理
+              if (!this.touchState.isTouchMoving && !this.touchState.isLongPress) {
+                this.clearSelection();
+                this.selectNode(node);
+                
+                // タップフィードバック
+                this.showTouchFeedback(e.touches[0].clientX, e.touches[0].clientY);
+              }
+            }, 300);
+          }
+          
+          this.touchState.lastTapTime = now;
+        }
+
+        /**
+         * 接続線上でのタッチスタート処理
+         * @param {TouchEvent} e - タッチイベント
+         * @param {Connection} connection - タッチされた接続線
+         */
+        handleConnectionTouchStart(e, connection) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // タッチ状態を更新
+          this.touchState.touchedConnection = connection;
+          this.touchState.startTime = Date.now();
+          
+          // シンプルなタップで接続線を選択
+          this.clearSelection();
+          this.selectConnection(connection);
+          
+          // タップフィードバック
+          const touch = e.touches[0];
+          this.showTouchFeedback(touch.clientX, touch.clientY);
+        }
+
+        /**
+         * キャンバス上でのタッチスタート処理（パン操作）
+         * @param {TouchEvent} e - タッチイベント
+         */
+        handleCanvasTouchStart(e) {
+          const touch = e.touches[0];
+          
+          // 初期位置を記録
+          this.touchState.startX = touch.clientX;
+          this.touchState.startY = touch.clientY;
+          this.touchState.lastX = touch.clientX;
+          this.touchState.lastY = touch.clientY;
+          
+          // ダブルタップ検出
+          const now = Date.now();
+          const timeSinceLastTap = now - this.touchState.lastTapTime;
+          
+          if (timeSinceLastTap < 300) { // 300ms 以内の2回タップをダブルタップと判定
+            clearTimeout(this.touchState.doubleTapTimer);
+            this.touchState.doubleTapTimer = null;
+            
+            // 編集中のノードがあれば終了
+            if (this.editingNode) {
+              this.finishEditingNode(this.editingNode);
+            }
+            
+            // 空白部分のダブルタップで新規ノード作成
+            const pos = this.eventToLogical({clientX: touch.clientX, clientY: touch.clientY});
+            const newNode = this.createNode("", pos.x, pos.y);
+            newNode.setType(this.defaultNodeType);
+            this.startEditingNode(newNode);
+            this.selectNode(newNode);
+            this.updateControlButtonsState();
+            this.saveState();
+            
+            // ダブルタップ＋ドラッグ検出モードを開始
+            this.touchState.isDoubleTapMode = true;
+          } else {
+            // シングルタップの処理を遅延実行（ダブルタップ判定のため）
+            this.touchState.doubleTapTimer = setTimeout(() => {
+              // ダブルタップでなかった場合のシングルタップ処理
+              if (!this.touchState.isTouchMoving) {
+                this.clearSelection();
+              }
+            }, 300);
+          }
+          
+          this.touchState.lastTapTime = now;
+        }
+
+        /**
+         * ノード移動のタッチムーブ処理
+         * @param {TouchEvent} e - タッチイベント
+         */
+        handleNodeTouchMove(e) {
+          const touch = e.touches[0];
+          const currentX = touch.clientX;
+          const currentY = touch.clientY;
+          const node = this.touchState.touchedNode;
+          
+          if (this.selectedNodes.includes(node)) {
+            // 複数選択時のグループ移動
+            const deltaX = currentX - this.touchState.lastX;
+            const deltaY = currentY - this.touchState.lastY;
+            
+            // 論理座標系での移動量に変換
+            const scaledDeltaX = deltaX / this.globalZoom;
+            const scaledDeltaY = deltaY / this.globalZoom;
+            
+            // 選択中のノードをすべて移動
+            this.selectedNodes.forEach(n => {
+              n.setPosition(n.x + scaledDeltaX, n.y + scaledDeltaY);
+            });
+            
+            // 選択中の接続線も移動（自由接続線の場合）
+            this.selectedConnections.forEach(c => {
+              if (c.fromCoord) {
+                c.fromCoord.x += scaledDeltaX;
+                c.fromCoord.y += scaledDeltaY;
+              }
+              if (c.toCoord) {
+                c.toCoord.x += scaledDeltaX;
+                c.toCoord.y += scaledDeltaY;
+              }
+              c.update();
+            });
+            
+            // 接続されている線を更新
+            this.updateAllConnections();
+          } else {
+            // 単一ノードの移動
+            const deltaX = currentX - this.touchState.lastX;
+            const deltaY = currentY - this.touchState.lastY;
+            
+            // 論理座標系での移動量に変換
+            const scaledDeltaX = deltaX / this.globalZoom;
+            const scaledDeltaY = deltaY / this.globalZoom;
+            
+            node.setPosition(node.x + scaledDeltaX, node.y + scaledDeltaY);
+            this.updateAllConnections();
+          }
+          
+          // 現在位置を更新
+          this.touchState.lastX = currentX;
+          this.touchState.lastY = currentY;
+        }
+
+        /**
+         * キャンバスのパン操作
+         * @param {TouchEvent} e - タッチイベント
+         */
+        handleCanvasTouchMove(e) {
+          const touch = e.touches[0];
+          const currentX = touch.clientX;
+          const currentY = touch.clientY;
+          
+          const deltaX = currentX - this.touchState.lastX;
+          const deltaY = currentY - this.touchState.lastY;
+          
+          this.globalPan.x += deltaX;
+          this.globalPan.y += deltaY;
+          
+          this.updateGlobalTransform();
+          this.updateAllConnections();
+          
+          // 現在位置を更新
+          this.touchState.lastX = currentX;
+          this.touchState.lastY = currentY;
+        }
+
+        recalcCenter() {
+          let center = this.nodes.find(n => n.element.textContent.trim() === "中心ノード") || this.nodes[0];
+          if (center) {
+            const rect = center.element.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            this.globalPan.x = (window.innerWidth / 2) - cx;
+            this.globalPan.y = (window.innerHeight / 2) - cy;
+            this.updateGlobalTransform();
+            this.updateAllConnections();
+          }
+        }
+        eventToLogical(e) {
+          const rect = this.canvas.getBoundingClientRect();
+          return { x: (e.clientX - rect.left) / this.globalZoom, y: (e.clientY - rect.top) / this.globalZoom };
+        }
+        initEventListeners() {
+          this.canvas.addEventListener("mousedown", e => { if (e.button === 2) this.startPan(e); });
+          this.canvas.addEventListener("contextmenu", e => { if (this.canvas.style.cursor === "grabbing") e.preventDefault(); });
+
+          // キャンバス全体に対する contextmenu イベントの処理
+          this.canvas.addEventListener("contextmenu", e => {
+            // 編集中のノード上でない場合はすべての右クリックメニューを抑制
+            const editingNode = e.target.closest(".node");
+            if (!editingNode || !(editingNode.isContentEditable || editingNode.classList.contains("editing"))) {
+              e.preventDefault();
+            }
+          });
+
+          this.canvas.addEventListener("mousedown", e => { if (e.button === 0) this.onCanvasMouseDown(e); });
+          window.addEventListener("resize", () => this.updateAllConnections());
+          document.addEventListener("mousedown", e => {
+            if (!e.target.closest(".node") && !e.target.closest(".html-handle") && e.target.tagName.toLowerCase() !== "line") {
+              this.hideAllHandles();
+            }
+          });
+          document.addEventListener("keydown", e => {
+
+            // タイトルフィールド編集中はキーイベントを処理しない
+            if (document.activeElement === titleField) {
+              return;
+            }
+
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+              // フォーカスされている要素が contentEditable なら、デフォルトの全選択を行う
+              if (document.activeElement && document.activeElement.isContentEditable) {
+                return;
+              }
+              e.preventDefault();
+              this.selectAll();
+              return;
+            }
+            // cmd+Enter のショートカット：編集中のノードがあれば終了してから新規作成
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "enter") {
+              e.preventDefault();
+              if (this.editingNode) {
+                this.finishEditingNode(this.editingNode);
+              }
+              // 既存の処理：現在選択中のノードの直下に新規ノードを追加する
+              let currentNode = this.selectedNode || this.nodes.find(n => n.element === document.activeElement);
+              const offset = currentNode.element.offsetHeight + 10;
+              if (currentNode) {
+                const baseX = currentNode.x;
+                const baseY = currentNode.y + offset;
+                const newNode = this.createNode("", baseX, baseY);
+                newNode.setType(currentNode.nodeType);
+                this.startEditingNode(newNode);
+                this.selectNode(newNode);
+                this.updateControlButtonsState();
+                this.saveState();
+              }
+            } else if (e.key === "e") {
+              // eキーで、もし編集中でなければ選択中のノードを編集モードに移行
+              if (this.selectedNode && !this.editingNode) {
+                e.preventDefault();
+                this.startEditingNode(this.selectedNode);
+              }
+            } else {
+              if (document.activeElement && document.activeElement.isContentEditable) {
+                return;
+              }
+              if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+                e.preventDefault();
+                this.undo();
+              } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+                e.preventDefault();
+                this.redo();
+              } else if (["Backspace", "Delete"].includes(e.key)) {
+                e.preventDefault();
+                this.deleteSelection();
+                this.saveState();
+              }
+            }
+          });
+          window.addEventListener("storage", e => { if (e.key === "yaNoteData-beta") location.reload(); });
+          this.canvas.addEventListener("wheel", e => {
+            if (e.ctrlKey || e.metaKey) return;
+            e.preventDefault();
+            if (e.shiftKey) {
+              const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+              this.globalPan.x -= dx * 0.5;
+            } else {
+              if (e.deltaY !== 0) this.globalPan.y -= e.deltaY * 0.5;
+              if (e.deltaX !== 0) this.globalPan.x -= e.deltaX * 0.5;
+            }
+            this.updateGlobalTransform();
+            this.updateAllConnections();
+          }, { passive: false });
+          this.initControlPanel();
+
+          // タッチ操作のサポート
+          // タッチ操作のサポート - 修正版
+          this.canvas.addEventListener("touchstart", e => {
+            // タッチ座標を取得
+            const touch = e.touches[0];
+            const clientX = touch.clientX;
+            const clientY = touch.clientY;
+            
+            // タッチ状態を初期化
+            this.touchState.startX = clientX;
+            this.touchState.startY = clientY;
+            this.touchState.lastX = clientX;
+            this.touchState.lastY = clientY;
+            this.touchState.startTime = Date.now();
+            this.touchState.isTouchMoving = false;
+            this.touchState.isLongPress = false;
+            this.touchState.touchedNode = null;
+            this.touchState.touchedConnection = null;
+            this.touchState.touchedLink = null;
+            
+            // タッチされた要素を特定
+            const element = document.elementFromPoint(clientX, clientY);
+            
+            // ノード上のタッチを処理
+            if (element) {
+              const nodeElement = element.closest(".node");
+              if (nodeElement) {
+                const node = this.nodes.find(n => n.element === nodeElement);
+                if (node) {
+                  this.handleNodeTouchStart(e, node);
+                  return;
+                }
+              }
+              
+              // 接続線上のタッチを処理（要素がline要素か確認）
+              if (element.tagName.toLowerCase() === 'line') {
+                const connection = this.connections.find(c => c.line === element);
+                if (connection) {
+                  this.handleConnectionTouchStart(e, connection);
+                  return;
+                }
+              }
+            }
+            
+            // 空白部分のタッチを処理（パン操作）
+            e.preventDefault(); // デフォルトのスクロールを防止
+            this.handleCanvasTouchStart(e);
+          }, { passive: false });
+
+          // タッチムーブイベント
+          this.canvas.addEventListener("touchmove", e => {
+            if (e.touches.length !== 1) return;
+            
+            const touch = e.touches[0];
+            const currentX = touch.clientX;
+            const currentY = touch.clientY;
+            const dx = currentX - this.touchState.startX;
+            const dy = currentY - this.touchState.startY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            // 動きが小さい場合は無視（タップ判定のため）
+            if (distance < 5) return;
+            
+            // 移動中フラグを設定
+            this.touchState.isTouchMoving = true;
+            
+            // 長押しタイマーをクリア
+            if (this.touchState.longPressTimer) {
+              clearTimeout(this.touchState.longPressTimer);
+              this.touchState.longPressTimer = null;
+            }
+            
+            // リンクタッチのクリア
+            if (this.touchState.touchedLink) {
+              this.touchState.touchedLink = null;
+            }
+            
+            // 長押し後のノード移動
+            if (this.touchState.isLongPress && this.touchState.touchedNode) {
+              e.preventDefault();
+              this.handleNodeTouchMove(e);
+              return;
+            }
+            
+            // デフォルト: キャンバスのパン移動
+            e.preventDefault();
+            this.handleCanvasTouchMove(e);
+          }, { passive: false });
+
+          // タッチエンドイベント
+          this.canvas.addEventListener("touchend", e => {
+            // 長押しタイマーをクリア
+            if (this.touchState.longPressTimer) {
+              clearTimeout(this.touchState.longPressTimer);
+              this.touchState.longPressTimer = null;
+            }
+            
+            // リンクのタップ処理
+            if (this.touchState.touchedLink && !this.touchState.isTouchMoving) {
+              e.preventDefault();
+              window.open(this.touchState.touchedLink, '_blank');
+              this.touchState.touchedLink = null;
+              return;
+            }
+            
+            // 長押し後のノード移動完了
+            if (this.touchState.isLongPress && this.touchState.touchedNode) {
+              e.preventDefault();
+              this.saveState(); // 移動後の状態を保存
+              this.touchState.touchedNode = null;
+              this.touchState.isLongPress = false;
+              return;
+            }
+            
+            // タッチ状態をリセット
+            this.touchState.isTouchMoving = false;
+            this.touchState.touchedNode = null;
+            this.touchState.touchedConnection = null;
+          }, { passive: false });
+
+          // タッチキャンセルイベント
+          this.canvas.addEventListener("touchcancel", e => {
+            // すべてのタイマーをクリア
+            if (this.touchState.longPressTimer) {
+              clearTimeout(this.touchState.longPressTimer);
+              this.touchState.longPressTimer = null;
+            }
+            
+            // タッチ状態をリセット
+            this.touchState.isTouchMoving = false;
+            this.touchState.isLongPress = false;
+            this.touchState.touchedNode = null;
+            this.touchState.touchedConnection = null;
+            this.touchState.touchedLink = null;
+          }, { passive: false });
+
+        }
+        initControlPanel() {
+          const changeTypeBtn = document.getElementById("changeTypeBtn");
+          const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
+          const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
+          const boldTextBtn = document.getElementById("boldTextBtn");
+          const nodeTypes = ["standard", "text-only", "grey", "red", "dotted"];
+          const getNextType = (current) => {
+            const index = nodeTypes.indexOf(current);
+            return nodeTypes[(index + 1) % nodeTypes.length];
+          };
+          const getLabel = (type) => {
+            switch (type) {
+              case "standard": return "標準";
+              case "text-only": return "テキスト専用";
+              case "grey": return "グレー";
+              case "red": return "赤";
+              case "dotted": return "点線";
+              default: return type;
+            }
+          };
+
+          changeTypeBtn.addEventListener("click", () => {
+            if (this.selectedNodes.length > 0) {
+              const target = getNextType(this.selectedNodes[0].nodeType);
+              this.selectedNodes.forEach(n => n.setType(target));
+              this.defaultNodeType = target;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeTypeBtn, `ノード種類: ${getLabel(target)}`);
+            } else if (this.selectedNode) {
+              const target = getNextType(this.selectedNode.nodeType);
+              this.selectedNode.setType(target);
+              this.defaultNodeType = target;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeTypeBtn, `ノード種類: ${getLabel(target)}`);
+            } else {
+              const target = getNextType(this.defaultNodeType);
+              this.defaultNodeType = target;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeTypeBtn, `デフォルトノード種類: ${getLabel(target)}`);
+            }
+          });
+          changeTypeBtn.addEventListener("mouseenter", () => {
+            let tip = "";
+            if (this.selectedNodes.length > 0) {
+              const firstType = this.selectedNodes[0].nodeType;
+              const allSame = this.selectedNodes.every(n => n.nodeType === firstType);
+              tip = allSame ? `選択中: ${getLabel(firstType)}` : "選択中: 混在";
+            } else if (this.selectedNode) {
+              tip = `選択中: ${getLabel(this.selectedNode.nodeType)}`;
+            } else {
+              tip = `現在のノード種類: ${getLabel(this.defaultNodeType)}`;
+            }
+            Utils.showTooltip(changeTypeBtn, tip);
+          });
+
+          changeLineTypeBtn.addEventListener("click", () => {
+            let next;
+            if (this.selectedConnections.length > 0) {
+              const types = new Set(this.selectedConnections.map(c => c.lineType));
+              if (types.size === 1) {
+                const current = this.selectedConnections[0].lineType;
+                next = current === "standard" ? "no-arrow" : current === "no-arrow" ? "reverse-arrow" : current === "reverse-arrow" ? "both-arrow" : "standard";
+              } else {
+                next = "standard";
+              }
+              this.selectedConnections.forEach(c => c.setLineType(next));
+              this.defaultLineType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeLineTypeBtn, `線種: ${this.getLineTypeName(next)}`);
+            } else if (this.selectedConnection) {
+              const current = this.selectedConnection.lineType;
+              next = current === "standard" ? "no-arrow" : current === "no-arrow" ? "reverse-arrow" : current === "reverse-arrow" ? "both-arrow" : "standard";
+              this.selectedConnection.setLineType(next);
+              this.defaultLineType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeLineTypeBtn, `線種: ${this.getLineTypeName(next)}`);
+            } else {
+              const current = this.defaultLineType;
+              next = current === "standard" ? "no-arrow" : current === "no-arrow" ? "reverse-arrow" : current === "reverse-arrow" ? "both-arrow" : "standard";
+              this.defaultLineType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeLineTypeBtn, `デフォルト線種: ${this.getLineTypeName(next)}`);
+            }
+          });
+          changeLineTypeBtn.addEventListener("mouseenter", () => {
+            let tip = `現在の線種: ${this.getLineTypeName(this.defaultLineType)}`;
+            if (this.selectedConnections.length > 0) {
+              const types = new Set(this.selectedConnections.map(c => c.lineType));
+              tip = types.size === 1 ? `選択中: ${this.getLineTypeName([...types][0])}` : "選択中: 混在";
+            } else if (this.selectedConnection) {
+              tip = `選択中: ${this.getLineTypeName(this.selectedConnection.lineType)}`;
+            }
+            Utils.showTooltip(changeLineTypeBtn, tip);
+          });
+
+          changeDashTypeBtn.addEventListener("click", () => {
+            let next;
+            if (this.selectedConnections.length > 0) {
+              const types = new Set(this.selectedConnections.map(c => c.dashType));
+              next = types.size === 1 ? (this.selectedConnections[0].dashType === "solid" ? "dashed" : "solid") : "solid";
+              this.selectedConnections.forEach(c => c.setDashType(next));
+              this.defaultDashType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeDashTypeBtn, `線タイプ: ${this.getDashTypeName(next)}`);
+            } else if (this.selectedConnection) {
+              next = this.selectedConnection.dashType === "solid" ? "dashed" : "solid";
+              this.selectedConnection.setDashType(next);
+              this.defaultDashType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeDashTypeBtn, `線タイプ: ${this.getDashTypeName(next)}`);
+            } else {
+              next = this.defaultDashType === "solid" ? "dashed" : "solid";
+              this.defaultDashType = next;
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(changeDashTypeBtn, `デフォルト線タイプ: ${this.getDashTypeName(next)}`);
+            }
+          });
+          changeDashTypeBtn.addEventListener("mouseenter", () => {
+            let tip = `現在の線タイプ: ${this.getDashTypeName(this.defaultDashType)}`;
+            if (this.selectedConnections.length > 0) {
+              const types = new Set(this.selectedConnections.map(c => c.dashType));
+              tip = types.size === 1 ? `選択中: ${this.getDashTypeName([...types][0])}` : "選択中: 混在";
+            } else if (this.selectedConnection) {
+              tip = `選択中: ${this.getDashTypeName(this.selectedConnection.dashType)}`;
+            }
+            Utils.showTooltip(changeDashTypeBtn, tip);
+          });
+
+          boldTextBtn.addEventListener("click", () => {
+            if (this.selectedNodes.length > 0) {
+              const allBold = this.selectedNodes.every(n => n.boldText);
+              const newState = !allBold;
+              this.selectedNodes.forEach(n => n.setBold(newState));
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(boldTextBtn, `太字: ${newState ? "オン" : "オフ"}`);
+            } else if (this.selectedNode) {
+              const newState = !this.selectedNode.boldText;
+              this.selectedNode.setBold(newState);
+              this.saveState();
+              this.updateControlButtonsState();
+              Utils.showTooltip(boldTextBtn, `太字: ${newState ? "オン" : "オフ"}`);
+            }
+          });
+          boldTextBtn.addEventListener("mouseenter", () => {
+            let tip = "太字";
+            if (this.selectedNodes.length > 0) {
+              const allBold = this.selectedNodes.every(n => n.boldText);
+              const noneBold = this.selectedNodes.every(n => !n.boldText);
+              tip = allBold ? "選択中: 太字" : noneBold ? "選択中: 通常" : "選択中: 混在";
+            } else if (this.selectedNode) {
+              tip = `選択中: ${this.selectedNode.boldText ? "太字" : "通常"}`;
+            }
+            Utils.showTooltip(boldTextBtn, tip);
+          });
+
+          // 「？」ボタンのイベントリスナー追加
+          document.getElementById("guideBtn").addEventListener("click", () => {
+            const shouldProceed = confirm("利用ガイドを表示しますか？\n現在の作業内容は失われます。");
+            if (shouldProceed) {
+              this.loadGuideFromIndexJson().then(success => {
+                if (!success) {
+                  alert("ガイドの読み込みに失敗しました。");
+                }
+              });
+            }
+          });
+
+          // initControlPanel の中の適切な場所に追加
+          document.getElementById("resetViewBtn").addEventListener("click", () => {
+            this.resetView();
+            Utils.showTooltip(document.getElementById("resetViewBtn"), "表示位置をリセットしました");
+          });
+
+          // または、YaNoteAppクラスの外側で追加
+          document.getElementById("resetViewBtn").addEventListener("click", () => {
+            window.app.resetView();
+            Utils.showTooltip(document.getElementById("resetViewBtn"), "表示位置をリセットしました");
+          });
+
+          // 追加のコントロールパネルボタンにツールチップを設定
+          const additionalTooltips = {
+            "resetBtn": "新規ノートを作成",
+            "importBtn": "保存したノートを開く",
+            "exportBtn": "現在のノートを保存",
+            "shareBtn": "URLで共有",
+            "guideBtn": "ヘルプを表示",
+            "resetViewBtn": "表示位置をリセット"
+          };
+
+          // 各ボタンにマウスエンターイベントを追加
+          Object.keys(additionalTooltips).forEach(btnId => {
+            const btn = document.getElementById(btnId);
+            if (btn) {
+              btn.addEventListener("mouseenter", () => {
+                // 右端のボタンには特別な処理
+                if (btnId === "guideBtn" || btnId === "shareBtn") {
+                  // 特別なツールチップ表示（右端用）
+                  showRightAlignedTooltip(btn, additionalTooltips[btnId]);
+                } else {
+                  Utils.showTooltip(btn, additionalTooltips[btnId]);
+                }
+              });
+            }
+          });
+
+          // 右端のボタン用に位置調整したツールチップ表示関数
+          function showRightAlignedTooltip(el, text) {
+            Utils.hideAllTooltips();
+            const tip = document.createElement("div");
+            tip.className = "tooltip";
+            tip.textContent = text;
+            document.body.appendChild(tip);
+            const rect = el.getBoundingClientRect();
+
+            // 右端に近いボタンの場合、左寄りに表示（右端から20px離す）
+            const rightEdge = window.innerWidth - 20;
+            const idealLeft = rect.left + rect.width / 2 - tip.offsetWidth / 2;
+            const adjustedLeft = Math.min(idealLeft, rightEdge - tip.offsetWidth);
+
+            tip.style.left = adjustedLeft + "px";
+            tip.style.top = (rect.bottom) + "px";
+            setTimeout(() => { if (tip.parentNode) tip.parentNode.removeChild(tip); }, 2000);
+          }
+
+          changeTypeBtn.classList.remove("standard", "text-only", "grey", "red", "dotted");
+          changeTypeBtn.classList.add(this.defaultNodeType);
+          changeTypeBtn.textContent = getLabel(this.defaultNodeType);
+        }
+        getLineTypeName(type) {
+          switch (type) {
+            case "standard": return "標準矢印";
+            case "no-arrow": return "矢印なし";
+            case "reverse-arrow": return "逆矢印";
+            case "both-arrow": return "両方向矢印";
+            default: return "標準矢印";
+          }
+        }
+        getDashTypeName(type) {
+          return type === "solid" ? "実線" : "点線";
+        }
+        getLineTypeSymbol(type) {
+          switch (type) {
+            case "standard": return "→";
+            case "no-arrow": return "—";
+            case "reverse-arrow": return "←";
+            case "both-arrow": return "↔";
+            default: return "→";
+          }
+        }
+        getDashTypeSymbol(type) {
+          return type === "solid" ? "—" : "‥";
+        }
+        startPan(e) {
+          if (e.button !== 2) return;
+
+          // 編集中のノード上である場合は処理をスキップ
+          const editingNode = e.target.closest(".node");
+          if (editingNode && (editingNode.isContentEditable || editingNode.classList.contains("editing"))) {
+            return;
+          }
+
+          e.preventDefault();
+          const startX = e.clientX, startY = e.clientY;
+          const initPan = Object.assign({}, this.globalPan);
+          this.canvas.style.cursor = "grabbing";
+          let moved = false;
+
+          const onMove = e => {
+            const dx = e.clientX - startX, dy = e.clientY - startY;
+            if (!moved && Math.sqrt(dx * dx + dy * dy) > 5) moved = true;
+            if (moved) {
+              this.globalPan.x = initPan.x + dx;
+              this.globalPan.y = initPan.y + dy;
+              requestAnimationFrame(() => {
+                this.updateGlobalTransform();
+                this.updateAllConnections();
+              });
+            }
+          };
+
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            if (moved) this.canvas.style.cursor = "default";
+          };
+
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        }
+        // YaNoteApp クラス内にメソッドを追加
+        resetView() {
+          Logger.log("表示位置をリセットします");
+
+          // 中心ノードを特定
+          let centerNode = this.nodes.find(n => n.element.textContent.trim() === "中心ノード") ||
+            this.nodes.find(n => n.id === 1) ||
+            this.nodes[0];
+
+          if (centerNode) {
+            // 一度 rect を取得するために少し遅延させる
+            setTimeout(() => {
+              const rect = centerNode.element.getBoundingClientRect();
+              const viewportCenterX = window.innerWidth / 2;
+              const viewportCenterY = window.innerHeight / 2;
+              const nodeCenterX = rect.left + rect.width / 2;
+              const nodeCenterY = rect.top + rect.height / 2;
+
+              // パン位置を調整
+              this.globalPan.x += (viewportCenterX - nodeCenterX);
+              this.globalPan.y += (viewportCenterY - nodeCenterY);
+
+              // 変更を適用
+              this.updateGlobalTransform();
+              this.updateAllConnections();
+              
+              // タッチフィードバック（位置をセンターに）
+              if (this.isTouchDevice()) {
+                this.showTouchFeedback(viewportCenterX, viewportCenterY);
+              }
+              
+              Logger.log("リセット完了:", this.globalPan);
+            }, 50);
+          } else {
+            Logger.log("中心ノードが見つかりません");
+          }
+        }
+        onCanvasMouseDown(e) {
+          // クリックされた要素が編集中のノード内の場合、
+          // かつクリックがシングル（e.detail === 1）なら何もしない
+          if (this.editingNode && e.target.closest(".node") === this.editingNode.element && e.detail === 1) {
+            return;
+          }
+          // それ以外で編集中なら、まず編集を終了する
+          if (this.editingNode) {
+            this.finishEditingNode(this.editingNode);
+          }
+          // ノード上でのシングルクリックの場合は何もしない（選択処理等はノード側で）
+          if (e.target.closest(".node") && e.detail === 1) return;
+          if (e.detail === 1) {
+            this.clearSelection();
+            const selRect = document.createElement("div");
+            selRect.id = "selectionRect";
+            selRect.style.left = e.clientX + "px";
+            selRect.style.top = e.clientY + "px";
+            document.body.appendChild(selRect);
+            const startX = e.clientX, startY = e.clientY;
+            const onMove = e => {
+              const x = Math.min(startX, e.clientX);
+              const y = Math.min(startY, e.clientY);
+              selRect.style.left = x + "px";
+              selRect.style.top = y + "px";
+              selRect.style.width = Math.abs(e.clientX - startX) + "px";
+              selRect.style.height = Math.abs(e.clientY - startY) + "px";
+            };
+            const onUp = e => {
+              document.removeEventListener("mousemove", onMove);
+              document.removeEventListener("mouseup", onUp);
+              const selBox = selRect.getBoundingClientRect();
+              this.nodes.forEach(n => {
+                const nBox = n.element.getBoundingClientRect();
+                if (!(nBox.right < selBox.left || nBox.left > selBox.right || nBox.bottom < selBox.top || nBox.top > selBox.bottom)) {
+                  this.selectedNodes.push(n);
+                  n.element.classList.add("selected");
+                }
+              });
+              this.connections.forEach(c => {
+                const lBox = c.line.getBoundingClientRect();
+                if (!(lBox.right < selBox.left || lBox.left > selBox.right || lBox.bottom < selBox.top || lBox.top > selBox.bottom)) {
+                  this.selectedConnections.push(c);
+                  c.line.classList.add("selected-line");
+                  c.showHandles();
+                }
+              });
+
+              if (this.editingNode && hasSelection) {
+                this.finishEditingNode(this.editingNode);
+              }
+
+              document.body.removeChild(selRect);
+              this.updateControlButtonsState();
+              this.saveState();
+            };
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
+          } else if (e.detail === 2) {
+            this.startBlankDoubleClick(e);
+          }
+        }
+        startMove(e, node) {
+          if (!this.selectedNodes.includes(node)) {
+            this.clearSelection();
+            this.selectNode(node);
+          }
+          if (this.selectedNodes.length + this.selectedConnections.length > 1) { this.startGroupMove(e); return; }
+          const group = [node];
+          this.clearSelection();
+          group.forEach(n => n.element.classList.add("selected"));
+          this.selectedNodes = group;
+          this.selectedNode = node;
+          const start = this.eventToLogical(e);
+          const initPos = new Map(group.map(n => [n, { x: n.x, y: n.y }]));
+          let dragging = false;
+          const onMove = e => {
+            const cur = this.eventToLogical(e);
+            const dx = cur.x - start.x, dy = cur.y - start.y;
+            if (!dragging && Math.sqrt(dx * dx + dy * dy) > 5) dragging = true;
+            if (dragging) {
+              group.forEach(n => {
+                const pos = initPos.get(n);
+                n.setPosition(pos.x + dx, pos.y + dy);
+              });
+              this.updateAllConnections();
+            }
+          };
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            this.saveState();
+          };
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        }
+        startGroupMove(e) {
+          const start = this.eventToLogical(e);
+          const initPos = new Map(this.selectedNodes.map(n => [n, { x: n.x, y: n.y }]));
+          const connInit = new Map();
+          this.selectedConnections.forEach(c => {
+            if (c.fromCoord && c.toCoord)
+              connInit.set(c, { from: Object.assign({}, c.fromCoord), to: Object.assign({}, c.toCoord) });
+          });
+          const connected = new Set();
+          this.connections.forEach(c => {
+            if ((c.fromNode && this.selectedNodes.includes(c.fromNode)) || (c.toNode && this.selectedNodes.includes(c.toNode))) {
+              if (!this.selectedConnections.includes(c)) connected.add(c);
+            }
+          });
+          const onMove = e => {
+            const cur = this.eventToLogical(e);
+            const dx = cur.x - start.x, dy = cur.y - start.y;
+            this.selectedNodes.forEach(n => {
+              const pos = initPos.get(n);
+              n.setPosition(pos.x + dx, pos.y + dy);
+            });
+            this.selectedConnections.forEach(c => {
+              if (connInit.has(c)) {
+                const pos = connInit.get(c);
+                c.fromCoord = { x: pos.from.x + dx, y: pos.from.y + dy };
+                c.toCoord = { x: pos.to.x + dx, y: pos.to.y + dy };
+              }
+              c.update();
+            });
+            connected.forEach(c => c.update());
+          };
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            this.saveState();
+          };
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        }
+        handleNodeMouseDown(e, node) {
+          // 他のノード選択時、もし編集中のノードがあれば強制終了
+          if (this.editingNode && this.editingNode !== node) {
+            this.finishEditingNode(this.editingNode);
+          }
+          if (this.selectedConnection) {
+            this.selectedConnection.line.classList.remove("selected-line");
+            this.selectedConnection.hideHandles();
+            this.selectedConnection = null;
+          }
+          if (e.detail === 2) {
+            if (this.moveTimer) { clearTimeout(this.moveTimer); this.moveTimer = null; }
+            this.startDoubleClick(e, node);
+            return;
+          }
+          const startTime = Date.now();
+          this.moveTimer = setTimeout(() => { this.startMove(e, node); this.moveTimer = null; }, 250);
+          const cancel = () => {
+            if (Date.now() - startTime < 250) {
+              clearTimeout(this.moveTimer);
+              this.moveTimer = null;
+              this.clearSelection();
+              this.selectNode(node);
+              this.hideAllHandles();
+              this.updateControlButtonsState();
+            }
+            document.removeEventListener("mouseup", cancel);
+          };
+          document.addEventListener("mouseup", cancel);
+        }
+        startDoubleClick(e, node) {
+          const start = { x: e.clientX, y: e.clientY };
+          let branch = false;
+          const onMove = e => {
+            const dx = e.clientX - start.x, dy = e.clientY - start.y;
+            if (!branch && Math.sqrt(dx * dx + dy * dy) > 10) {
+              branch = true;
+              document.removeEventListener("mousemove", onMove);
+              document.removeEventListener("mouseup", onUp);
+              this.startBranchCreation(e, node);
+            }
+          };
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            if (!branch) this.startEditingNode(node);
+          };
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        }
+        startBranchCreation(e, node) {
+          const cRect = this.canvas.getBoundingClientRect();
+          const nRect = node.element.getBoundingClientRect();
+          const cx = nRect.left + nRect.width / 2 - cRect.left;
+          const cy = nRect.top + nRect.height / 2 - cRect.top;
+          const mx = e.clientX - cRect.left, my = e.clientY - cRect.top;
+          const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          tempLine.setAttribute("stroke", "#007bff");
+          tempLine.setAttribute("stroke-width", "2");
+          tempLine.setAttribute("stroke-dasharray", "4");
+          tempLine.setAttribute("x1", cx);
+          tempLine.setAttribute("y1", cy);
+          tempLine.setAttribute("x2", mx);
+          tempLine.setAttribute("y2", my);
+          this.svg.appendChild(tempLine);
+          const onMove = e => {
+            const nx = e.clientX - cRect.left, ny = e.clientY - cRect.top;
+            tempLine.setAttribute("x2", nx);
+            tempLine.setAttribute("y2", ny);
+          };
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            this.svg.removeChild(tempLine);
+            this.branchCreationJustHappened = true;
+            setTimeout(() => { this.branchCreationJustHappened = false; }, 300);
+            const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+            const dropNodeEl = dropEl ? dropEl.closest(".node") : null;
+            let dropNode = this.nodes.find(n => n.element === dropNodeEl);
+            if (dropNode && dropNode !== node) {
+              const conn = this.createConnection(node, dropNode);
+              if (node.nodeType === "dotted") {
+                conn.setLineType("no-arrow");
+                conn.setDashType("dashed");
+              } else {
+                conn.setLineType("standard");
+                conn.setDashType("solid");
+              }
+              this.clearSelection();
+              this.selectNode(dropNode);
+            } else {
+              const pos = this.eventToLogical(e);
+              const newNode = this.createNode("", pos.x, pos.y);
+              newNode.setType("text-only");
+              this.startEditingNode(newNode);
+              const conn = this.createConnection(node, newNode);
+              if (node.nodeType === "dotted") {
+                conn.setLineType("no-arrow");
+                conn.setDashType("dashed");
+              } else {
+                conn.setLineType("standard");
+                conn.setDashType("solid");
+              }
+              this.clearSelection();
+              this.selectNode(newNode);
+            }
+            this.updateControlButtonsState();
+            this.saveState();
+          };
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        }
+        startBlankDoubleClick(e) {
+          const cRect = this.canvas.getBoundingClientRect();
+          const sx = e.clientX - cRect.left, sy = e.clientY - cRect.top;
+          const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          tempLine.setAttribute("stroke", "#007bff");
+          tempLine.setAttribute("stroke-width", "2");
+          tempLine.setAttribute("stroke-dasharray", "4");
+          tempLine.setAttribute("x1", sx);
+          tempLine.setAttribute("y1", sy);
+          tempLine.setAttribute("x2", sx);
+          tempLine.setAttribute("y2", sy);
+          const initClient = { x: e.clientX, y: e.clientY };
+          let lineMode = false;
+          let fromCoord = null;
+          const onMove = e => {
+            const dx = e.clientX - initClient.x, dy = e.clientY - initClient.y;
+            if (!lineMode && Math.sqrt(dx * dx + dy * dy) > 10) {
+              lineMode = true;
+              fromCoord = this.eventToLogical({ clientX: initClient.x, clientY: initClient.y });
+              this.svg.appendChild(tempLine);
+            }
+            if (lineMode) {
+              const nx = e.clientX - cRect.left, ny = e.clientY - cRect.top;
+              tempLine.setAttribute("x2", nx);
+              tempLine.setAttribute("y2", ny);
+            }
+          };
+          const onUp = e => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            if (lineMode) {
+              this.svg.removeChild(tempLine);
+              const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+              const dropNodeEl = dropEl ? dropEl.closest(".node") : null;
+              if (dropNodeEl) {
+                const target = this.nodes.find(n => n.element === dropNodeEl);
+                const conn = this.createConnection(null, target);
+                conn.setLineType(this.defaultLineType);
+                conn.setDashType(this.defaultDashType);
+                conn.fromCoord = fromCoord;
+                conn.update();
+              } else {
+                const conn = this.createConnection(null, null);
+                conn.setLineType(this.defaultLineType);
+                conn.setDashType(this.defaultDashType);
+                conn.fromCoord = fromCoord;
+                conn.toCoord = this.eventToLogical(e);
+                conn.update();
+              }
+              this.saveState();
+            } else {
+              const pos = this.eventToLogical(e);
+              const newNode = this.createNode("", pos.x, pos.y);
+              newNode.setType(this.defaultNodeType);
+              this.startEditingNode(newNode);
+              this.selectNode(newNode);
+              this.updateControlButtonsState();
+              this.saveState();
+            }
+          };
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        }
+        createHtmlHandle() {
+          const handle = document.createElement("div");
+          handle.className = "html-handle";
+          this.canvas.appendChild(handle);
+          return handle;
+        }
+        addHandleDrag(handle, conn, which) {
+          // 既存のマウス操作部分を実行
+          handle.addEventListener("mousedown", e => {
+            e.stopPropagation();
+            e.preventDefault();
+            
+            const startX = e.clientX, startY = e.clientY;
+            const initLeft = parseFloat(handle.style.left);
+            const initTop = parseFloat(handle.style.top);
+            
+            // 視覚的フィードバック（ハンドルを大きく表示）
+            handle.style.transform = "scale(1.5)";
+            handle.style.backgroundColor = "rgba(0, 123, 255, 0.8)";
+            
+            const onMove = e => {
+              const dx = e.clientX - startX, dy = e.clientY - startY;
+              
+              // ハンドルを移動
+              handle.style.left = (initLeft + dx) + "px";
+              handle.style.top = (initTop + dy) + "px";
+              
+              // 接続線のコーディネートを更新
+              if (which === "from") {
+                conn.fromNode = null;
+                conn.fromCoord = { x: initLeft + dx + 4, y: initTop + dy + 4 };
+              } else {
+                conn.toNode = null;
+                conn.toCoord = { x: initLeft + dx + 4, y: initTop + dy + 4 };
+              }
+              
+              // 接続線の描画を更新
+              conn.update();
+            };
+            
+            const onUp = e => {
+              document.removeEventListener("mousemove", onMove);
+              document.removeEventListener("mouseup", onUp);
+              
+              // 標準の見た目に戻す
+              handle.style.transform = "";
+              handle.style.backgroundColor = "";
+              
+              // ドロップ先のノードを特定
+              const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+              const dropNodeEl = dropEl ? dropEl.closest(".node") : null;
+              const dropNode = this.nodes.find(n => n.element === dropNodeEl);
+              
+              // ノードが見つかった場合は接続
+              if (dropNode) {
+                if (which === "from") { 
+                  conn.fromNode = dropNode; 
+                  conn.fromCoord = null; 
+                } else { 
+                  conn.toNode = dropNode; 
+                  conn.toCoord = null; 
+                }
+              }
+              
+              // 接続線を更新
+              conn.update();
+              this.saveState();
+            };
+            
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
+          });
+          
+          // タッチ操作のサポートを追加
+          handle.addEventListener("touchstart", e => {
+            e.stopPropagation();
+            e.preventDefault();
+            
+            // タッチに関する状態を初期化
+            this.touchState.isHandleDragging = true;
+            
+            const touch = e.touches[0];
+            const startX = touch.clientX, startY = touch.clientY;
+            const initLeft = parseFloat(handle.style.left);
+            const initTop = parseFloat(handle.style.top);
+            
+            // 視覚的フィードバック（ハンドルを大きく表示）
+            handle.style.transform = "scale(1.5)";
+            handle.style.backgroundColor = "rgba(0, 123, 255, 0.8)";
+            
+            const onTouchMove = e => {
+              if (e.touches.length !== 1) return;
+              e.preventDefault();
+              
+              const touch = e.touches[0];
+              const dx = touch.clientX - startX, dy = touch.clientY - startY;
+              
+              // タッチ位置に合わせてハンドルを移動
+              handle.style.left = (initLeft + dx) + "px";
+              handle.style.top = (initTop + dy) + "px";
+              
+              // 接続線のコーディネートを更新
+              if (which === "from") {
+                conn.fromNode = null;
+                conn.fromCoord = { x: initLeft + dx + 4, y: initTop + dy + 4 };
+              } else {
+                conn.toNode = null;
+                conn.toCoord = { x: initLeft + dx + 4, y: initTop + dy + 4 };
+              }
+              
+              // 接続線の描画を更新
+              conn.update();
+            };
+            
+            const onTouchEnd = e => {
+              this.canvas.removeEventListener("touchmove", onTouchMove);
+              this.canvas.removeEventListener("touchend", onTouchEnd);
+              this.canvas.removeEventListener("touchcancel", onTouchEnd);
+              
+              // 標準の見た目に戻す
+              handle.style.transform = "";
+              handle.style.backgroundColor = "";
+              
+              // タッチ終了位置を取得
+              let finalX, finalY;
+              if (e.changedTouches && e.changedTouches.length > 0) {
+                finalX = e.changedTouches[0].clientX;
+                finalY = e.changedTouches[0].clientY;
+              } else {
+                // タッチポイントが取得できない場合は状態をリセット
+                this.touchState.isHandleDragging = false;
+                return;
+              }
+              
+              // 一時的にハンドルを非表示にして下の要素を確認
+              handle.style.display = "none";
+              const dropEl = document.elementFromPoint(finalX, finalY);
+              handle.style.display = "";
+              
+              // ドロップ先のノードを特定
+              const dropNodeEl = dropEl ? dropEl.closest(".node") : null;
+              const dropNode = this.nodes.find(n => n.element === dropNodeEl);
+              
+              // ノードが見つかった場合は接続
+              if (dropNode) {
+                if (which === "from") { 
+                  conn.fromNode = dropNode; 
+                  conn.fromCoord = null; 
+                } else { 
+                  conn.toNode = dropNode; 
+                  conn.toCoord = null; 
+                }
+              }
+              
+              // 接続線を更新
+              conn.update();
+              this.saveState();
+              
+              // ハンドルドラッグ状態を解除
+              this.touchState.isHandleDragging = false;
+              
+              // 視覚的フィードバック
+              this.showTouchFeedback(finalX, finalY);
+            };
+            
+            this.canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+            this.canvas.addEventListener("touchend", onTouchEnd, { passive: false });
+            this.canvas.addEventListener("touchcancel", onTouchEnd, { passive: false });
+          });
+        }
+        captureState() {
+          return {
+            title: this.titleField.value,
+            nodes: this.nodes.map(n => ({
+              id: n.id,
+              text: n.rawText,
+              x: n.x,
+              y: n.y,
+              nodeType: n.nodeType,
+              boldText: n.boldText
+            })),
+            connections: this.connections.map(c => ({
+              fromId: c.fromNode ? c.fromNode.id : null,
+              toId: c.toNode ? c.toNode.id : null,
+              fromCoord: c.fromCoord,
+              toCoord: c.toCoord,
+              lineType: c.lineType,
+              dashType: c.dashType
+            })),
+            globalPan: Object.assign({}, this.globalPan),
+            globalZoom: this.globalZoom,
+            defaultNodeType: this.defaultNodeType,
+            defaultLineType: this.defaultLineType,
+            defaultDashType: this.defaultDashType
+          };
+        }
+        saveState() {
+          const snap = this.captureState();
+          this.undoStack.push(snap);
+          this.redoStack = [];
+          this.saveToLocalStorage();
+        }
+        restoreState(state) {
+          this.nodes.forEach(n => { if (n.element.parentNode) n.element.parentNode.removeChild(n.element); });
+          this.connections.forEach(c => { if (c.line.parentNode) c.line.parentNode.removeChild(c.line); c.hideHandles(); });
+          this.nodes = [];
+          this.connections = [];
+          const map = {};
+          state.nodes.forEach(nd => {
+            const node = new NoteNode(nd.text, nd.x, nd.y, this, nd.id);
+            node.setType(nd.nodeType || "standard");
+            if (nd.boldText) node.setBold(true);
+            this.nodes.push(node);
+            map[nd.id] = node;
+          });
+          state.connections.forEach(cd => {
+            let from = cd.fromId in map ? map[cd.fromId] : null;
+            let to = cd.toId in map ? map[cd.toId] : null;
+            const conn = new Connection(from, to, this);
+            if (cd.lineType) conn.setLineType(cd.lineType);
+            if (cd.dashType) conn.setDashType(cd.dashType);
+            conn.fromCoord = cd.fromCoord;
+            conn.toCoord = cd.toCoord;
+            conn.update();
+            this.connections.push(conn);
+          });
+          if (state.defaultNodeType) this.defaultNodeType = state.defaultNodeType;
+          if (state.defaultLineType) this.defaultLineType = state.defaultLineType;
+          if (state.defaultDashType) this.defaultDashType = state.defaultDashType;
+          this.globalPan = state.globalPan;
+          this.globalZoom = state.globalZoom;
+          if (state.title) {
+            this.titleField.value = state.title;
+            adjustTitleFieldWidth();
+          }
+          this.updateGlobalTransform();
+          this.updateAllConnections();
+          this.updateControlButtonsState();
+        }
+        saveToLocalStorage() {
+          const state = { version: VERSION, data: this.captureState() };
+          localStorage.setItem("yaNoteData-beta", JSON.stringify(state));
+        }
+        loadFromLocalStorage() {
+          const data = localStorage.getItem("yaNoteData-beta");
+          if (data) {
+            try {
+              const obj = JSON.parse(data);
+              this.restoreState(obj.data);
+              // ここで復元後の状態を undoStack に追加
+              this.undoStack.push(this.captureState());
+            } catch (e) { alert("データ読み込みエラー: " + e.message); }
+          }
+        }
+        async loadGuideFromIndexJson() {
+          try {
+            const response = await fetch('index.json');
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const imp = await response.json();
+            this.restoreState(imp.data);
+            this.saveState();
+
+            // iOS/iPadOS Safariの場合は必ずリロード、それ以外は中心に戻る＋再描画を実施
+            if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
+              /Safari/.test(navigator.userAgent) &&
+              !/Chrome/.test(navigator.userAgent)) {
+              location.reload();
+            } else {
+              requestAnimationFrame(() => {
+                this.resetView();
+              });
+            }
+
+            return true;
+          } catch (err) {
+            Logger.log("index.json読み込みエラー:", err.message);
+            return false;
+          }
+        }
+
+
+        undo() {
+          if (this.undoStack.length > 1) {
+            const cur = this.undoStack.pop();
+            this.redoStack.push(cur);
+            const prev = this.undoStack[this.undoStack.length - 1];
+            this.restoreState(prev);
+          }
+        }
+        redo() {
+          if (this.redoStack.length > 0) {
+            const nxt = this.redoStack.pop();
+            this.undoStack.push(nxt);
+            this.restoreState(nxt);
+          }
+        }
+        createNode(text, x, y) {
+          const n = new NoteNode(text, x, y, this);
+          n.setType(this.defaultNodeType);
+          this.nodes.push(n);
+          return n;
+        }
+        createConnection(from, to) {
+          const c = new Connection(from, to, this);
+          c.setLineType(this.defaultLineType);
+          c.setDashType(this.defaultDashType);
+          this.connections.push(c);
+          return c;
+        }
+        updateAllConnections() {
+          this.connections.forEach(c => c.update());
+        }
+        clearSelection() {
+          if (this.selectedNode) { this.selectedNode.element.classList.remove("selected"); this.selectedNode = null; }
+          if (this.selectedConnection) { this.selectedConnection.line.classList.remove("selected-line"); this.selectedConnection.hideHandles(); this.selectedConnection = null; }
+          this.selectedNodes.forEach(n => n.element.classList.remove("selected"));
+          this.selectedNodes = [];
+          this.selectedConnections.forEach(c => { c.line.classList.remove("selected-line"); c.hideHandles(); });
+          this.selectedConnections = [];
+          this.updateControlButtonsState();
+        }
+        selectAll() {
+          // まず、既存の選択状態をクリア
+          this.clearSelection();
+          // 全ノードを選択
+          this.nodes.forEach(n => {
+            this.selectedNodes.push(n);
+            n.element.classList.add("selected");
+          });
+          // 全接続線を選択（必要なら）
+          this.connections.forEach(c => {
+            this.selectedConnections.push(c);
+            c.line.classList.add("selected-line");
+            c.showHandles();
+          });
+          this.updateControlButtonsState();
+        }
+
+
+        hideAllHandles() {
+          this.connections.forEach(c => c.hideHandles());
+        }
+        selectNode(n) {
+          // 他のノードが選択された場合、もし編集中のノードがあれば終了させる（v1.2.13.1）
+          if (this.editingNode && this.editingNode !== n) {
+            this.finishEditingNode(this.editingNode);
+          }
+          this.clearSelection();
+          this.selectedNode = n;
+          this.selectedNodes = [n];
+          n.element.classList.add("selected");
+          this.updateControlButtonsState();
+        }
+
+        selectConnection(c) {
+          this.clearSelection();
+          this.selectedConnection = c;
+          this.selectedConnections = [c];
+          c.line.classList.add("selected-line");
+          c.showHandles();
+          this.updateControlButtonsState();
+        }
+
+        finishEditingNode(n) {
+          // 以前登録したイベントリスナーを解除
+          if (n._onKeyDown) {
+            n.element.removeEventListener("keydown", n._onKeyDown);
+            delete n._onKeyDown;
+          }
+          if (n._onInput) {
+            n.element.removeEventListener("input", n._onInput);
+            delete n._onInput;
+          }
+
+          n.element.contentEditable = "false";
+          n.element.classList.remove("editing");
+
+          // z-indexを元に戻す
+          if (n._originalZIndex !== undefined) {
+            n.element.style.zIndex = n._originalZIndex;
+            delete n._originalZIndex;
+          } else {
+            // 明示的に設定したz-indexを削除して継承に戻す
+            n.element.style.removeProperty("z-index");
+          }
+
+          // ユーザーが入力したテキストを取得（プレーンテキスト）
+          let newRaw = n.element.innerText.trim();
+          if (newRaw === "") {
+            this.selectNode(n);
+            this.deleteSelection();
+            this.saveState();
+            this.editingNode = null;
+            return;
+          }
+
+          // ユーザー入力を新たな rawText として保持
+          n.rawText = newRaw;
+          // その rawText をもとにリンク変換を行い、HTML化する
+          n.setText(n.rawText);
+
+          this.selectNode(n);
+          this.updateAllConnections();
+          this.saveState();
+          this.editingNode = null;
+
+          // ③ タイトルフィールド更新：初回のみ反映する
+          const currentTitle = this.titleField.value.trim();
+          if (n === this.centerNode && (currentTitle === "" || currentTitle === "無題")) {
+            this.titleField.value = newRaw;
+            adjustTitleFieldWidth();
+          }
+        }
+
+
+
+        startEditingNode(n) {
+          // もし他のノードが編集中なら終了させる
+          if (this.editingNode && this.editingNode !== n) {
+            this.finishEditingNode(this.editingNode);
+          }
+          this.clearSelection();
+          this.selectedNode = n;
+          this.selectedNodes = [n];
+          n.element.classList.add("selected");
+
+          // 編集前のz-indexを保存
+          n._originalZIndex = n.element.style.zIndex || "";
+
+          // 編集開始時は元の Markdown テキストを表示
+          n.element.textContent = n.rawText;
+          n.element.contentEditable = "true";
+          n.element.classList.add("editing");
+
+          // 編集中ノードを最前面に表示するための明示的なz-index設定
+          n.element.style.zIndex = "1000";
+
+          // イベントリスナーを登録し、プロパティに保持する
+          const onKeyDown = e => {
+            if (e.key === "Enter") {
+              // IME入力中のEnterキーは処理しない
+              if (e.isComposing) {
+                return; // IME変換中のEnterは無視
+              }
+              
+              if (e.shiftKey) {
+                e.stopPropagation();
+                setTimeout(() => {
+                  n.anchorOffset = n.element.scrollHeight;
+                  n.setPosition(n.x, n.y);
+                  this.updateAllConnections();
+                }, 0);
+              } else {
+                e.preventDefault();
+                // Enter キー1回で編集終了に変更
+                this.finishEditingNode(n);
+              }
+            }
+          };
+          const onInput = e => {
+            n.anchorOffset = n.element.scrollHeight;
+            n.setPosition(n.x, n.y);
+            this.updateAllConnections();
+          };
+          n.element.addEventListener("keydown", onKeyDown);
+          n.element.addEventListener("input", onInput);
+          n._onKeyDown = onKeyDown;
+          n._onInput = onInput;
+
+          n.element.focus();
+          const range = document.createRange();
+          range.selectNodeContents(n.element);
+          range.collapse(false);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          // 編集中のノードとして管理
+          this.editingNode = n;
+        }
+
+        deleteSelection() {
+          if (this.selectedConnections.length > 0) {
+            this.selectedConnections.forEach(c => {
+              c.hideHandles();
+              if (c.line.parentNode) c.line.parentNode.removeChild(c.line);
+            });
+            this.connections = this.connections.filter(c => !this.selectedConnections.includes(c));
+            this.selectedConnections = [];
+          }
+          if (this.selectedNodes.length > 0) {
+            this.selectedNodes.forEach(n => {
+              this.connections = this.connections.filter(c => {
+                if (c.fromNode === n || c.toNode === n) {
+                  c.hideHandles();
+                  if (c.line.parentNode) c.line.parentNode.removeChild(c.line);
+                  return false;
+                }
+                return true;
+              });
+              if (n.element.parentNode) n.element.parentNode.removeChild(n.element);
+            });
+            this.nodes = this.nodes.filter(n => !this.selectedNodes.includes(n));
+            this.selectedNodes = [];
+          } else if (this.selectedNode) {
+            if (this.selectedNode.element.parentNode) this.selectedNode.element.parentNode.removeChild(this.selectedNode.element);
+            this.connections = this.connections.filter(c => {
+              if (c.fromNode === this.selectedNode || c.toNode === this.selectedNode) {
+                c.hideHandles();
+                if (c.line.parentNode) c.line.parentNode.removeChild(c.line);
+                return false;
+              }
+              return true;
+            });
+            this.selectedNode = null;
+          }
+          this.clearSelection();
+        }
+        exportState() {
+          const state = this.undoStack[this.undoStack.length - 1];
+          return JSON.stringify({ version: VERSION, data: state }, null, 2);
+        }
+        updateControlButtonsState() {
+          const changeTypeBtn = document.getElementById("changeTypeBtn");
+          const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
+          const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
+          changeTypeBtn.classList.remove("standard", "text-only", "grey", "red", "dotted");
+          changeTypeBtn.classList.add(this.defaultNodeType);
+          const getLabel = (type) => {
+            switch (type) {
+              case "standard": return "◻︎";
+              case "text-only": return "T";
+              case "grey": return "GL";
+              case "red": return "R";
+              case "dotted": return "d";
+              default: return type;
+            }
+          };
+          changeTypeBtn.textContent = getLabel(this.defaultNodeType);
+
+          changeTypeBtn.classList.remove("active");
+          if (this.selectedNodes.length > 0) {
+            if (this.selectedNodes.every(n => n.nodeType === "standard")) changeTypeBtn.classList.add("active");
+          } else if (this.selectedNode && this.selectedNode.nodeType === "standard") {
+            changeTypeBtn.classList.add("active");
+          } else if (this.defaultNodeType === "standard") {
+            changeTypeBtn.classList.add("active");
+          }
+          changeLineTypeBtn.textContent = this.selectedConnections.length > 0 ?
+            this.getLineTypeSymbol(this.selectedConnections[0].lineType) :
+            (this.selectedConnection ? this.getLineTypeSymbol(this.selectedConnection.lineType) : this.getLineTypeSymbol(this.defaultLineType));
+          changeDashTypeBtn.textContent = this.selectedConnections.length > 0 ?
+            this.getDashTypeSymbol(this.selectedConnections[0].dashType) :
+            (this.selectedConnection ? this.getDashTypeSymbol(this.selectedConnection.dashType) : this.getDashTypeSymbol(this.defaultDashType));
+
+          const boldTextBtn = document.getElementById("boldTextBtn");
+          boldTextBtn.classList.remove("active");
+          boldTextBtn.disabled = !(this.selectedNodes.length > 0 || this.selectedNode);
+          if (this.selectedNodes.length > 0) {
+            if (this.selectedNodes.every(n => n.boldText)) boldTextBtn.classList.add("active");
+          } else if (this.selectedNode && this.selectedNode.boldText) {
+            boldTextBtn.classList.add("active");
+          }
+        }
+        getLineTypeSymbol(type) {
+          switch (type) {
+            case "standard": return "→";
+            case "no-arrow": return "—";
+            case "reverse-arrow": return "←";
+            case "both-arrow": return "↔";
+            default: return "→";
+          }
+        }
+        getDashTypeSymbol(type) {
+          return type === "solid" ? "—" : "‥";
+        }
+      }
+
+      /* ===== 7. インスタンス生成とコントロールパネル設定 ===== */
+      window.app = new YaNoteApp();
+
+      // 共有モーダルの初期化
+      const shareModal = new ShareModal();
+
+      // 共有ボタンの設定
+      document.getElementById("shareBtn").addEventListener("click", () => {
+        shareModal.show();
+      });
+
+      // URL共有パラメータのチェックと処理
+      const urlParams = new URLSearchParams(window.location.search);
+      const jsonParam = urlParams.get('json');
+      const newParam = urlParams.get('new');
+
+      // 共有リンクからのリロード後かを判定するフラグ
+      const isAfterJsonReload = sessionStorage.getItem('yaNote-jsonReloaded');
+
+      if (jsonParam) {
+        fetch(jsonParam)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+          })
+          .then(data => {
+            try {
+              if (data.data) {
+                app.restoreState(data.data);
+              } else {
+                app.restoreState(data);
+              }
+              app.saveState();
+
+              // URLパラメータをクリア
+              window.history.replaceState({}, document.title, window.location.pathname);
+
+              // iOS/iPadOS Safariの場合はリロードフラグを立ててからリロード
+              if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
+                /Safari/.test(navigator.userAgent) &&
+                !/Chrome/.test(navigator.userAgent)) {
+                // リロード後に識別できるようフラグを設定
+                sessionStorage.setItem('yaNote-jsonReloaded', 'true');
+                
+                // 少し遅延させてリロード
+                setTimeout(() => {
+                  location.reload();
+                }, 100);
+              } else {
+                // iOS以外の場合はそのままresetView
+                requestAnimationFrame(() => {
+                  app.resetView();
+                });
+              }
+            } catch (err) {
+              console.error("インポートエラー:", err);
+              alert("インポートできませんでした: " + err.message);
+              window.history.replaceState({}, document.title, window.location.pathname);
+              sessionStorage.removeItem('yaNote-jsonReloaded');
+            }
+          })
+          .catch(error => {
+            console.error("ファイル読み込みエラー:", error);
+            alert("ファイルを読み込めませんでした: " + error.message);
+            window.history.replaceState({}, document.title, window.location.pathname);
+            sessionStorage.removeItem('yaNote-jsonReloaded');
+          });
+      } 
+      // リロード後の処理：iOSでリロード後にresetViewを実行
+      else if (isAfterJsonReload === 'true') {
+        // フラグをクリア
+        sessionStorage.removeItem('yaNote-jsonReloaded');
+        
+        // リロード後にresetViewを実行
+        setTimeout(() => {
+          console.log("リロード後のresetViewを実行");
+          app.resetView();
+        }, 200);
+      }
+      else if (newParam === 'true') {
+        // 新規パラメータ処理（既存のコード）
+        localStorage.removeItem("yaNoteData-beta");
+        localStorage.setItem("skipGuideLoad-beta", "true");
+
+        // URLパラメータをクリア
+        window.history.replaceState({}, document.title, window.location.pathname);
+
+        // リロードして初期化
+        location.reload();
+      }
+
+      document.getElementById("resetBtn").addEventListener("click", () => {
+        const shouldProceed = confirm("本当に新規作成しますか？\n現在の作業内容は失われます。");
+        if (shouldProceed) {
+          localStorage.removeItem("yaNoteData-beta");
+          // ガイドを表示せず、通常の新規状態にするためのフラグを設定
+          localStorage.setItem("skipGuideLoad-beta", "true");
+          location.reload();
+        }
+      });
+
+      document.getElementById("exportBtn").addEventListener("click", () => {
+        try {
+          const json = app.exportState();
+          const blob = new Blob([json], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const now = new Date();
+          const pad = n => n.toString().padStart(2, "0");
+          const title = app.titleField.value.trim() || "無題";
+          const filename = `${title}_yaNote_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        } catch (e) { alert("エクスポートエラー: " + e.message); }
+      });
+      document.getElementById("importBtn").addEventListener("click", () => {
+        const shouldProceed = confirm("本当に開きますか？\n現在の作業内容は失われます。");
+        if (!shouldProceed) return;
+        document.getElementById("importInput").click();
+      });
+
+      document.getElementById("importInput").addEventListener("change", e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = event => {
+          try {
+            const imp = JSON.parse(event.target.result);
+            app.restoreState(imp.data);
+            app.saveState();
+
+            // まずすべてのケースで resetView を実行
+            requestAnimationFrame(() => {
+              app.resetView();
+              
+              // iOS/iPadOS Safariの場合のみ、追加でリロードも実行
+              if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
+                /Safari/.test(navigator.userAgent) &&
+                !/Chrome/.test(navigator.userAgent)) {
+                // 少し遅延させてURLの更新を確実にする
+                setTimeout(() => {
+                  location.reload();
+                }, 50);
+              }
+            });
+
+          } catch (err) {
+            alert("インポートエラー: " + err.message);
+          }
+        };
+        reader.readAsText(file);
+        e.target.value = "";
+      });
+
+
+      Logger.log("DOM fully loaded and YaNoteApp initialized.");
+    });
+  </script>
+  <!-- ===== 共有モーダル ===== -->
+  <div id="shareModalOverlay" class="modal-overlay"></div>
+  <div id="shareModal">
+    <h3 class="modal-title">JSONファイルのURLを共有</h3>
+    <p>JSONファイルのURLを入力してください：</p>
+    <input type="text" id="jsonUrlInput" placeholder="https://example.com/path/to/your/note.json">
+    <div id="generatedUrlContainer" style="display:none;">
+      <p>生成されたURL：</p>
+      <input type="text" id="generatedUrlInput" readonly>
+      <p class="copy-message" style="display:none; color:green;">URLをコピーしました！</p>
+    </div>
+    <div class="modal-buttons">
+      <button id="cancelShareBtn">キャンセル</button>
+      <button id="generateUrlBtn" class="primary">URL作成</button>
+      <button id="copyUrlBtn" style="display:none;" class="primary">URLをコピー</button>
+    </div>
+  </div>
+  <!-- Copyright 表示 -->
+  <div id="copyright">
+    © 2025 Takaaki Yano | yaNote Beta v1.4-beta.1
+  </div>
+</body>
+
+</html>
