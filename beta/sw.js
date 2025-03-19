@@ -1,4 +1,4 @@
-const CACHE_NAME = "yaNote-beta-cache-v1.4-beta.1"; // ベータ版のキャッシュ名
+const CACHE_NAME = "yaNote-beta-cache-v1.4-beta.2"; // ベータ版のキャッシュ名
 const APP_ASSETS = [
   "./",
   "./index.html",

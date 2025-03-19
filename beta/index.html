@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4-beta.1)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4-beta.2)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,8 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote Beta - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4-beta.1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>yaNote Beta - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4-beta.2</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
 
@@ -702,7 +703,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.4-beta.1";
+      const VERSION = "v1.4-beta.2";
       
       // バージョン更新検知と通知機能
       function checkForAppUpdates() {
@@ -888,12 +889,12 @@
 
       /* ===== 4. ノードクラス ===== */
       class NoteNode {
-        constructor(text, x, y, app, id) {
-          this.app = app;
+        constructor(text, x, y, mindMap, id = null) {
+          this.mindMap = mindMap;
           this.element = document.createElement("div");
           this.element.className = "node";
           this.setText(text);
-          this.app.canvas.appendChild(this.element);
+          this.mindMap.canvas.appendChild(this.element);
           this.x = x;
           this.y = y;
           this.setPosition(x, y);
@@ -907,6 +908,10 @@
             this.id = NoteNode.nextId++;
           }
           Logger.log("NoteNode created:", this.id, text, x, y);
+          
+          // タッチイベントの追加
+          this.element.addEventListener("touchstart", e => mindMap.handleNodeTouchStart(e, this));
+          this.element.addEventListener("touchend", e => mindMap.handleNodeTouchEnd(e, this));
         }
         setPosition(x, y) {
           this.x = x;
@@ -938,28 +943,28 @@
                   clientX: e.clientX,
                   clientY: e.clientY
                 });
-                this.app.canvas.dispatchEvent(canvasEvent);
+                this.mindMap.canvas.dispatchEvent(canvasEvent);
               }
               return;
             }
 
             // 以下は既存のコード
             if (e.shiftKey) {
-              if (!this.app.selectedNodes.includes(this)) {
-                this.app.selectedNodes.push(this);
+              if (!this.mindMap.selectedNodes.includes(this)) {
+                this.mindMap.selectedNodes.push(this);
                 this.element.classList.add("selected");
               } else {
-                this.app.selectedNodes = this.app.selectedNodes.filter(n => n !== this);
+                this.mindMap.selectedNodes = this.mindMap.selectedNodes.filter(n => n !== this);
                 this.element.classList.remove("selected");
               }
-              this.app.updateControlButtonsState();
+              this.mindMap.updateControlButtonsState();
               return;
             }
             // 編集中の場合は処理を行わない
             if (this.element.isContentEditable || this.element.classList.contains("editing")) return;
             if (e.button === 0) {
               e.preventDefault();
-              this.app.handleNodeMouseDown(e, this);
+              this.mindMap.handleNodeMouseDown(e, this);
             }
           });
 
@@ -1045,13 +1050,13 @@
 
 
         startEditing() {
-          this.app.startEditingNode(this);
+          this.mindMap.startEditingNode(this);
         }
         setType(newType) {
           this.nodeType = newType;
           this.element.classList.remove("standard", "text-only", "grey", "red", "dotted");
           this.element.classList.add(newType);
-          this.app.connections.forEach(conn => {
+          this.mindMap.connections.forEach(conn => {
             if (conn.fromNode === this) conn.update();
           });
         }
@@ -1065,8 +1070,8 @@
 
       /* ===== 5. 接続線クラス ===== */
       class Connection {
-        constructor(fromNode, toNode, app) {
-          this.app = app;
+        constructor(fromNode, toNode, mindMap) {
+          this.mindMap = mindMap;
           this.fromNode = fromNode;
           this.toNode = toNode;
           this.fromCoord = null;
@@ -1078,26 +1083,30 @@
           this.line = document.createElementNS("http://www.w3.org/2000/svg", "line");
           this.line.setAttribute("stroke", "#404040");
           this.line.setAttribute("stroke-width", "2");
-          this.setLineType(this.app.defaultLineType || "standard");
-          this.setDashType(this.app.defaultDashType || "solid");
+          this.setLineType(this.mindMap.defaultLineType || "standard");
+          this.setDashType(this.mindMap.defaultDashType || "solid");
           this.line.style.pointerEvents = "auto";
-          this.line.addEventListener("click", e => { e.stopPropagation(); this.app.selectConnection(this); });
+          this.line.addEventListener("click", e => { e.stopPropagation(); this.mindMap.selectConnection(this); });
           if (this.fromNode === null && this.toNode === null) {
             this.line.addEventListener("mousedown", e => {
               if (e.button === 0) {
                 e.stopPropagation();
                 e.preventDefault();
-                if (this.app.selectedConnections.includes(this)) this.app.startGroupMove(e);
+                if (this.mindMap.selectedConnections.includes(this)) this.mindMap.startGroupMove(e);
                 else this.startDrag(e);
               }
             });
           }
-          this.app.svg.appendChild(this.line);
+          this.mindMap.svg.appendChild(this.line);
           this.update();
           Logger.log("Connection created:", this.fromNode?.id, "->", this.toNode?.id);
+          
+          // タッチイベントの追加
+          this.line.addEventListener("touchstart", e => mindMap.handleConnectionTouchStart(e, this));
+          this.line.addEventListener("touchend", e => mindMap.handleConnectionTouchEnd(e, this));
         }
         update() {
-          const canvasRect = this.app.canvas.getBoundingClientRect();
+          const canvasRect = this.mindMap.canvas.getBoundingClientRect();
           let fromPoint, toPoint;
           if (this.fromNode && document.body.contains(this.fromNode.element)) {
             const rect = this.fromNode.element.getBoundingClientRect();
@@ -1189,8 +1198,8 @@
         }
         showHandles() {
           this.hideHandles();
-          this.startHandle = this.app.createHtmlHandle();
-          this.endHandle = this.app.createHtmlHandle();
+          this.startHandle = this.mindMap.createHtmlHandle();
+          this.endHandle = this.mindMap.createHtmlHandle();
           const x1 = parseFloat(this.line.getAttribute("x1"));
           const y1 = parseFloat(this.line.getAttribute("y1"));
           const x2 = parseFloat(this.line.getAttribute("x2"));
@@ -1199,8 +1208,8 @@
           this.startHandle.style.top = (y1 - 4) + "px";
           this.endHandle.style.left = (x2 - 4) + "px";
           this.endHandle.style.top = (y2 - 4) + "px";
-          this.app.addHandleDrag(this.startHandle, this, "from");
-          this.app.addHandleDrag(this.endHandle, this, "to");
+          this.mindMap.addHandleDrag(this.startHandle, this, "from");
+          this.mindMap.addHandleDrag(this.endHandle, this, "to");
         }
         hideHandles() {
           if (this.startHandle && this.startHandle.parentNode) this.startHandle.parentNode.removeChild(this.startHandle);
@@ -1220,7 +1229,7 @@
           const onUp = e => {
             document.removeEventListener("mousemove", onMove);
             document.removeEventListener("mouseup", onUp);
-            this.app.saveState();
+            this.mindMap.saveState();
           };
           document.addEventListener("mousemove", onMove);
           document.addEventListener("mouseup", onUp);
@@ -1446,16 +1455,19 @@
 
           // タッチ操作のための状態管理変数を初期化
           this.touchState = {
-            isTouchMoving: false,
             startX: 0,
             startY: 0,
             lastX: 0,
             lastY: 0,
-            lastTapTime: 0,
-            doubleTapTimer: null,
-            isDoubleTapMode: false,
-            touchedConnection: null,
             startTime: 0,
+            lastTapTime: 0,
+            isTouchMoving: false,
+            isLongPress: false,
+            touchedNode: null,
+            touchedConnection: null,
+            touchedLink: null,
+            longPressTimer: null,
+            doubleTapTimer: null,
             isHandleDragging: false
           };
 
@@ -1468,37 +1480,8 @@
          * @return {Object} 検出された機能の状態
          */
         detectDeviceCapabilities() {
-          // タッチ対応の判定
-          this.hasTouchSupport = (('ontouchstart' in window) || 
-                                  (navigator.maxTouchPoints > 0) || 
-                                  (navigator.msMaxTouchPoints > 0));
-          
-          // ポインター精度の判定（粗い = タッチ、細かい = マウス）
-          this.hasCoarsePointer = window.matchMedia('(pointer: coarse)').matches;
-          this.hasFinePointer = window.matchMedia('(pointer: fine)').matches;
-          
-          // iOS/iPadOS の判定
-          this.isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-          
-          // モバイルデバイスかの判定
-          this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-          
-          // デバイス特性に応じたクラスを body に追加
-          const body = document.body;
-          if (this.hasTouchSupport) body.classList.add('has-touch');
-          if (this.hasCoarsePointer) body.classList.add('coarse-pointer');
-          if (this.hasFinePointer) body.classList.add('fine-pointer');
-          if (this.isIOS) body.classList.add('ios-device');
-          if (this.isMobile) body.classList.add('mobile-device');
-          
-          Logger.log(`デバイス検出結果: タッチ=${this.hasTouchSupport}, iOS=${this.isIOS}, モバイル=${this.isMobile}`);
-          
           return {
-            hasTouchSupport: this.hasTouchSupport,
-            hasCoarsePointer: this.hasCoarsePointer,
-            hasFinePointer: this.hasFinePointer,
-            isIOS: this.isIOS,
-            isMobile: this.isMobile
+            touch: 'ontouchstart' in window || navigator.maxTouchPoints > 0 || navigator.msMaxTouchPoints > 0
           };
         }
 
@@ -1520,18 +1503,10 @@
           const capabilities = this.detectDeviceCapabilities();
           
           // タッチサポートが検出された場合のみ後続の設定を行う
-          if (capabilities.hasTouchSupport) {
-            Logger.log("タッチサポートを初期化しています");
-            
-            // iOS特有の問題に対応
-            if (this.isIOS) {
-              this.setupIOSSpecificFixes();
-            }
-            
-            // 基本的なタッチサポートメッセージをコンソールに表示
-            console.log(`yaNote: タッチサポートを有効化しました (${this.isIOS ? 'iOS' : 'その他'} デバイス)`);
-          } else {
-            Logger.log("このデバイスはタッチをサポートしていません");
+          if (capabilities.touch) {
+            this.canvas.addEventListener("touchstart", this.handleCanvasTouchStart.bind(this));
+            this.canvas.addEventListener("touchmove", this.handleCanvasTouchMove.bind(this));
+            this.canvas.addEventListener("touchend", this.handleCanvasTouchEnd.bind(this));
           }
         }
 
@@ -1644,9 +1619,8 @@
           e.preventDefault();
           e.stopPropagation();
           
-          // タッチ状態を更新
+          // タッチ状態を記録
           this.touchState.touchedNode = node;
-          this.touchState.startTime = Date.now();
           this.touchState.startX = e.touches[0].clientX;
           this.touchState.startY = e.touches[0].clientY;
           
@@ -1656,64 +1630,59 @@
             this.touchState.touchedLink = target.href;
             return;
           }
-          
-          // 長押し検出のタイマーをセット
-          this.touchState.longPressTimer = setTimeout(() => {
-            if (!this.touchState.isTouchMoving) {
-              // 振動フィードバック（対応デバイスのみ）
-              if (navigator.vibrate) {
-                navigator.vibrate(50);
-              }
-              
-              // 長押し状態を設定
-              this.touchState.isLongPress = true;
-              
-              // ノードを選択状態にする
-              this.clearSelection();
-              this.selectNode(node);
-              
-              // 視覚的フィードバック（選択状態を強調）
-              node.element.style.transform = "scale(1.05)";
-              setTimeout(() => {
-                node.element.style.transform = "";
-              }, 200);
-            }
-          }, 500); // 500ms の長押しで発動
-          
-          // ダブルタップ検出
-          const now = Date.now();
-          const timeSinceLastTap = now - this.touchState.lastTapTime;
-          
-          if (timeSinceLastTap < 300) { // 300ms 以内の2回タップをダブルタップと判定
-            clearTimeout(this.touchState.doubleTapTimer);
-            this.touchState.doubleTapTimer = null;
-            
-            // ダブルタップでノード編集を開始
-            if (this.editingNode) {
-              this.finishEditingNode(this.editingNode);
-            }
-            this.startEditingNode(node);
-            
-            // 長押しタイマーをクリア
-            clearTimeout(this.touchState.longPressTimer);
-            
-            // ダブルタップ＋ドラッグ検出モードを開始
-            this.touchState.isDoubleTapMode = true;
-          } else {
-            // シングルタップの処理を遅延実行（ダブルタップ判定のため）
-            this.touchState.doubleTapTimer = setTimeout(() => {
-              // ダブルタップでなかった場合のシングルタップ処理
-              if (!this.touchState.isTouchMoving && !this.touchState.isLongPress) {
-                this.clearSelection();
-                this.selectNode(node);
-                
-                // タップフィードバック
-                this.showTouchFeedback(e.touches[0].clientX, e.touches[0].clientY);
-              }
-            }, 300);
+        }
+
+        handleNodeTouchEnd(e, node) {
+          // リンクのタップ処理
+          if (this.touchState.touchedLink && !this.touchState.isTouchMoving) {
+            e.preventDefault();
+            window.open(this.touchState.touchedLink, '_blank');
+            this.touchState.touchedLink = null;
+            return;
           }
           
-          this.touchState.lastTapTime = now;
+          // 移動してたら何もしない
+          if (this.touchState.isTouchMoving) {
+            return;
+          }
+          
+          // 長押しモードなら何もしない
+          if (this.touchState.isLongPress) {
+            return;
+          }
+          
+          // 通常のシングルタップ処理
+          // すでに何かが選択されている場合
+          if (this.selectedNodes.length > 0 || this.selectedConnections.length > 0) {
+            // 選択済みのノードをタップした場合は選択解除
+            if (this.selectedNodes.includes(node)) {
+              // 選択済みのノードから削除
+              this.selectedNodes = this.selectedNodes.filter(n => n !== node);
+              node.element.classList.remove("selected");
+              
+              // 選択が空になったらコントロールパネル更新
+              if (this.selectedNodes.length === 0 && this.selectedConnections.length === 0) {
+                this.selectedNode = null;
+              }
+            } else {
+              // まだ選択されていないノードなら追加選択
+              this.selectedNodes.push(node);
+              node.element.classList.add("selected");
+              this.selectedNode = node; // 最後に選択したノードを記録
+            }
+            
+            // 視覚フィードバック
+            this.showTouchFeedback(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+            
+            // 選択状態を更新
+            this.updateControlButtonsState();
+            return;
+          }
+          
+          // 何も選択されていない場合は通常の選択
+          this.clearSelection();
+          this.selectNode(node);
+          this.showTouchFeedback(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
         }
 
         /**
@@ -1725,17 +1694,50 @@
           e.preventDefault();
           e.stopPropagation();
           
-          // タッチ状態を更新
+          // タッチ状態を記録
           this.touchState.touchedConnection = connection;
-          this.touchState.startTime = Date.now();
+          this.touchState.startX = e.touches[0].clientX;
+          this.touchState.startY = e.touches[0].clientY;
+        }
+
+        handleConnectionTouchEnd(e, connection) {
+          // 移動していたら何もしない
+          if (this.touchState.isTouchMoving) {
+            return;
+          }
           
-          // シンプルなタップで接続線を選択
+          // すでに何かが選択されている場合
+          if (this.selectedNodes.length > 0 || this.selectedConnections.length > 0) {
+            // 選択済みの接続線をタップした場合は選択解除
+            if (this.selectedConnections.includes(connection)) {
+              // 選択済みの接続線から削除
+              this.selectedConnections = this.selectedConnections.filter(c => c !== connection);
+              connection.line.classList.remove("selected-line");
+              connection.hideHandles();
+              
+              // 選択が空になったらコントロールパネル更新
+              if (this.selectedNodes.length === 0 && this.selectedConnections.length === 0) {
+                this.selectedConnection = null;
+              }
+            } else {
+              // まだ選択されていない接続線なら追加選択
+              this.selectedConnections.push(connection);
+              connection.line.classList.add("selected-line");
+              this.selectedConnection = connection; // 最後に選択した接続線を記録
+            }
+            
+            // 視覚フィードバック
+            this.showTouchFeedback(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+            
+            // 選択状態を更新
+            this.updateControlButtonsState();
+            return;
+          }
+          
+          // 何も選択されていない場合は通常の選択
           this.clearSelection();
           this.selectConnection(connection);
-          
-          // タップフィードバック
-          const touch = e.touches[0];
-          this.showTouchFeedback(touch.clientX, touch.clientY);
+          this.showTouchFeedback(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
         }
 
         /**
@@ -1750,39 +1752,34 @@
           this.touchState.startY = touch.clientY;
           this.touchState.lastX = touch.clientX;
           this.touchState.lastY = touch.clientY;
+        }
+
+        handleCanvasTouchEnd(e) {
+          // 移動していたら何もしない
+          if (this.touchState.isTouchMoving) {
+            return;
+          }
           
-          // ダブルタップ検出
+          // ダブルタップかどうかチェック
           const now = Date.now();
           const timeSinceLastTap = now - this.touchState.lastTapTime;
           
-          if (timeSinceLastTap < 300) { // 300ms 以内の2回タップをダブルタップと判定
-            clearTimeout(this.touchState.doubleTapTimer);
-            this.touchState.doubleTapTimer = null;
+          if (timeSinceLastTap < 300) {
+            // ダブルタップの処理は別のメソッドで実装
+            return;
+          }
+          
+          // 空白部分のシングルタップなら選択解除
+          const touch = e.changedTouches[0];
+          const element = document.elementFromPoint(touch.clientX, touch.clientY);
+          
+          // ノード、ハンドル、線以外の部分のタップなら選択解除
+          if (!element.closest('.node') && !element.closest('.html-handle') && 
+              element.tagName.toLowerCase() !== 'line') {
+            this.clearSelection();
             
-            // 編集中のノードがあれば終了
-            if (this.editingNode) {
-              this.finishEditingNode(this.editingNode);
-            }
-            
-            // 空白部分のダブルタップで新規ノード作成
-            const pos = this.eventToLogical({clientX: touch.clientX, clientY: touch.clientY});
-            const newNode = this.createNode("", pos.x, pos.y);
-            newNode.setType(this.defaultNodeType);
-            this.startEditingNode(newNode);
-            this.selectNode(newNode);
-            this.updateControlButtonsState();
-            this.saveState();
-            
-            // ダブルタップ＋ドラッグ検出モードを開始
-            this.touchState.isDoubleTapMode = true;
-          } else {
-            // シングルタップの処理を遅延実行（ダブルタップ判定のため）
-            this.touchState.doubleTapTimer = setTimeout(() => {
-              // ダブルタップでなかった場合のシングルタップ処理
-              if (!this.touchState.isTouchMoving) {
-                this.clearSelection();
-              }
-            }, 300);
+            // 視覚フィードバック
+            this.showTouchFeedback(touch.clientX, touch.clientY);
           }
           
           this.touchState.lastTapTime = now;
@@ -3501,6 +3498,65 @@
 
       Logger.log("DOM fully loaded and YaNoteApp initialized.");
     });
+
+    // ズーム防止のためのイベントリスナーを設定
+    function setupZoomPrevention() {
+      // ピンチズーム防止
+      document.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 1) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+
+      // ダブルタップズーム防止
+      let lastTouchEnd = 0;
+      document.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        if (now - lastTouchEnd < 300) {
+          e.preventDefault();
+        }
+        lastTouchEnd = now;
+      }, { passive: false });
+
+      // iOS Safariの特殊なジェスチャーを無効化
+      if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+        document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+        document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+        document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+      }
+
+      // wheel イベントによるズーム操作の阻止
+      window.addEventListener('wheel', (e) => {
+        if (e.ctrlKey) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+    }
+
+    // タッチムーブでの不要なスクロールやズームを防止
+    function setupIOSSpecificFixes() {
+      document.addEventListener('touchmove', (e) => {
+        const target = e.target;
+        const isInControlPanel = target.closest('#controlPanel') !== null;
+        const isInModal = target.closest('#shareModal') !== null;
+        const isHandleDragging = window.app && window.app.touchState && window.app.touchState.isHandleDragging;
+        
+        if (!isInControlPanel && !isInModal && !isHandleDragging) {
+          e.preventDefault();
+        }
+      }, { passive: false });
+      
+      // WebKitのコンテンツスケール設定
+      document.documentElement.style.webkitTouchCallout = 'none';
+      document.documentElement.style.webkitUserSelect = 'none';
+      document.documentElement.style.webkitTextSizeAdjust = '100%';
+    }
+
+    // 初期化時にズーム防止を設定
+    document.addEventListener('DOMContentLoaded', () => {
+      setupZoomPrevention();
+      setupIOSSpecificFixes();
+    });
   </script>
   <!-- ===== 共有モーダル ===== -->
   <div id="shareModalOverlay" class="modal-overlay"></div>
@@ -3521,7 +3577,7 @@
   </div>
   <!-- Copyright 表示 -->
   <div id="copyright">
-    © 2025 Takaaki Yano | yaNote Beta v1.4-beta.1
+    © 2025 Takaaki Yano | yaNote Beta v1.4-beta.2
   </div>
 </body>
 
