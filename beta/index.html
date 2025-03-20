@@ -1400,12 +1400,12 @@
 
           // iOSでのスクロール防止とダブルタップズーム防止 - 修正版
           document.addEventListener('touchmove', function (e) {
-            // ピンチズーム用の2本指以上のタッチは処理をスキップ（デフォルト動作を許可）
+            // ピンチズーム（2本指以上）はブラウザのデフォルト動作をそのまま使用
             if (e.touches.length >= 2) {
-              return;
+              return; // preventDefault()を呼び出さない
             }
             
-            // キャンバス内のタッチは別処理するので、キャンバス外のみ処理
+            // それ以外のタッチ操作は既存の処理を継続
             if (!e.target.closest('#canvas')) {
               e.preventDefault();
             }
@@ -1413,9 +1413,9 @@
 
           // iOS向けのダブルタップズーム防止の改善
           document.addEventListener('touchstart', function(e) {
-            // ピンチズーム用の2本指以上のタッチは処理をスキップ（デフォルト動作を許可）
+            // ピンチズーム用の2本指以上のタッチはブラウザのデフォルト動作をそのまま使用
             if (e.touches.length >= 2) {
-              return;
+              return; // preventDefault()を呼び出さない
             }
             
             // ノード上でのタッチはノード側で処理
