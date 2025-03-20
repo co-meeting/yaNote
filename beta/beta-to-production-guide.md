@@ -54,17 +54,30 @@
    }
    ```
 
-3. **タイトルタグの変更**
+3. **コントロールパネルボタンの色を本番環境用に戻す**
+   ```css
+   /* 変更前（ベータ版） */
+   #controlPanel button {
+     background: #ffe0b2; /* 明るいオレンジ/ピーチ色 */
+   }
+   
+   /* 変更後（本番環境） */
+   #controlPanel button {
+     background: #ddd; /* 薄いグレー色 */
+   }
+   ```
+
+4. **タイトルタグの変更**
    ```html
    <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | vX.X.X</title>
    ```
 
-4. **meta description の変更**
+5. **meta description の変更**
    ```html
    <meta name="description" content="yaNoteはブラウザ上で直感的にアイデアを整理できるジグザグ型ノートアプリです。思考の整理や選択肢の検討に最適なシンプルで高速なUI、PWA対応でオフラインでも使用可能です。">
    ```
 
-5. **バージョン定数の変更**
+6. **バージョン定数の変更**
    ```javascript
    // 変更前
    const VERSION = "vX.X.X-beta.X";
@@ -73,14 +86,14 @@
    const VERSION = "vX.X.X";
    ```
 
-6. **ローカルストレージキーの変更**
+7. **ローカルストレージキーの変更**
    - すべて検索して置換する
    - `yaNoteData-beta` → `yaNoteData`
    - `skipGuideLoad-beta` → `skipGuideLoad`
    - `yaNote-beta-currentVersion` → `yaNote-currentVersion`
    - `yaNote-beta-jsonReloaded` → `yaNote-jsonReloaded` (セッションストレージ)
 
-7. **コピーライト表示の更新**
+8. **コピーライト表示の更新**
    ```html
    <!-- 変更前 -->
    <div id="copyright">
@@ -181,6 +194,11 @@ const CACHE_NAME = "yaNote-cache-vX.X.X";
    - キャッシュの更新
    - オフライン動作
 
+5. 視覚的要素の確認
+   - コントロールパネルボタンの色が正しく本番環境用（#ddd）に変更されているか
+   - ベータバナーが完全に削除されているか
+   - アプリ名とバージョン表示がベータ表記なしになっているか
+
 ### 4.2 Git操作
 
 1. 変更をコミット
@@ -224,6 +242,7 @@ const CACHE_NAME = "yaNote-cache-vX.X.X";
 2. ベータ版特有の設定を再適用:
    - バージョン番号を次期バージョンのベータに更新（例: `v1.3.7-beta.1`）
    - ベータバナーの再追加
+   - コントロールパネルボタンの色をベータ版用（#ffe0b2）に変更
    - ローカルストレージキーの -beta 接尾辞付与
    - その他ベータ版特有の設定の再適用
 
@@ -253,6 +272,7 @@ PWAの更新が適用されない場合:
 - [ ] ベータ環境で十分なテストが完了している
 - [ ] バージョン番号の更新（ベータ接尾辞の削除）
 - [ ] ベータ特有の要素（バナー、スタイル）の削除
+- [ ] コントロールパネルボタンの色を本番環境用に変更
 - [ ] ローカルストレージキーの変更
 - [ ] manifest.json の更新
 - [ ] sw.js のキャッシュ名更新
