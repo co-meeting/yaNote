@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4-beta.3)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4-beta.4)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,9 +13,11 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote Beta - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4-beta.3</title>
+  <title>yaNote Beta - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4-beta.4</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
+
+  <meta name="viewport" content="　initial-scale=1  user-scalable=yes">
 
   <!-- SEO対応のメタタグ -->
   <meta name="description"
@@ -627,7 +629,7 @@
 
       /* ===== 定数とグローバル変数 ===== */
       const DEBUG = false;
-      const VERSION = "v1.4-beta.3";
+      const VERSION = "v1.4-beta.4";
       const currentAppVersionKey = 'yaNote-beta-currentVersion';
       
       // バージョン更新検知と通知機能
@@ -890,6 +892,38 @@
 
           // タッチイベント（既存のコード）
           this.element.addEventListener("touchstart", e => {
+            // デフォルトの動作を防止（スクロールなど）
+            e.preventDefault();
+            
+            // タッチ情報を記録
+            this._touchStartTime = Date.now();
+            this._touchStartPos = {
+              x: e.touches[0].clientX,
+              y: e.touches[0].clientY
+            };
+            this._isTouching = true;
+            this._hasMoved = false;
+            this._isLongPress = false;
+            
+            // 長押し検出用のタイマー
+            this._longPressTimer = setTimeout(() => {
+              // 長押し（300ms以上）を検出
+              if (this._isTouching && !this._hasMoved) {
+                this._isLongPress = true;
+                // 視覚的フィードバック（軽い拡大）
+                this.element.style.transform = `translate(${this.x}px, ${this.y}px) scale(1.05)`;
+                
+                // 移動モードを開始
+                this.app.startNodeTouchMove(e, this);
+              }
+            }, 300);
+            
+            // 編集中のノード上なら他のイベントを無視
+            if (this.element.isContentEditable || this.element.classList.contains("editing")) {
+              e.stopPropagation();
+              return;
+            }
+
             // タッチ開始時にリンク要素上だった場合
             if (e.target.tagName.toLowerCase() === 'a') {
               // リンク情報を記録
@@ -899,8 +933,72 @@
               this._touchedLink = null;
             }
           });
-
+          
+          this.element.addEventListener("touchmove", e => {
+            // 編集中は処理しない
+            if (this.element.isContentEditable || this.element.classList.contains("editing")) {
+              return;
+            }
+            
+            if (this._isTouching) {
+              const dx = e.touches[0].clientX - this._touchStartPos.x;
+              const dy = e.touches[0].clientY - this._touchStartPos.y;
+              
+              // 10px以上移動したら移動フラグをセット
+              if (Math.sqrt(dx * dx + dy * dy) > 10) {
+                this._hasMoved = true;
+                // 長押しモードでノードを移動中の場合は、この移動はアプリケーションレベルで処理
+                if (this._isLongPress) {
+                  // 長押し移動中は何もしない（startNodeTouchMoveの処理に任せる）
+                } else {
+                  // 長押しでなければ、キャンバスパンのイベントをキャンセル
+                  clearTimeout(this._longPressTimer);
+                }
+              }
+            }
+          });
+          
           this.element.addEventListener("touchend", e => {
+            // タッチ情報をリセット
+            const touchEndTime = Date.now();
+            const touchDuration = touchEndTime - this._touchStartTime;
+            const wasTouching = this._isTouching;
+            const wasLongPress = this._isLongPress;
+            const hasMoved = this._hasMoved;
+            
+            this._isTouching = false;
+            clearTimeout(this._longPressTimer);
+            
+            // 長押し後の変形をリセット
+            if (wasLongPress) {
+              this.element.style.transform = `translate(${this.x}px, ${this.y}px)`;
+            }
+            
+            // 編集中は処理しない
+            if (this.element.isContentEditable || this.element.classList.contains("editing")) {
+              return;
+            }
+            
+            // 移動していなければシングルタップとして処理
+            if (wasTouching && !hasMoved && !wasLongPress && touchDuration < 200) {
+              e.preventDefault();
+              e.stopPropagation();
+              
+              // ダブルタップの検出
+              const now = Date.now();
+              if (this._lastTapTime && (now - this._lastTapTime < 300)) {
+                // ダブルタップとして処理（編集モード開始）
+                this.app.startEditingNode(this);
+                this._lastTapTime = 0; // ダブルタップ後はリセット
+              } else {
+                // シングルタップとして処理（選択）
+                this._lastTapTime = now;
+                this.app.clearSelection();
+                this.app.selectNode(this);
+                this.app.updateControlButtonsState();
+              }
+            }
+            
             // タッチ終了時、開始時にリンクだった場合
             if (this._touchedLink && e.target.tagName.toLowerCase() === 'a') {
               e.preventDefault();
@@ -1309,12 +1407,35 @@
             }
           }, { passive: false });
 
-          // iOS向けのダブルタップズーム防止 - 修正版
+          // iOS向けのダブルタップズーム防止の改善
+          document.addEventListener('touchstart', function(e) {
+            // ノード上でのタッチはノード側で処理
+            if (e.target.closest('.node')) {
+              return;
+            }
+            
+            // 編集中のノード上でのタッチは処理しない
+            const editingNode = document.querySelector('.node.editing');
+            if (editingNode && editingNode.contains(e.target)) {
+              return;
+            }
+            
+            // キャンバス上のタッチはパン操作に使われるため、デフォルト動作を防止
+            if (e.target.closest('#canvas') && e.touches.length === 1) {
+              e.preventDefault();
+            }
+          }, { passive: false });
+
+          // よりロバストなダブルタップズーム防止
           let lastTouchEnd = 0;
-          document.addEventListener('touchend', function (e) {
+          document.addEventListener('touchend', function(e) {
             const now = Date.now();
             const DOUBLE_TAP_DELAY = 300;
-            if (now - lastTouchEnd < DOUBLE_TAP_DELAY) {
+            
+            // 編集中のノード以外でダブルタップを検出したらデフォルト動作を防止
+            const editingNode = document.querySelector('.node.editing');
+            if ((!editingNode || !editingNode.contains(e.target)) && 
+                now - lastTouchEnd < DOUBLE_TAP_DELAY) {
               e.preventDefault();
             }
             lastTouchEnd = now;
@@ -1484,44 +1605,115 @@
 
           // タッチ操作のサポート
           // タッチ操作のサポート - 修正版
+          // キャンバスに対するタッチイベント
+          let lastTapTime = 0;
+          let tapPosition = { x: 0, y: 0 };
+          
           this.canvas.addEventListener("touchstart", e => {
-            if (e.touches.length === 1) {
+            // ノード上のタッチは処理しない（ノード側で処理される）
+            if (e.target.closest(".node")) {
+              return;
+            }
+            
+            // 編集中ノードがあるなら編集を終了
+            if (this.editingNode) {
+              this.finishEditingNode(this.editingNode);
+            }
+            
+            // シングルタップの開始時の情報を記録
+            const touch = e.touches[0];
+            const now = Date.now();
+            const canvasRect = this.canvas.getBoundingClientRect();
+            
+            tapPosition = {
+              x: touch.clientX - canvasRect.left,
+              y: touch.clientY - canvasRect.top
+            };
+            
+            // ダブルタップの検出
+            if (lastTapTime && (now - lastTapTime < 300)) {
+              // ダブルタップとして処理（新規ノード作成）
               e.preventDefault();
-              const touch = e.touches[0];
-              const startX = touch.clientX, startY = touch.clientY;
-              const initPan = Object.assign({}, this.globalPan);
-              this.canvas.style.cursor = "grabbing";
-              let moved = false;
+              
+              // 空白部分でのダブルタップ → 新規ノード作成
+              const pos = this.eventToLogical({
+                clientX: touch.clientX, 
+                clientY: touch.clientY
+              });
+              
+              const newNode = this.createNode("", pos.x, pos.y);
+              newNode.setType(this.defaultNodeType);
+              this.startEditingNode(newNode);
+              this.selectNode(newNode);
+              this.updateControlButtonsState();
+              this.saveState();
+              
+              lastTapTime = 0; // ダブルタップ後はリセット
+            } else {
+              // シングルタップの開始
+              lastTapTime = now;
+              
+              // パン操作のための処理も維持
+              if (e.touches.length === 1) {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const startX = touch.clientX, startY = touch.clientY;
+                const initPan = Object.assign({}, this.globalPan);
+                this.canvas.style.cursor = "grabbing";
+                let moved = false;
 
-              const onTouchMove = e => {
-                if (e.touches.length === 1) {
-                  e.preventDefault();
-                  const touch = e.touches[0]; // ここで毎回touchを取得する
-                  const dx = touch.clientX - startX, dy = touch.clientY - startY;
-                  if (!moved && Math.sqrt(dx * dx + dy * dy) > 5) moved = true;
-                  if (moved) {
-                    this.globalPan.x = initPan.x + dx;
-                    this.globalPan.y = initPan.y + dy;
-                    requestAnimationFrame(() => {
-                      this.updateGlobalTransform();
-                      this.updateAllConnections();
-                    });
+                const onTouchMove = e => {
+                  if (e.touches.length === 1) {
+                    e.preventDefault();
+                    const touch = e.touches[0]; // ここで毎回touchを取得する
+                    const dx = touch.clientX - startX, dy = touch.clientY - startY;
+                    if (!moved && Math.sqrt(dx * dx + dy * dy) > 5) moved = true;
+                    if (moved) {
+                      this.globalPan.x = initPan.x + dx;
+                      this.globalPan.y = initPan.y + dy;
+                      requestAnimationFrame(() => {
+                        this.updateGlobalTransform();
+                        this.updateAllConnections();
+                      });
+                    }
                   }
-                }
-              };
+                };
 
-              const onTouchEnd = e => {
-                this.canvas.removeEventListener("touchmove", onTouchMove, { passive: false });
-                this.canvas.removeEventListener("touchend", onTouchEnd);
-                this.canvas.removeEventListener("touchcancel", onTouchEnd);
-                if (moved) this.canvas.style.cursor = "default";
-              };
+                const onTouchEnd = e => {
+                  this.canvas.removeEventListener("touchmove", onTouchMove, { passive: false });
+                  this.canvas.removeEventListener("touchend", onTouchEnd);
+                  this.canvas.removeEventListener("touchcancel", onTouchEnd);
+                  if (moved) this.canvas.style.cursor = "default";
+                };
 
-              this.canvas.addEventListener("touchmove", onTouchMove, { passive: false });
-              this.canvas.addEventListener("touchend", onTouchEnd);
-              this.canvas.addEventListener("touchcancel", onTouchEnd);
+                this.canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+                this.canvas.addEventListener("touchend", onTouchEnd);
+                this.canvas.addEventListener("touchcancel", onTouchEnd);
+              }
             }
           }, { passive: false });
+          
+          this.canvas.addEventListener("touchend", e => {
+            // ノード上のタッチは処理しない
+            if (e.target.closest(".node")) {
+              return;
+            }
+            
+            // 空白部分でのシングルタップ → 選択解除
+            const touch = e.changedTouches[0];
+            const canvasRect = this.canvas.getBoundingClientRect();
+            const endPos = {
+              x: touch.clientX - canvasRect.left,
+              y: touch.clientY - canvasRect.top
+            };
+            
+            // 移動が少ない場合のみ選択解除として処理
+            const dx = endPos.x - tapPosition.x;
+            const dy = endPos.y - tapPosition.y;
+            if (Math.sqrt(dx * dx + dy * dy) < 10) {
+              this.clearSelection();
+            }
+          });
 
 
         }
@@ -1854,6 +2046,56 @@
           } else {
             Logger.log("中心ノードが見つかりません");
           }
+        }
+        
+        // タッチでのノード移動を開始
+        startNodeTouchMove(e, node) {
+          // 現在の選択をクリア
+          if (!this.selectedNodes.includes(node)) {
+            this.clearSelection();
+            this.selectNode(node);
+          }
+          
+          const touch = e.touches[0];
+          const canvasRect = this.canvas.getBoundingClientRect();
+          const startPos = {
+            x: touch.clientX - canvasRect.left,
+            y: touch.clientY - canvasRect.top
+          };
+          
+          const initialNodePos = {
+            x: node.x,
+            y: node.y
+          };
+          
+          const onTouchMove = e => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const currentPos = {
+              x: touch.clientX - canvasRect.left,
+              y: touch.clientY - canvasRect.top
+            };
+            
+            const dx = (currentPos.x - startPos.x) / this.globalZoom;
+            const dy = (currentPos.y - startPos.y) / this.globalZoom;
+            
+            node.setPosition(initialNodePos.x + dx, initialNodePos.y + dy);
+            this.updateAllConnections();
+          };
+          
+          const onTouchEnd = e => {
+            // タッチ移動のクリーンアップ
+            document.removeEventListener("touchmove", onTouchMove);
+            document.removeEventListener("touchend", onTouchEnd);
+            document.removeEventListener("touchcancel", onTouchEnd);
+            
+            // 状態を保存
+            this.saveState();
+          };
+          
+          document.addEventListener("touchmove", onTouchMove, { passive: false });
+          document.addEventListener("touchend", onTouchEnd);
+          document.addEventListener("touchcancel", onTouchEnd);
         }
         onCanvasMouseDown(e) {
           // クリックされた要素が編集中のノード内の場合、
@@ -2780,6 +3022,45 @@
 
       Logger.log("DOM fully loaded and YaNoteApp initialized.");
     });
+
+    // iOS向けのダブルタップズーム防止と編集時の設定
+    document.addEventListener('touchstart', function(e) {
+      // ノード上でのタッチはノード側で処理
+      if (e.target.closest('.node')) {
+        // 編集中のノードでないノードをタッチした場合はズームを防止
+        const tappedNode = e.target.closest('.node');
+        if (!tappedNode.classList.contains('editing')) {
+          e.preventDefault();
+        }
+        return;
+      }
+      
+      // 編集中のノード上でのタッチは処理しない
+      const editingNode = document.querySelector('.node.editing');
+      if (editingNode && editingNode.contains(e.target)) {
+        return;
+      }
+      
+      // キャンバス上のタッチはパン操作に使われるため、デフォルト動作を防止
+      if (e.target.closest('#canvas') && e.touches.length === 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // よりロバストなダブルタップズーム防止
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', function(e) {
+      const now = Date.now();
+      const DOUBLE_TAP_DELAY = 300;
+      
+      // 編集中のノード以外でダブルタップを検出したらデフォルト動作を防止
+      const editingNode = document.querySelector('.node.editing');
+      if ((!editingNode || !editingNode.contains(e.target)) && 
+          now - lastTouchEnd < DOUBLE_TAP_DELAY) {
+        e.preventDefault();
+      }
+      lastTouchEnd = now;
+    }, { passive: false });
   </script>
   <!-- ===== 共有モーダル ===== -->
   <div id="shareModalOverlay" class="modal-overlay"></div>
@@ -2800,7 +3081,7 @@
   </div>
   <!-- Copyright 表示 -->
   <div id="copyright">
-    © 2025 Takaaki Yano | yaNote Beta v1.4-beta.3
+    © 2025 Takaaki Yano | yaNote Beta v1.4-beta.4
   </div>
 </body>
 
