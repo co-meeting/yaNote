@@ -17,7 +17,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
 
-  <meta name="viewport" content="　initial-scale=1  user-scalable=yes">
+  <meta name="viewport" content="initial-scale=0.5  user-scalable=yes">
 
   <!-- SEO対応のメタタグ -->
   <meta name="description"
@@ -85,8 +85,7 @@
       background-color: #f9f9f9;
       background-image: radial-gradient(circle, #e0e0e0 1px, transparent 1px);
       background-size: 20px 20px;
-      touch-action: none;
-      /* タッチジェスチャーの標準動作を無効化 */
+      touch-action: pan-x pan-y; /* ピンチズームを許可しつつ、パン操作も可能に */
     }
 
     #svg {
@@ -1401,6 +1400,11 @@
 
           // iOSでのスクロール防止とダブルタップズーム防止 - 修正版
           document.addEventListener('touchmove', function (e) {
+            // ピンチズーム用の2本指以上のタッチは処理をスキップ（デフォルト動作を許可）
+            if (e.touches.length >= 2) {
+              return;
+            }
+            
             // キャンバス内のタッチは別処理するので、キャンバス外のみ処理
             if (!e.target.closest('#canvas')) {
               e.preventDefault();
@@ -1409,8 +1413,18 @@
 
           // iOS向けのダブルタップズーム防止の改善
           document.addEventListener('touchstart', function(e) {
+            // ピンチズーム用の2本指以上のタッチは処理をスキップ（デフォルト動作を許可）
+            if (e.touches.length >= 2) {
+              return;
+            }
+            
             // ノード上でのタッチはノード側で処理
             if (e.target.closest('.node')) {
+              // 編集中のノードでないノードをタッチした場合はズームを防止
+              const tappedNode = e.target.closest('.node');
+              if (!tappedNode.classList.contains('editing')) {
+                e.preventDefault();
+              }
               return;
             }
             
@@ -1429,6 +1443,11 @@
           // よりロバストなダブルタップズーム防止
           let lastTouchEnd = 0;
           document.addEventListener('touchend', function(e) {
+            // ピンチズーム操作後のtouchendは通常処理する
+            if (e.changedTouches.length >= 2) {
+              return;
+            }
+            
             const now = Date.now();
             const DOUBLE_TAP_DELAY = 300;
             
@@ -3050,6 +3069,11 @@
     // よりロバストなダブルタップズーム防止
     let lastTouchEnd = 0;
     document.addEventListener('touchend', function(e) {
+      // ピンチズーム操作後のtouchendは通常処理する
+      if (e.changedTouches.length >= 2) {
+        return;
+      }
+      
       const now = Date.now();
       const DOUBLE_TAP_DELAY = 300;
       
