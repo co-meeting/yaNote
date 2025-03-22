@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4-beta.4)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4-beta.5)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,7 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote Beta - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4-beta.4</title>
+  <title>yaNote Beta - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4-beta.5</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
 
@@ -85,7 +85,7 @@
       background-color: #f9f9f9;
       background-image: radial-gradient(circle, #e0e0e0 1px, transparent 1px);
       background-size: 20px 20px;
-      touch-action: pan-x pan-y; /* ピンチズームを許可しつつ、パン操作も可能に */
+      touch-action: manipulation; /* タップ、ダブルタップの遅延を減らしつつ、ピンチズームを許可 */
     }
 
     #svg {
@@ -628,7 +628,7 @@
 
       /* ===== 定数とグローバル変数 ===== */
       const DEBUG = false;
-      const VERSION = "v1.4-beta.4";
+      const VERSION = "v1.4-beta.5";
       const currentAppVersionKey = 'yaNote-beta-currentVersion';
       
       // バージョン更新検知と通知機能
@@ -891,6 +891,11 @@
 
           // タッチイベント（既存のコード）
           this.element.addEventListener("touchstart", e => {
+            // 2本指以上の操作はピンチズーム用に予約
+            if (e.touches.length >= 2) {
+              return;
+            }
+            
             // デフォルトの動作を防止（スクロールなど）
             e.preventDefault();
             
@@ -934,6 +939,11 @@
           });
           
           this.element.addEventListener("touchmove", e => {
+            // 2本指以上の操作はピンチズーム用に予約
+            if (e.touches.length >= 2) {
+              return;
+            }
+            
             // 編集中は処理しない
             if (this.element.isContentEditable || this.element.classList.contains("editing")) {
               return;
@@ -958,6 +968,11 @@
           });
           
           this.element.addEventListener("touchend", e => {
+            // 2本指以上の操作はピンチズーム用に予約
+            if (e.changedTouches.length >= 2) {
+              return;
+            }
+            
             // タッチ情報をリセット
             const touchEndTime = Date.now();
             const touchDuration = touchEndTime - this._touchStartTime;
@@ -1627,8 +1642,15 @@
           // キャンバスに対するタッチイベント
           let lastTapTime = 0;
           let tapPosition = { x: 0, y: 0 };
+          let isPinching = false;
           
           this.canvas.addEventListener("touchstart", e => {
+            // 2本指以上の操作はピンチズーム用に予約
+            if (e.touches.length >= 2) {
+              isPinching = true;
+              return;
+            }
+            
             // ノード上のタッチは処理しない（ノード側で処理される）
             if (e.target.closest(".node")) {
               return;
@@ -1672,47 +1694,50 @@
               // シングルタップの開始
               lastTapTime = now;
               
-              // パン操作のための処理も維持
-              if (e.touches.length === 1) {
-                e.preventDefault();
-                const touch = e.touches[0];
-                const startX = touch.clientX, startY = touch.clientY;
-                const initPan = Object.assign({}, this.globalPan);
-                this.canvas.style.cursor = "grabbing";
-                let moved = false;
+              // パン操作のための処理
+              e.preventDefault();
+              const startX = touch.clientX, startY = touch.clientY;
+              const initPan = Object.assign({}, this.globalPan);
+              this.canvas.style.cursor = "grabbing";
+              let moved = false;
 
-                const onTouchMove = e => {
-                  if (e.touches.length === 1) {
-                    e.preventDefault();
-                    const touch = e.touches[0]; // ここで毎回touchを取得する
-                    const dx = touch.clientX - startX, dy = touch.clientY - startY;
-                    if (!moved && Math.sqrt(dx * dx + dy * dy) > 5) moved = true;
-                    if (moved) {
-                      this.globalPan.x = initPan.x + dx;
-                      this.globalPan.y = initPan.y + dy;
-                      requestAnimationFrame(() => {
-                        this.updateGlobalTransform();
-                        this.updateAllConnections();
-                      });
-                    }
+              const onTouchMove = e => {
+                if (e.touches.length === 1) {
+                  e.preventDefault();
+                  const touch = e.touches[0];
+                  const dx = touch.clientX - startX, dy = touch.clientY - startY;
+                  if (!moved && Math.sqrt(dx * dx + dy * dy) > 5) moved = true;
+                  if (moved) {
+                    this.globalPan.x = initPan.x + dx;
+                    this.globalPan.y = initPan.y + dy;
+                    requestAnimationFrame(() => {
+                      this.updateGlobalTransform();
+                      this.updateAllConnections();
+                    });
                   }
-                };
+                }
+              };
 
-                const onTouchEnd = e => {
-                  this.canvas.removeEventListener("touchmove", onTouchMove, { passive: false });
-                  this.canvas.removeEventListener("touchend", onTouchEnd);
-                  this.canvas.removeEventListener("touchcancel", onTouchEnd);
-                  if (moved) this.canvas.style.cursor = "default";
-                };
+              const onTouchEnd = e => {
+                this.canvas.removeEventListener("touchmove", onTouchMove, { passive: false });
+                this.canvas.removeEventListener("touchend", onTouchEnd);
+                this.canvas.removeEventListener("touchcancel", onTouchEnd);
+                if (moved) this.canvas.style.cursor = "default";
+              };
 
-                this.canvas.addEventListener("touchmove", onTouchMove, { passive: false });
-                this.canvas.addEventListener("touchend", onTouchEnd);
-                this.canvas.addEventListener("touchcancel", onTouchEnd);
-              }
+              this.canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+              this.canvas.addEventListener("touchend", onTouchEnd);
+              this.canvas.addEventListener("touchcancel", onTouchEnd);
             }
           }, { passive: false });
           
           this.canvas.addEventListener("touchend", e => {
+            // ピンチズーム操作後のtouchendは通常処理する
+            if (isPinching) {
+              isPinching = false;
+              return;
+            }
+            
             // ノード上のタッチは処理しない
             if (e.target.closest(".node")) {
               return;
@@ -3105,7 +3130,7 @@
   </div>
   <!-- Copyright 表示 -->
   <div id="copyright">
-    © 2025 Takaaki Yano | yaNote Beta v1.4-beta.4
+    © 2025 Takaaki Yano | yaNote Beta v1.4-beta.5
   </div>
 </body>
 
