@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.3.5.9)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -13,7 +13,8 @@
 
 <head>
   <meta charset="UTF-8">
-  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.3.5.9</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes">
+  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
 
@@ -611,7 +612,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.3.5.9";
+      const VERSION = "v1.4";
       
       // バージョン更新検知と通知機能
       function checkForAppUpdates() {
@@ -872,27 +873,104 @@
             }
           });
 
-          // タッチイベント（既存のコード）
+          // タッチイベント（ダブルタップ＋ドラッグで線を引く対応含む）
           this.element.addEventListener("touchstart", e => {
-            // タッチ開始時にリンク要素上だった場合
+            if (e.touches.length >= 2) return;
+            e.preventDefault();
+            // ダブルタップ 2 回目かどうか（前回のタップから 300ms 以内）
+            const now = Date.now();
+            if (this._lastTapTime && (now - this._lastTapTime < 300)) {
+              this._lastTapTime = 0;
+              this._doubleTapPending = true;
+              this._pendingTouchId = e.touches[0].identifier;
+              this._pendingTouchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+              const node = this;
+              const onDocTouchMove = (e) => {
+                const t = Array.from(e.touches).find(touch => touch.identifier === node._pendingTouchId);
+                if (!t) return;
+                const dx = t.clientX - node._pendingTouchStartPos.x;
+                const dy = t.clientY - node._pendingTouchStartPos.y;
+                if (Math.sqrt(dx * dx + dy * dy) > 10) {
+                  node._doubleTapPending = false;
+                  document.removeEventListener("touchmove", onDocTouchMove, { capture: true });
+                  document.removeEventListener("touchend", onDocTouchEnd, { capture: true });
+                  document.removeEventListener("touchcancel", onDocTouchEnd, { capture: true });
+                  node._pendingTouchId = null;
+                  node.app.startBranchCreationTouch(node, e);
+                }
+              };
+              const onDocTouchEnd = (e) => {
+                const t = Array.from(e.changedTouches).find(touch => touch.identifier === node._pendingTouchId);
+                if (!t) return;
+                document.removeEventListener("touchmove", onDocTouchMove, { capture: true });
+                document.removeEventListener("touchend", onDocTouchEnd, { capture: true });
+                document.removeEventListener("touchcancel", onDocTouchEnd, { capture: true });
+                node._pendingTouchId = null;
+                if (node._doubleTapPending) {
+                  node._doubleTapPending = false;
+                  node.app.startEditingNode(node);
+                }
+              };
+              document.addEventListener("touchmove", onDocTouchMove, { capture: true });
+              document.addEventListener("touchend", onDocTouchEnd, { capture: true });
+              document.addEventListener("touchcancel", onDocTouchEnd, { capture: true });
+              return;
+            }
+            this._touchStartTime = Date.now();
+            this._touchStartPos = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            this._isTouching = true;
+            this._hasMoved = false;
+            this._isLongPress = false;
+            if (this.element.isContentEditable || this.element.classList.contains("editing")) {
+              e.stopPropagation();
+              return;
+            }
+            this._longPressTimer = setTimeout(() => {
+              if (this._isTouching && !this._hasMoved) {
+                this._isLongPress = true;
+                this.element.style.transform = `translate(${this.x}px, ${this.y}px) scale(1.05)`;
+                this.app.startNodeTouchMove(e, this);
+              }
+            }, 300);
             if (e.target.tagName.toLowerCase() === 'a') {
-              // リンク情報を記録
               this._touchedLink = e.target.href;
               e.stopPropagation();
             } else {
               this._touchedLink = null;
             }
           });
-
+          this.element.addEventListener("touchmove", e => {
+            if (e.touches.length >= 2) return;
+            if (this._isTouching) {
+              const dx = e.touches[0].clientX - this._touchStartPos.x;
+              const dy = e.touches[0].clientY - this._touchStartPos.y;
+              if (Math.sqrt(dx * dx + dy * dy) > 10) {
+                this._hasMoved = true;
+                if (!this._isLongPress) clearTimeout(this._longPressTimer);
+              }
+            }
+          });
           this.element.addEventListener("touchend", e => {
-            // タッチ終了時、開始時にリンクだった場合
+            const wasTouching = this._isTouching;
+            const hasMoved = this._hasMoved;
+            const wasLongPress = this._isLongPress;
+            this._isTouching = false;
+            clearTimeout(this._longPressTimer);
+            if (wasLongPress) {
+              this.element.style.transform = `translate(${this.x}px, ${this.y}px)`;
+            }
             if (this._touchedLink && e.target.tagName.toLowerCase() === 'a') {
               e.preventDefault();
               e.stopPropagation();
-              // リンクを明示的に開く
               window.open(this._touchedLink, '_blank');
               this._touchedLink = null;
               return false;
+            }
+            if (wasTouching && !hasMoved && !wasLongPress && (Date.now() - this._touchStartTime < 200)) {
+              this._lastTapTime = Date.now();
+              this.app.clearSelection();
+              this.app.selectNode(this);
+              this.app.updateControlButtonsState();
             }
           });
 
@@ -1285,20 +1363,37 @@
           this.updateGlobalTransform();
           this.initEventListeners();
 
-          // iOSでのスクロール防止とダブルタップズーム防止 - 修正版
+          // iOSでのスクロール防止とダブルタップズーム防止
           document.addEventListener('touchmove', function (e) {
-            // キャンバス内のタッチは別処理するので、キャンバス外のみ処理
+            if (e.touches.length >= 2) return;
             if (!e.target.closest('#canvas')) {
               e.preventDefault();
             }
           }, { passive: false });
 
-          // iOS向けのダブルタップズーム防止 - 修正版
+          document.addEventListener('touchstart', function (e) {
+            if (e.touches.length >= 2) return;
+            if (e.target.closest('.node')) {
+              const tappedNode = e.target.closest('.node');
+              if (!tappedNode.classList.contains('editing')) {
+                e.preventDefault();
+              }
+              return;
+            }
+            const editingNode = document.querySelector('.node.editing');
+            if (editingNode && editingNode.contains(e.target)) return;
+            if (e.target.closest('#canvas') && e.touches.length === 1) {
+              e.preventDefault();
+            }
+          }, { passive: false });
+
           let lastTouchEnd = 0;
           document.addEventListener('touchend', function (e) {
+            if (e.changedTouches.length >= 2) return;
             const now = Date.now();
             const DOUBLE_TAP_DELAY = 300;
-            if (now - lastTouchEnd < DOUBLE_TAP_DELAY) {
+            const editingNode = document.querySelector('.node.editing');
+            if ((!editingNode || !editingNode.contains(e.target)) && now - lastTouchEnd < DOUBLE_TAP_DELAY) {
               e.preventDefault();
             }
             lastTouchEnd = now;
@@ -1466,12 +1561,33 @@
           }, { passive: false });
           this.initControlPanel();
 
-          // タッチ操作のサポート
-          // タッチ操作のサポート - 修正版
+          // タッチ操作のサポート（ダブルタップ＋ドラッグで線を引く対応含む）
+          let lastTapTime = 0;
+          let tapPosition = { x: 0, y: 0 };
           this.canvas.addEventListener("touchstart", e => {
+            if (e.touches.length >= 2) return;
+            if (e.target.closest(".node")) return;
+            if (this.editingNode) this.finishEditingNode(this.editingNode);
+            const touch = e.touches[0];
+            const now = Date.now();
+            const canvasRect = this.canvas.getBoundingClientRect();
+            tapPosition = {
+              x: touch.clientX - canvasRect.left,
+              y: touch.clientY - canvasRect.top
+            };
+            if (lastTapTime && (now - lastTapTime < 300)) {
+              e.preventDefault();
+              lastTapTime = 0;
+              this.startBlankDoubleTapPending({
+                clientX: touch.clientX,
+                clientY: touch.clientY,
+                identifier: touch.identifier
+              });
+              return;
+            }
             if (e.touches.length === 1) {
               e.preventDefault();
-              const touch = e.touches[0];
+              lastTapTime = now;
               const startX = touch.clientX, startY = touch.clientY;
               const initPan = Object.assign({}, this.globalPan);
               this.canvas.style.cursor = "grabbing";
@@ -1480,7 +1596,7 @@
               const onTouchMove = e => {
                 if (e.touches.length === 1) {
                   e.preventDefault();
-                  const touch = e.touches[0]; // ここで毎回touchを取得する
+                  const touch = e.touches[0];
                   const dx = touch.clientX - startX, dy = touch.clientY - startY;
                   if (!moved && Math.sqrt(dx * dx + dy * dy) > 5) moved = true;
                   if (moved) {
@@ -1506,7 +1622,21 @@
               this.canvas.addEventListener("touchcancel", onTouchEnd);
             }
           }, { passive: false });
-
+          this.canvas.addEventListener("touchend", e => {
+            if (e.target.closest(".node")) return;
+            if (!e.changedTouches || !e.changedTouches[0]) return;
+            const touch = e.changedTouches[0];
+            const canvasRect = this.canvas.getBoundingClientRect();
+            const endPos = {
+              x: touch.clientX - canvasRect.left,
+              y: touch.clientY - canvasRect.top
+            };
+            const dx = endPos.x - tapPosition.x, dy = endPos.y - tapPosition.y;
+            if (Math.sqrt(dx * dx + dy * dy) < 10) {
+              if (this.editingNode) this.finishEditingNode(this.editingNode);
+              this.clearSelection();
+            }
+          });
 
         }
         initControlPanel() {
@@ -1839,6 +1969,40 @@
             Logger.log("中心ノードが見つかりません");
           }
         }
+        startNodeTouchMove(e, node) {
+          if (!this.selectedNodes.includes(node)) {
+            this.clearSelection();
+            this.selectNode(node);
+          }
+          const touch = e.touches[0];
+          const canvasRect = this.canvas.getBoundingClientRect();
+          const startPos = {
+            x: touch.clientX - canvasRect.left,
+            y: touch.clientY - canvasRect.top
+          };
+          const initialNodePos = { x: node.x, y: node.y };
+          const onTouchMove = (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const currentPos = {
+              x: touch.clientX - canvasRect.left,
+              y: touch.clientY - canvasRect.top
+            };
+            const dx = (currentPos.x - startPos.x) / this.globalZoom;
+            const dy = (currentPos.y - startPos.y) / this.globalZoom;
+            node.setPosition(initialNodePos.x + dx, initialNodePos.y + dy);
+            this.updateAllConnections();
+          };
+          const onTouchEnd = (e) => {
+            document.removeEventListener("touchmove", onTouchMove);
+            document.removeEventListener("touchend", onTouchEnd);
+            document.removeEventListener("touchcancel", onTouchEnd);
+            this.saveState();
+          };
+          document.addEventListener("touchmove", onTouchMove, { passive: false });
+          document.addEventListener("touchend", onTouchEnd);
+          document.addEventListener("touchcancel", onTouchEnd);
+        }
         onCanvasMouseDown(e) {
           // クリックされた要素が編集中のノード内の場合、
           // かつクリックがシングル（e.detail === 1）なら何もしない
@@ -2085,6 +2249,164 @@
           };
           document.addEventListener("mousemove", onMove);
           document.addEventListener("mouseup", onUp);
+        }
+        startBranchCreationTouch(node, touchEvent) {
+          const cRect = this.canvas.getBoundingClientRect();
+          const nRect = node.element.getBoundingClientRect();
+          const cx = nRect.left + nRect.width / 2 - cRect.left;
+          const cy = nRect.top + nRect.height / 2 - cRect.top;
+          const t0 = touchEvent.touches[0];
+          const mx = t0.clientX - cRect.left, my = t0.clientY - cRect.top;
+          const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          tempLine.setAttribute("stroke", "#007bff");
+          tempLine.setAttribute("stroke-width", "2");
+          tempLine.setAttribute("stroke-dasharray", "4");
+          tempLine.setAttribute("x1", cx);
+          tempLine.setAttribute("y1", cy);
+          tempLine.setAttribute("x2", mx);
+          tempLine.setAttribute("y2", my);
+          this.svg.appendChild(tempLine);
+          const touchId = t0.identifier;
+          const onTouchMove = (e) => {
+            const t = Array.from(e.touches).find(touch => touch.identifier === touchId);
+            if (!t) return;
+            const nx = t.clientX - cRect.left, ny = t.clientY - cRect.top;
+            tempLine.setAttribute("x2", nx);
+            tempLine.setAttribute("y2", ny);
+          };
+          const onTouchEnd = (e) => {
+            const t = Array.from(e.changedTouches).find(touch => touch.identifier === touchId);
+            if (!t) return;
+            document.removeEventListener("touchmove", onTouchMove, { capture: true });
+            document.removeEventListener("touchend", onTouchEnd, { capture: true });
+            document.removeEventListener("touchcancel", onTouchEnd, { capture: true });
+            this.svg.removeChild(tempLine);
+            this.branchCreationJustHappened = true;
+            setTimeout(() => { this.branchCreationJustHappened = false; }, 300);
+            const dropEl = document.elementFromPoint(t.clientX, t.clientY);
+            const dropNodeEl = dropEl ? dropEl.closest(".node") : null;
+            let dropNode = this.nodes.find(n => n.element === dropNodeEl);
+            if (dropNode && dropNode !== node) {
+              const conn = this.createConnection(node, dropNode);
+              if (node.nodeType === "dotted") {
+                conn.setLineType("no-arrow");
+                conn.setDashType("dashed");
+              } else {
+                conn.setLineType("standard");
+                conn.setDashType("solid");
+              }
+              this.clearSelection();
+              this.selectNode(dropNode);
+            } else {
+              const pos = this.eventToLogical({ clientX: t.clientX, clientY: t.clientY });
+              const newNode = this.createNode("", pos.x, pos.y);
+              newNode.setType("text-only");
+              this.startEditingNode(newNode);
+              const conn = this.createConnection(node, newNode);
+              if (node.nodeType === "dotted") {
+                conn.setLineType("no-arrow");
+                conn.setDashType("dashed");
+              } else {
+                conn.setLineType("standard");
+                conn.setDashType("solid");
+              }
+              this.clearSelection();
+              this.selectNode(newNode);
+            }
+            this.updateControlButtonsState();
+            this.saveState();
+          };
+          document.addEventListener("touchmove", onTouchMove, { capture: true });
+          document.addEventListener("touchend", onTouchEnd, { capture: true });
+          document.addEventListener("touchcancel", onTouchEnd, { capture: true });
+        }
+        startBlankDoubleTapPending(initialTouch) {
+          const startX = initialTouch.clientX, startY = initialTouch.clientY;
+          const touchId = initialTouch.identifier;
+          let lineModeStarted = false;
+          const onTouchMove = (e) => {
+            const t = Array.from(e.touches).find(touch => touch.identifier === touchId);
+            if (!t) return;
+            const dx = t.clientX - startX, dy = t.clientY - startY;
+            if (!lineModeStarted && Math.sqrt(dx * dx + dy * dy) > 10) {
+              lineModeStarted = true;
+              document.removeEventListener("touchmove", onTouchMove, { capture: true });
+              document.removeEventListener("touchend", onTouchEnd, { capture: true });
+              document.removeEventListener("touchcancel", onTouchEnd, { capture: true });
+              this.startBlankLineTouch(initialTouch, e);
+            }
+          };
+          const onTouchEnd = (e) => {
+            const t = Array.from(e.changedTouches).find(touch => touch.identifier === touchId);
+            if (!t) return;
+            document.removeEventListener("touchmove", onTouchMove, { capture: true });
+            document.removeEventListener("touchend", onTouchEnd, { capture: true });
+            document.removeEventListener("touchcancel", onTouchEnd, { capture: true });
+            if (!lineModeStarted) {
+              const pos = this.eventToLogical({ clientX: startX, clientY: startY });
+              const newNode = this.createNode("", pos.x, pos.y);
+              newNode.setType(this.defaultNodeType);
+              this.startEditingNode(newNode);
+              this.selectNode(newNode);
+              this.updateControlButtonsState();
+              this.saveState();
+            }
+          };
+          document.addEventListener("touchmove", onTouchMove, { capture: true });
+          document.addEventListener("touchend", onTouchEnd, { capture: true });
+          document.addEventListener("touchcancel", onTouchEnd, { capture: true });
+        }
+        startBlankLineTouch(initialTouch, touchMoveEvent) {
+          const cRect = this.canvas.getBoundingClientRect();
+          const sx = initialTouch.clientX - cRect.left, sy = initialTouch.clientY - cRect.top;
+          const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+          tempLine.setAttribute("stroke", "#007bff");
+          tempLine.setAttribute("stroke-width", "2");
+          tempLine.setAttribute("stroke-dasharray", "4");
+          tempLine.setAttribute("x1", sx);
+          tempLine.setAttribute("y1", sy);
+          const t0 = Array.from(touchMoveEvent.touches).find(t => t.identifier === initialTouch.identifier) || touchMoveEvent.touches[0];
+          tempLine.setAttribute("x2", t0.clientX - cRect.left);
+          tempLine.setAttribute("y2", t0.clientY - cRect.top);
+          this.svg.appendChild(tempLine);
+          const touchId = initialTouch.identifier;
+          const fromCoord = this.eventToLogical({ clientX: initialTouch.clientX, clientY: initialTouch.clientY });
+          const onTouchMove = (e) => {
+            const t = Array.from(e.touches).find(touch => touch.identifier === touchId);
+            if (!t) return;
+            const nx = t.clientX - cRect.left, ny = t.clientY - cRect.top;
+            tempLine.setAttribute("x2", nx);
+            tempLine.setAttribute("y2", ny);
+          };
+          const onTouchEnd = (e) => {
+            const t = Array.from(e.changedTouches).find(touch => touch.identifier === touchId);
+            if (!t) return;
+            document.removeEventListener("touchmove", onTouchMove, { capture: true });
+            document.removeEventListener("touchend", onTouchEnd, { capture: true });
+            document.removeEventListener("touchcancel", onTouchEnd, { capture: true });
+            this.svg.removeChild(tempLine);
+            const dropEl = document.elementFromPoint(t.clientX, t.clientY);
+            const dropNodeEl = dropEl ? dropEl.closest(".node") : null;
+            if (dropNodeEl) {
+              const target = this.nodes.find(n => n.element === dropNodeEl);
+              const conn = this.createConnection(null, target);
+              conn.setLineType(this.defaultLineType);
+              conn.setDashType(this.defaultDashType);
+              conn.fromCoord = fromCoord;
+              conn.update();
+            } else {
+              const conn = this.createConnection(null, null);
+              conn.setLineType(this.defaultLineType);
+              conn.setDashType(this.defaultDashType);
+              conn.fromCoord = fromCoord;
+              conn.toCoord = this.eventToLogical({ clientX: t.clientX, clientY: t.clientY });
+              conn.update();
+            }
+            this.saveState();
+          };
+          document.addEventListener("touchmove", onTouchMove, { capture: true });
+          document.addEventListener("touchend", onTouchEnd, { capture: true });
+          document.addEventListener("touchcancel", onTouchEnd, { capture: true });
         }
         startBlankDoubleClick(e) {
           const cRect = this.canvas.getBoundingClientRect();
@@ -2784,7 +3106,7 @@
   </div>
   <!-- Copyright 表示 -->
   <div id="copyright">
-    © 2025 Takaaki Yano | yaNote v1.3.5.9
+    © 2026 Takaaki Yano | yaNote v1.4
   </div>
 </body>
 

@@ -71,4 +71,4 @@ yaNoteは最初から最後まで、すべて生成AIだけで作成・管理さ
 
 ---
 
-© 2025 yaNote Project
+© 2026 yaNote Project
