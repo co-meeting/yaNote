@@ -1,4 +1,4 @@
-const CACHE_NAME = "yaNote-cache-v1.4"; // バージョン番号を最新に更新
+const CACHE_NAME = "yaNote-cache-v1.4.1"; // バージョン番号を最新に更新
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -6,6 +6,12 @@ const APP_ASSETS = [
   "./icons/icon-192x192.png",
   "./icons/icon-512x512.png"
 ];
+const APP_ASSET_PATHS = APP_ASSETS.map((asset) => new URL(asset, self.location.href).pathname);
+
+function isCoreAssetRequest(requestUrl) {
+  const url = new URL(requestUrl);
+  return APP_ASSET_PATHS.includes(url.pathname);
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -53,9 +59,7 @@ self.addEventListener("fetch", (event) => {
           return caches.match(event.request);
         })
     );
-  } else if (APP_ASSETS.some(asset => 
-      event.request.url.endsWith(asset) || 
-      event.request.url.includes(asset.replace('./', '/')))) {
+  } else if (isCoreAssetRequest(event.request.url)) {
     // アプリのコアアセットの場合：
     // ネットワークファーストでアクセス、失敗したらキャッシュを使用
     event.respondWith(

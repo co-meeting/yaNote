@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4.1)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -14,7 +14,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes">
-  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4</title>
+  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4.1</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
 
@@ -612,7 +612,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.4";
+      const VERSION = "v1.4.1";
       
       // バージョン更新検知と通知機能
       function checkForAppUpdates() {
@@ -774,14 +774,6 @@
         }
         adjustTitleFieldWidth();
         titleField.style.textAlign = "right";
-      });
-      titleField.addEventListener("blur", function (e) {
-        titleField.readOnly = true;
-        titleField.style.borderBottom = "none";
-        if (titleField.value.trim() === "") {
-          titleField.value = "無題";
-        }
-        adjustTitleFieldWidth();
       });
       function adjustTitleFieldWidth() {
         let tempSpan = document.createElement("span");
@@ -987,46 +979,55 @@
           this.element.innerHTML = this.convertMarkdownLinks(text);
         }
         convertMarkdownLinks(text) {
-          // シンプルな内部リンク判定関数（メソッド内に定義）
           const isInternalLink = (url) => {
             try {
-              // URLを完全に解析
               const urlObj = new URL(url, window.location.href);
-
-              // 同じホスト名のURLは内部リンク、それ以外は外部リンク
               return urlObj.host === window.location.host;
             } catch (e) {
-              // 相対URL（./や/で始まるパス）も内部リンクとみなす
               return !url.startsWith('http');
             }
           };
-
-          // まず、連続する改行を 1 つの <br> にまとめる（display 用）
-          let htmlText = text.replace(/\n+/g, "<br>");
-
-          // Markdown形式のリンク変換
-          const mdLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g;
-          htmlText = htmlText.replace(mdLinkRegex, (match, linkText, url) => {
-            // 内部リンクかどうかを判定
+          const escapeHtml = (value) => value
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+          const escapeAttr = (value) => value.replace(/"/g, "&quot;");
+          const buildAnchor = (url, displayText) => {
             const target = isInternalLink(url) ? "_top" : "_blank";
-            return `<a href="${url}" target="${target}">${linkText}</a>`;
-          });
+            const rel = target === "_blank" ? ' rel="noopener noreferrer"' : "";
+            const safeHref = escapeAttr(encodeURI(url));
+            return `<a href="${safeHref}" target="${target}"${rel}>${escapeHtml(displayText)}</a>`;
+          };
+          const linkifyPlainText = (rawSegment) => {
+            const urlRegex = /https?:\/\/[^\s<]+/g;
+            let out = "";
+            let last = 0;
+            rawSegment.replace(urlRegex, (url, index) => {
+              out += escapeHtml(rawSegment.slice(last, index));
+              const display = url.length > 30 ? `${url.substring(0, 30)}...` : url;
+              out += buildAnchor(url, display);
+              last = index + url.length;
+              return url;
+            });
+            out += escapeHtml(rawSegment.slice(last));
+            return out;
+          };
 
-          // 自動URLリンク変換
-          const urlRegex = /(?<!href=")(https?:\/\/[^\s<]+)/g;
-          htmlText = htmlText.replace(urlRegex, (match) => {
-            let display = match;
-            if (display.length > 30) {
-              display = display.substring(0, 30) + "...";
-            }
-            // 内部リンクかどうかを判定
-            const target = isInternalLink(match) ? "_top" : "_blank";
-            return `<a href="${match}" target="${target}">${display}</a>`;
-          });
-
-          // リンク閉じタグ直後の余分な <br> を除去（display 用）
+          const normalized = (text || "").replace(/\n+/g, "\n");
+          const mdLinkRegex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+          let htmlText = "";
+          let lastIndex = 0;
+          let match;
+          while ((match = mdLinkRegex.exec(normalized)) !== null) {
+            htmlText += linkifyPlainText(normalized.slice(lastIndex, match.index));
+            htmlText += buildAnchor(match[2], match[1]);
+            lastIndex = mdLinkRegex.lastIndex;
+          }
+          htmlText += linkifyPlainText(normalized.slice(lastIndex));
+          htmlText = htmlText.replace(/\n/g, "<br>");
           htmlText = htmlText.replace(/(<\/a>)<br>/g, "$1");
-
           return htmlText;
         }
 
@@ -1816,15 +1817,8 @@
             }
           });
 
-          // initControlPanel の中の適切な場所に追加
           document.getElementById("resetViewBtn").addEventListener("click", () => {
             this.resetView();
-            Utils.showTooltip(document.getElementById("resetViewBtn"), "表示位置をリセットしました");
-          });
-
-          // または、YaNoteAppクラスの外側で追加
-          document.getElementById("resetViewBtn").addEventListener("click", () => {
-            window.app.resetView();
             Utils.showTooltip(document.getElementById("resetViewBtn"), "表示位置をリセットしました");
           });
 
@@ -2050,7 +2044,7 @@
                   c.showHandles();
                 }
               });
-
+              const hasSelection = this.selectedNodes.length > 0 || this.selectedConnections.length > 0;
               if (this.editingNode && hasSelection) {
                 this.finishEditingNode(this.editingNode);
               }
@@ -2909,18 +2903,6 @@
             boldTextBtn.classList.add("active");
           }
         }
-        getLineTypeSymbol(type) {
-          switch (type) {
-            case "standard": return "→";
-            case "no-arrow": return "—";
-            case "reverse-arrow": return "←";
-            case "both-arrow": return "↔";
-            default: return "→";
-          }
-        }
-        getDashTypeSymbol(type) {
-          return type === "solid" ? "—" : "‥";
-        }
       }
 
       /* ===== 7. インスタンス生成とコントロールパネル設定 ===== */
@@ -3060,11 +3042,8 @@
             app.restoreState(imp.data);
             app.saveState();
 
-            // まずすべてのケースで resetView を実行
+            // iOS/iPadOS Safariの場合のみ追加でリロードを実行
             requestAnimationFrame(() => {
-              app.resetView();
-              
-              // iOS/iPadOS Safariの場合のみ、追加でリロードも実行
               if (/iP(ad|hone|od)/.test(navigator.userAgent) &&
                 /Safari/.test(navigator.userAgent) &&
                 !/Chrome/.test(navigator.userAgent)) {
@@ -3106,7 +3085,7 @@
   </div>
   <!-- Copyright 表示 -->
   <div id="copyright">
-    © 2026 Takaaki Yano | yaNote v1.4
+    © 2026 Takaaki Yano | yaNote v1.4.1
   </div>
 </body>
 
