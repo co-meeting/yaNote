@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
 /*****************************************************************
- * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4.1)
+ * 【DO NOT MODIFY】 yaNote 開発ガイドライン (v1.4.2)
  * 1. セクション分けとコメントの徹底：各機能やクラスごとにセクションコメントを必ず記述する。
  * 2. 擬似モジュール化：IIFEや名前空間オブジェクトを利用して論理的に分割する。
  * 3. 一元管理された設定と定数：VERSIONなどは冒頭に一元管理する。
@@ -14,7 +14,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=yes">
-  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4.1</title>
+  <title>yaNote - ブラウザ上で動作するジグザグ型ノートアプリ | v1.4.2</title>
   <link rel="manifest" href="manifest.json">
   <link rel="icon" href="icons/icon-192x192.png" type="image/png">
 
@@ -277,6 +277,7 @@
 
     /* ボタンサイズ */
     #boldTextBtn,
+    #alignBtn,
     #changeTypeBtn,
     #changeLineTypeBtn,
     #changeDashTypeBtn,
@@ -495,6 +496,46 @@
       cursor: not-allowed;
     }
 
+    #alignMenu {
+      position: fixed;
+      display: none;
+      z-index: 25000;
+      background: #ffffff;
+      border: 1px solid #bcbcbc;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      padding: 2px;
+      width: auto;
+      min-width: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #alignMenu button {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      border: none;
+      background: transparent;
+      text-align: left;
+      border-radius: 4px;
+      font-size: 13px;
+      padding: 5px 8px;
+      cursor: pointer;
+      color: #333;
+      white-space: nowrap;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #alignMenu button:hover {
+      background-color: #f0f0f0;
+    }
+
+    #alignMenu button:active {
+      background-color: #e5e5e5;
+    }
+
     #zoomDisplay {
       position: absolute;
       bottom: 10px;
@@ -542,6 +583,7 @@
   <div id="controlPanel">
     <input type="text" id="titleField" value="" placeholder="タイトル" readonly>
     <button id="boldTextBtn">B</button>
+    <button id="alignBtn" aria-label="整列" title="整列">▦</button>
     <button id="changeTypeBtn" class="standard">◻︎</button>
     <button id="changeLineTypeBtn">ー</button>
     <button id="changeDashTypeBtn">—</button>
@@ -552,6 +594,16 @@
     <button id="shareBtn">共有</button>
     <button id="guideBtn">？</button>
     <input type="file" id="importInput" accept=".json">
+  </div>
+  <div id="alignMenu" aria-hidden="true">
+    <button type="button" data-align-action="left">左寄せ</button>
+    <button type="button" data-align-action="right">右寄せ</button>
+    <button type="button" data-align-action="top">上寄せ</button>
+    <button type="button" data-align-action="bottom">下寄せ</button>
+    <button type="button" data-align-action="center-x">左右中央揃え</button>
+    <button type="button" data-align-action="center-y">上下中央揃え</button>
+    <button type="button" data-align-action="horizontal">横等間隔</button>
+    <button type="button" data-align-action="vertical">縦等間隔</button>
   </div>
   <div id="canvas">
     <svg id="svg" xmlns="http://www.w3.org/2000/svg">
@@ -612,7 +664,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.4.1";
+      const VERSION = "v1.4.2";
       
       // バージョン更新検知と通知機能
       function checkForAppUpdates() {
@@ -1358,6 +1410,10 @@
           this.defaultNodeType = "dotted";
           this.defaultLineType = "standard";
           this.defaultDashType = "solid";
+          this.alignBtn = null;
+          this.alignMenu = null;
+          this.clipboardSelection = null;
+          this.clipboardPasteCount = 0;
           this.restored = false;
           // 編集中ノードの管理
           this.editingNode = null;
@@ -1482,13 +1538,31 @@
           });
 
           this.canvas.addEventListener("mousedown", e => { if (e.button === 0) this.onCanvasMouseDown(e); });
-          window.addEventListener("resize", () => this.updateAllConnections());
+          window.addEventListener("resize", () => {
+            this.closeAlignMenu();
+            this.updateAllConnections();
+          });
           document.addEventListener("mousedown", e => {
+            if (this.alignMenu && this.alignMenu.style.display !== "none") {
+              const clickedInsideMenu = this.alignMenu.contains(e.target);
+              const clickedAlignBtn = this.alignBtn && this.alignBtn.contains(e.target);
+              if (!clickedInsideMenu && !clickedAlignBtn) this.closeAlignMenu();
+            }
             if (!e.target.closest(".node") && !e.target.closest(".html-handle") && e.target.tagName.toLowerCase() !== "line") {
               this.hideAllHandles();
             }
           });
+          document.addEventListener("touchstart", e => {
+            if (this.alignMenu && this.alignMenu.style.display !== "none") {
+              const touchedInsideMenu = this.alignMenu.contains(e.target);
+              const touchedAlignBtn = this.alignBtn && this.alignBtn.contains(e.target);
+              if (!touchedInsideMenu && !touchedAlignBtn) this.closeAlignMenu();
+            }
+          });
           document.addEventListener("keydown", e => {
+            if (e.key === "Escape") {
+              this.closeAlignMenu();
+            }
 
             // タイトルフィールド編集中はキーイベントを処理しない
             if (document.activeElement === titleField) {
@@ -1533,7 +1607,16 @@
               if (document.activeElement && document.activeElement.isContentEditable) {
                 return;
               }
-              if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+              if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+                e.preventDefault();
+                this.copySelectionToClipboard();
+              } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "x") {
+                e.preventDefault();
+                this.cutSelectionToClipboard();
+              } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+                e.preventDefault();
+                this.pasteSelectionFromClipboard();
+              } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
                 e.preventDefault();
                 this.undo();
               } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
@@ -1645,6 +1728,8 @@
           const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
           const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
           const boldTextBtn = document.getElementById("boldTextBtn");
+          this.alignBtn = document.getElementById("alignBtn");
+          this.alignMenu = document.getElementById("alignMenu");
           const nodeTypes = ["standard", "text-only", "grey", "red", "dotted"];
           const getNextType = (current) => {
             const index = nodeTypes.indexOf(current);
@@ -1805,6 +1890,27 @@
             Utils.showTooltip(boldTextBtn, tip);
           });
 
+          if (this.alignBtn) {
+            this.alignBtn.addEventListener("click", e => {
+              e.stopPropagation();
+              this.toggleAlignMenu();
+            });
+          }
+
+          if (this.alignMenu) {
+            this.alignMenu.addEventListener("click", e => {
+              const target = e.target.closest("button[data-align-action]");
+              if (!target) return;
+              const action = target.dataset.alignAction;
+              if (["left", "right", "top", "bottom", "center-x", "center-y"].includes(action)) {
+                this.alignSelectedNodes(action);
+              } else if (action === "horizontal" || action === "vertical") {
+                this.distributeSelectedNodes(action);
+              }
+              this.closeAlignMenu();
+            });
+          }
+
           // 「？」ボタンのイベントリスナー追加
           document.getElementById("guideBtn").addEventListener("click", () => {
             const shouldProceed = confirm("利用ガイドを表示しますか？\n現在の作業内容は失われます。");
@@ -1829,6 +1935,7 @@
             "exportBtn": "現在のノートを保存",
             "shareBtn": "URLで共有",
             "guideBtn": "ヘルプを表示",
+            "alignBtn": "ノード整列メニュー",
             "resetViewBtn": "表示位置をリセット"
           };
 
@@ -1962,6 +2069,218 @@
           } else {
             Logger.log("中心ノードが見つかりません");
           }
+        }
+        getAlignmentNodes() {
+          if (this.editingNode) {
+            this.finishEditingNode(this.editingNode);
+          }
+          const result = [];
+          const seen = new Set();
+          const addNode = (node) => {
+            if (!node || seen.has(node.id)) return;
+            if (!this.nodes.includes(node)) return;
+            seen.add(node.id);
+            result.push(node);
+          };
+          this.selectedNodes.forEach(addNode);
+          addNode(this.selectedNode);
+          return result;
+        }
+        toggleAlignMenu() {
+          if (!this.alignBtn || !this.alignMenu) return;
+          if (this.alignBtn.disabled) return;
+          if (this.alignMenu.style.display !== "none") {
+            this.closeAlignMenu();
+            return;
+          }
+          this.alignMenu.style.display = "inline-block";
+          this.alignMenu.setAttribute("aria-hidden", "false");
+          const btnRect = this.alignBtn.getBoundingClientRect();
+          const menuRect = this.alignMenu.getBoundingClientRect();
+          const left = Math.min(Math.max(10, btnRect.right - menuRect.width), window.innerWidth - menuRect.width - 10);
+          const top = Math.min(btnRect.bottom + 6, window.innerHeight - menuRect.height - 10);
+          this.alignMenu.style.left = `${left}px`;
+          this.alignMenu.style.top = `${Math.max(10, top)}px`;
+        }
+        closeAlignMenu() {
+          if (!this.alignMenu) return;
+          this.alignMenu.style.display = "none";
+          this.alignMenu.setAttribute("aria-hidden", "true");
+        }
+        alignSelectedNodes(mode) {
+          const nodes = this.getAlignmentNodes();
+          if (nodes.length < 2) {
+            if (this.alignBtn) Utils.showTooltip(this.alignBtn, "整列は2ノード以上を選択してください");
+            return;
+          }
+          if (mode === "left") {
+            const minX = Math.min(...nodes.map(n => n.x));
+            nodes.forEach(n => n.setPosition(minX, n.y));
+          } else if (mode === "right") {
+            const maxRight = Math.max(...nodes.map(n => n.x + n.element.offsetWidth));
+            nodes.forEach(n => n.setPosition(maxRight - n.element.offsetWidth, n.y));
+          } else if (mode === "top") {
+            const minY = Math.min(...nodes.map(n => n.y));
+            nodes.forEach(n => n.setPosition(n.x, minY));
+          } else if (mode === "bottom") {
+            const maxBottom = Math.max(...nodes.map(n => n.y + n.element.offsetHeight));
+            nodes.forEach(n => n.setPosition(n.x, maxBottom - n.element.offsetHeight));
+          } else if (mode === "center-x") {
+            const minX = Math.min(...nodes.map(n => n.x));
+            const maxRight = Math.max(...nodes.map(n => n.x + n.element.offsetWidth));
+            const centerX = (minX + maxRight) / 2;
+            nodes.forEach(n => n.setPosition(centerX - n.element.offsetWidth / 2, n.y));
+          } else if (mode === "center-y") {
+            const minY = Math.min(...nodes.map(n => n.y));
+            const maxBottom = Math.max(...nodes.map(n => n.y + n.element.offsetHeight));
+            const centerY = (minY + maxBottom) / 2;
+            nodes.forEach(n => n.setPosition(n.x, centerY - n.element.offsetHeight / 2));
+          } else {
+            return;
+          }
+          this.updateAllConnections();
+          this.saveState();
+          this.updateControlButtonsState();
+          const labels = {
+            left: "左寄せ",
+            right: "右寄せ",
+            top: "上寄せ",
+            bottom: "下寄せ",
+            "center-x": "左右中央揃え",
+            "center-y": "上下中央揃え"
+          };
+          if (this.alignBtn) Utils.showTooltip(this.alignBtn, `${labels[mode]}（${nodes.length}ノード）`);
+        }
+        distributeSelectedNodes(axis) {
+          const nodes = this.getAlignmentNodes();
+          if (nodes.length < 3) {
+            if (this.alignBtn) Utils.showTooltip(this.alignBtn, "等間隔は3ノード以上を選択してください");
+            return;
+          }
+          const sorted = nodes.slice().sort((a, b) => {
+            if (axis === "horizontal") {
+              if (a.x !== b.x) return a.x - b.x;
+            } else {
+              if (a.y !== b.y) return a.y - b.y;
+            }
+            return a.id - b.id;
+          });
+          if (axis === "horizontal") {
+            const first = sorted[0];
+            const last = sorted[sorted.length - 1];
+            const sumWidths = sorted.slice(0, -1).reduce((sum, n) => sum + n.element.offsetWidth, 0);
+            const gap = (last.x - first.x - sumWidths) / (sorted.length - 1);
+            let prevEnd = first.x + first.element.offsetWidth;
+            for (let i = 1; i < sorted.length - 1; i++) {
+              const node = sorted[i];
+              const nextX = prevEnd + gap;
+              node.setPosition(nextX, node.y);
+              prevEnd = nextX + node.element.offsetWidth;
+            }
+          } else if (axis === "vertical") {
+            const first = sorted[0];
+            const last = sorted[sorted.length - 1];
+            const sumHeights = sorted.slice(0, -1).reduce((sum, n) => sum + n.element.offsetHeight, 0);
+            const gap = (last.y - first.y - sumHeights) / (sorted.length - 1);
+            let prevEnd = first.y + first.element.offsetHeight;
+            for (let i = 1; i < sorted.length - 1; i++) {
+              const node = sorted[i];
+              const nextY = prevEnd + gap;
+              node.setPosition(node.x, nextY);
+              prevEnd = nextY + node.element.offsetHeight;
+            }
+          } else {
+            return;
+          }
+          this.updateAllConnections();
+          this.saveState();
+          this.updateControlButtonsState();
+          if (this.alignBtn) Utils.showTooltip(this.alignBtn, `${axis === "horizontal" ? "横等間隔" : "縦等間隔"}（${nodes.length}ノード）`);
+        }
+        copySelectionToClipboard(showFeedback = true) {
+          if (this.editingNode) {
+            this.finishEditingNode(this.editingNode);
+          }
+          const nodes = this.getAlignmentNodes();
+          if (nodes.length === 0) {
+            if (showFeedback && this.alignBtn) Utils.showTooltip(this.alignBtn, "コピーするノードを選択してください");
+            return false;
+          }
+          const nodeSet = new Set(nodes);
+          const copiedNodes = nodes.map(n => ({
+            id: n.id,
+            text: n.rawText,
+            x: n.x,
+            y: n.y,
+            nodeType: n.nodeType,
+            boldText: n.boldText
+          }));
+          const copiedConnections = this.connections
+            .filter(c => c.fromNode && c.toNode && nodeSet.has(c.fromNode) && nodeSet.has(c.toNode))
+            .map(c => ({
+              fromId: c.fromNode.id,
+              toId: c.toNode.id,
+              lineType: c.lineType,
+              dashType: c.dashType
+            }));
+          this.clipboardSelection = {
+            nodes: copiedNodes,
+            connections: copiedConnections
+          };
+          this.clipboardPasteCount = 0;
+          if (showFeedback && this.alignBtn) Utils.showTooltip(this.alignBtn, `コピー: ${copiedNodes.length}ノード`);
+          return true;
+        }
+        cutSelectionToClipboard() {
+          const copied = this.copySelectionToClipboard(false);
+          if (!copied) {
+            if (this.alignBtn) Utils.showTooltip(this.alignBtn, "カットするノードを選択してください");
+            return false;
+          }
+          const cutCount = this.clipboardSelection?.nodes?.length || 0;
+          this.deleteSelection();
+          this.saveState();
+          this.updateControlButtonsState();
+          if (this.alignBtn) Utils.showTooltip(this.alignBtn, `カット: ${cutCount}ノード`);
+          return true;
+        }
+        pasteSelectionFromClipboard() {
+          if (!this.clipboardSelection || !this.clipboardSelection.nodes || this.clipboardSelection.nodes.length === 0) {
+            if (this.alignBtn) Utils.showTooltip(this.alignBtn, "貼り付けるデータがありません");
+            return;
+          }
+          if (this.editingNode) {
+            this.finishEditingNode(this.editingNode);
+          }
+          this.clipboardPasteCount += 1;
+          const offset = 40 * this.clipboardPasteCount;
+          const createdNodes = [];
+          const nodeMap = new Map();
+          this.clipboardSelection.nodes.forEach(nd => {
+            const newNode = this.createNode(nd.text, nd.x + offset, nd.y + offset);
+            newNode.setType(nd.nodeType || "standard");
+            newNode.setBold(!!nd.boldText);
+            createdNodes.push(newNode);
+            nodeMap.set(nd.id, newNode);
+          });
+          this.clipboardSelection.connections.forEach(cd => {
+            const fromNode = nodeMap.get(cd.fromId);
+            const toNode = nodeMap.get(cd.toId);
+            if (!fromNode || !toNode) return;
+            const conn = this.createConnection(fromNode, toNode);
+            if (cd.lineType) conn.setLineType(cd.lineType);
+            if (cd.dashType) conn.setDashType(cd.dashType);
+          });
+          this.clearSelection();
+          this.selectedNode = createdNodes[0] || null;
+          createdNodes.forEach(n => {
+            this.selectedNodes.push(n);
+            n.element.classList.add("selected");
+          });
+          this.updateAllConnections();
+          this.saveState();
+          this.updateControlButtonsState();
+          if (this.alignBtn) Utils.showTooltip(this.alignBtn, `貼り付け: ${createdNodes.length}ノード`);
         }
         startNodeTouchMove(e, node) {
           if (!this.selectedNodes.includes(node)) {
@@ -2865,6 +3184,7 @@
           const changeTypeBtn = document.getElementById("changeTypeBtn");
           const changeLineTypeBtn = document.getElementById("changeLineTypeBtn");
           const changeDashTypeBtn = document.getElementById("changeDashTypeBtn");
+          const alignBtn = document.getElementById("alignBtn");
           changeTypeBtn.classList.remove("standard", "text-only", "grey", "red", "dotted");
           changeTypeBtn.classList.add(this.defaultNodeType);
           const getLabel = (type) => {
@@ -2901,6 +3221,14 @@
             if (this.selectedNodes.every(n => n.boldText)) boldTextBtn.classList.add("active");
           } else if (this.selectedNode && this.selectedNode.boldText) {
             boldTextBtn.classList.add("active");
+          }
+
+          if (alignBtn) {
+            const selectedNodeSet = new Set();
+            this.selectedNodes.forEach(n => selectedNodeSet.add(n));
+            if (this.selectedNode) selectedNodeSet.add(this.selectedNode);
+            alignBtn.disabled = selectedNodeSet.size === 0;
+            if (alignBtn.disabled) this.closeAlignMenu();
           }
         }
       }
@@ -3085,7 +3413,7 @@
   </div>
   <!-- Copyright 表示 -->
   <div id="copyright">
-    © 2026 Takaaki Yano | yaNote v1.4.1
+    © 2026 Takaaki Yano | yaNote v1.4.2
   </div>
 </body>
 
