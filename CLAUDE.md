@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクト概要
 
-yaNote は、ブラウザ上で動作するジグザグ型ノートアプリ（PWA）。ビルドツール・パッケージマネージャー・テストフレームワークは一切使わない、素の HTML + CSS + JavaScript 構成。アプリ本体はほぼすべて `index.html` 1ファイルに収まっている。
+yaNote は、ブラウザ上で動作するジグザグ型ノートアプリ（PWA）。ビルドツール・パッケージマネージャー・テストフレームワークは一切使わない、素の HTML + CSS + JavaScript 構成。アプリ本体は `index.html`（HTML骨格）・`style.css`（スタイル）・`app.js`（アプリロジック）の3ファイル構成（v1.5 で分離）。
 
 開発者（矢野）専用に最適化されたツールであり、全成果物は生成AIとの対話で作成・管理されている（詳細は [docs/yaNote-Manifesto.md](docs/yaNote-Manifesto.md) と [docs/yaNote_DevGuide.md](docs/yaNote_DevGuide.md)）。外部からの issue や機能要望への対応は行わない方針。
 
@@ -18,19 +18,23 @@ yaNote は、ブラウザ上で動作するジグザグ型ノートアプリ（P
 - 自動テストは存在しない。動作確認はブラウザでの手動テスト。確認すべき操作は [docs/yaNote-OperationSpec.md](docs/yaNote-OperationSpec.md)（マウス/キーボード）と [yaNote_TouchOperationSpec.md](yaNote_TouchOperationSpec.md)（タッチ）に定義されている。
 - デモは GitHub Pages（https://co-meeting.github.io/yaNote/）で公開。main へのコミット＝リリース。
 
-## リリース時の更新箇所
+## リリース手順
 
-バージョンを上げるときは以下をすべて同期させる:
+リリースはスクリプト化されている。手順の正本は `.claude/skills/yaNote-release/SKILL.md`（人間向け解説は [RELEASE.md](RELEASE.md)）。ユーザーが「リリース開始」等を明示したときだけ実施し、通常の修正セッションではバージョン関連ファイルに触らない。
 
-1. `index.html` — `<title>`、`const VERSION`（約667行目）
-2. `sw.js` — `CACHE_NAME`（例: `yaNote-cache-v1.4.2`）。これを変えないと PWA キャッシュが更新されない
-3. `README.md` — 冒頭のバージョンと変更履歴（改善/新機能セクション）
-4. 操作に影響する変更の場合は `help.md`、`docs/yaNote-OperationSpec.md` も更新
-5. コミットメッセージは `v1.4.2（2026-03-13）` の形式（既存履歴に倣う）
+1. `node scripts/release.mjs X.Y` — 6 箇所のバージョン一括更新（`index.html` の title/copyright、`app.js` の `VERSION`、`sw.js` の `CACHE_NAME`、`index.json`、`README.md` 先頭見出し）＋ `release-notes/vX.Y.md` 下書き生成 ＋ README 変更履歴プレースホルダ挿入
+2. 下書き 2 ファイルの TODO を編集。操作に影響する変更の場合は `help.md`、`docs/yaNote-OperationSpec.md` も更新
+3. ユーザー承認後に `node scripts/release-publish.mjs X.Y` — TODO 残存検証 → commit（`vX.Y（YYYY-MM-DD）` 形式）→ tag → push → GitHub Release 作成
 
-## アーキテクチャ（index.html の内部構造）
+`sw.js` の `CACHE_NAME` を変えないと PWA キャッシュが更新されない点に注意（スクリプトが自動更新する）。
 
-`index.html`（約3400行）は `/* ===== N. セクション名 ===== */` コメントで区切られている:
+## アーキテクチャ
+
+アプリ本体は3ファイル:
+
+- `index.html` — HTML骨格（コントロールパネル、キャンバス、SVGマーカー定義、共有モーダル等）。`<!-- ===== セクション名 ===== -->` コメントで区切られている
+- `style.css` — 全スタイル。`/* ===== 共通CSS ===== */` 等のセクションコメント付き
+- `app.js` — アプリロジック全体（約2800行）。全体が `DOMContentLoaded` リスナーでラップされ、`/* ===== N. セクション名 ===== */` コメントで区切られている:
 
 1. **定数・グローバル設定** — `VERSION`、`DEBUG` フラグ、`Logger`（`Logger.log` は DEBUG=true のときのみ出力）
 2. **ユーティリティ関数** — `Utils` 名前空間オブジェクト（幾何計算、URL共有用の圧縮など）
@@ -39,8 +43,6 @@ yaNote は、ブラウザ上で動作するジグザグ型ノートアプリ（P
 5. **接続線クラス** — SVG（`#svg`）に描画される接続線
 6. **共有モーダルクラス** / **アプリ全体管理クラス** — `class YaNoteApp` が中核。`nodes`・`connections` の配列、選択状態、Undo/Redo スタック、`globalPan`/`globalZoom` を一元管理
 7. **インスタンス生成** — `window.app = new YaNoteApp()`
-
-CSS も同ファイル内の `<style>` に `/* ===== 共通CSS ===== */` 等のセクションコメント付きで記述されている。
 
 その他のファイル:
 - `sw.js` — Service Worker。コアアセットはキャッシュ優先、それ以外はネットワーク

@@ -1,0 +1,530 @@
+    /* ===== 共通CSS ===== */
+    html,
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #f9f9f9;
+      position: fixed;
+      /* iOSでのバウンススクロールを防止 */
+      width: 100%;
+      height: 100%;
+      overscroll-behavior: none;
+      /* 最新ブラウザ向けのオーバースクロール防止 */
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    #canvas {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 10000px;
+      height: 10000px;
+      overflow: visible;
+      transform: translate(-5000px, -5000px) scale(1);
+      background-color: #f9f9f9;
+      background-image: radial-gradient(circle, #e0e0e0 1px, transparent 1px);
+      background-size: 20px 20px;
+      touch-action: none;
+      /* タッチジェスチャーの標準動作を無効化 */
+    }
+
+    #svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    #selectionRect {
+      position: fixed;
+      border: 1px dashed #000;
+      background-color: rgba(0, 0, 255, 0.1);
+      pointer-events: none;
+      z-index: 10000;
+    }
+
+    /* ===== ノードCSS ===== */
+    .node {
+      position: absolute;
+      padding: 10px 20px;
+      border-radius: 30px;
+      box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.1);
+      user-select: none;
+      white-space: pre-wrap;
+      cursor: pointer;
+      z-index: 300;
+      min-height: 30px;
+      display: flex;
+      flex-direction: column;
+      /* 縦方向に積む */
+      align-items: flex-start;
+      /* 横方向は左寄せ */
+      justify-content: center;
+      /* 縦方向は中央寄せ */
+      text-align: left;
+      /* テキスト自体も左寄せ */
+    }
+
+    /* ノードタイプごとのスタイル */
+    .node.standard {
+      background-color: #FFFFFF;
+      color: #404040;
+      border: 1px solid #404040;
+    }
+
+    .node.text-only {
+      padding: 8px 12px;
+      border-radius: 5px;
+      background-color: transparent;
+      color: #404040;
+      border: none;
+      box-shadow: none;
+    }
+
+    .node.grey {
+      background-color: #595959;
+      color: #FFFFFF;
+      border: none;
+    }
+
+    .node.red {
+      background-color: #BF1304;
+      color: #FFFFFF;
+      border: none;
+    }
+
+    /* ===== リンク色の調整 ===== */
+    /* Greyノード内のリンク色 */
+    .node.grey a {
+      color: #A8E6CE;
+      /* 明るい水色 */
+      text-decoration: underline;
+    }
+
+    /* Redノード内のリンク色 */
+    .node.red a {
+      color: #FFD3B5;
+      /* 明るいオレンジ */
+      text-decoration: underline;
+    }
+
+    /* 新たに追加するノードタイプ：枠が点線、背景は薄いグレー */
+    .node.dotted {
+      padding: 8px 12px;
+      border-radius: 5px;
+      background-color: #f0f0f0;
+      color: #404040;
+      border: 1px dashed #404040;
+    }
+
+    /* 選択状態：各タイプごとに個別に設定 */
+    .node.standard.selected {
+      border: 2px solid #888888;
+      box-shadow: 0 0 5px rgba(136, 136, 136, 0.5);
+      transform: scale(1.02);
+    }
+
+    .node.dotted.selected {
+      border: 2px dashed #888888;
+      box-shadow: 0 0 5px rgba(136, 136, 136, 0.5);
+      transform: scale(1.02);
+    }
+
+    .node.text-only.selected {
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px dashed #888888;
+      transform: scale(1.02);
+    }
+
+    .node.grey.selected {
+      border: 2px solid #666666;
+      box-shadow: 0 0 5px rgba(102, 102, 102, 0.5);
+      transform: scale(1.02);
+    }
+
+    .node.red.selected {
+      border: 2px solid #666666;
+      box-shadow: 0 0 5px rgba(102, 102, 102, 0.5);
+      transform: scale(1.02);
+    }
+
+    /* ノード編集時の基本スタイル */
+    .node.editing {
+      background-color: #ffffe0;
+      /* 薄い黄色の背景 */
+      border-color: #007bff;
+      z-index: 1000;
+      /* 編集中は最前面に表示 */
+    }
+
+    /* text-onlyノード編集時の特別なスタイル */
+    .node.text-only.editing {
+      background-color: #ffffe0;
+      /* 薄い黄色の背景を透明ではなく不透明に */
+      border: 1px solid #007bff;
+      /* 境界線を追加して視認性を高める */
+      box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+      /* 軽い影を追加 */
+      padding: 8px 12px;
+      /* 標準ノードと同じパディングを明示的に設定 */
+    }
+
+    /* 編集モード：赤・グレーは文字色を黒に */
+    .node.red.editing,
+    .node.grey.editing {
+      color: #000000;
+    }
+
+    /* ===== 接続線等 ===== */
+    .selected-line {
+      stroke: red;
+    }
+
+    .html-handle {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #fff;
+      border: 1px solid #000;
+      cursor: pointer;
+      z-index: 1100;
+    }
+
+    /* ===== コントロールパネル ===== */
+    #controlPanel {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 20000;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    #titleField {
+      width: 150px;
+      margin-right: 10px;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-size: 14px;
+      text-align: right;
+    }
+
+    #controlPanel button {
+      padding: 5px 10px;
+      cursor: pointer;
+      background: #ddd;
+      border: none;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ボタンサイズ */
+    #boldTextBtn,
+    #alignBtn,
+    #changeTypeBtn,
+    #changeLineTypeBtn,
+    #changeDashTypeBtn,
+    #guideBtn {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    #resetBtn,
+    #importBtn,
+    #exportBtn {
+      height: 30px;
+      min-width: 40px;
+      padding: 5px 10px;
+      font-size: 14px;
+    }
+
+    #resetViewBtn {
+      min-width: 30px;
+      height: 30px;
+      padding: 0;
+      font-size: 16px;
+      font-weight: 500;
+    }
+
+    #importInput {
+      display: none;
+    }
+
+    /* ノード変更ボタン：基本スタイル */
+    #changeTypeBtn {
+      background-color: transparent;
+      border: 1px solid #ccc;
+      width: 30px;
+      height: 30px;
+      text-align: center;
+      font-size: 14px;
+      padding: 0;
+    }
+
+    /* ノード変更ボタン：各ノードタイプに応じたスタイル */
+    #changeTypeBtn.standard {
+      background-color: #FFFFFF;
+      border-color: #404040;
+      color: #404040;
+      border: 1px solid #595959;
+    }
+
+    #changeTypeBtn.text-only {
+      background-color: #FFFFFF;
+      border: 1px dashed #404040;
+      color: #404040;
+    }
+
+    #changeTypeBtn.grey {
+      background-color: #595959;
+      border-color: #595959;
+      color: #FFFFFF;
+    }
+
+    #changeTypeBtn.red {
+      background-color: #BF1304;
+      border-color: #BF1304;
+      color: #FFFFFF;
+    }
+
+    #boldTextBtn.active {
+      background-color: #007bff;
+      color: #fff;
+    }
+
+
+    .tooltip {
+      position: fixed;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 30000;
+      pointer-events: none;
+      white-space: nowrap;
+      transform: translateY(30px);
+    }
+
+    /* ===== 共有モーダル ===== */
+    #shareModal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 24px;
+      border-radius: 8px;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+      z-index: 30000;
+      width: 450px;
+      max-width: 90vw;
+      display: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    #shareModal .modal-title {
+      margin-top: 0;
+      margin-bottom: 16px;
+      font-size: 20px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    #shareModal p {
+      margin: 12px 0 8px;
+      color: #555;
+      line-height: 1.4;
+    }
+
+    #shareModal input {
+      width: 95%;
+      padding: 8px 10px;
+      margin: 6px 0 14px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #333;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+
+    #shareModal input:focus {
+      outline: none;
+      border-color: #007bff;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+
+    #shareModal #generatedUrlInput {
+      background-color: #f8f9fa;
+      font-family: monospace;
+      font-size: 12px;
+      width: 95%;
+
+    }
+
+    #shareModal .copy-message {
+      font-size: 13px;
+      color: #28a745 !important;
+      margin-top: -8px;
+      margin-bottom: 12px;
+    }
+
+    #shareModal .modal-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    #shareModal .modal-buttons button {
+      min-width: 100px;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    #shareModal .modal-buttons button:hover {
+      opacity: 0.9;
+    }
+
+    #shareModal .modal-buttons button:not(.primary) {
+      background-color: #f0f0f0;
+      color: #333;
+    }
+
+    #shareModal .modal-buttons button:not(.primary):hover {
+      background-color: #e5e5e5;
+    }
+
+    #shareModal .modal-buttons button.primary {
+      background-color: #007bff;
+      color: white;
+      font-weight: 500;
+    }
+
+    #shareModal .modal-buttons button.primary:hover {
+      background-color: #0069d9;
+    }
+
+    #shareModal .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(2px);
+      z-index: 29999;
+      display: none;
+    }
+
+    #shareBtn {
+      min-width: 40px;
+      padding: 5px 10px;
+      font-size: 14px;
+    }
+
+    .node.bold-text {
+      font-weight: bold;
+    }
+
+    #controlPanel button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #alignMenu {
+      position: fixed;
+      display: none;
+      z-index: 25000;
+      background: #ffffff;
+      border: 1px solid #bcbcbc;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      padding: 2px;
+      width: auto;
+      min-width: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #alignMenu button {
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      border: none;
+      background: transparent;
+      text-align: left;
+      border-radius: 4px;
+      font-size: 13px;
+      padding: 5px 8px;
+      cursor: pointer;
+      color: #333;
+      white-space: nowrap;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    #alignMenu button:hover {
+      background-color: #f0f0f0;
+    }
+
+    #alignMenu button:active {
+      background-color: #e5e5e5;
+    }
+
+    #zoomDisplay {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background-color: rgba(0, 0, 0, 0.6);
+      color: #fff;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 20000;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #zoomDisplay.visible {
+      opacity: 1;
+    }
+
+    /* コピーライト表示 */
+    #copyright {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      font-size: 11px;
+      color: #808080;
+      opacity: 0.6;
+      z-index: 10000;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      pointer-events: none;
+      user-select: none;
+      text-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
+    }
+
+    #copyright:hover {
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }

@@ -1,5 +1,5 @@
 {
-  "version": "v1.4.2",
+  "version": "v1.5",
   "data": {
     "title": "yaNote - ヤノ専用ジグザグノート",
     "nodes": [
@@ -85,7 +85,7 @@
       },
       {
         "id": 33,
-        "text": "1つのHTMLファイルで\nできている",
+        "text": "素のHTML+CSS+JSで\nできている",
         "x": 3025,
         "y": 4978,
         "nodeType": "text-only",
