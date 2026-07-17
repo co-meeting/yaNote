@@ -221,7 +221,8 @@ async function main() {
   runInherit("git", ["commit", "-m", commitSubject]);
 
   console.log(`release-publish: git tag ${tag}`);
-  runInherit("git", ["tag", tag]);
+  // 注釈付きタグにする（--follow-tags は軽量タグを push しないため）
+  runInherit("git", ["tag", "-a", tag, "-m", commitSubject]);
 
   console.log(`release-publish: git push ${remote} ${branch} --follow-tags`);
   runInherit("git", ["push", remote, branch, "--follow-tags"]);
