@@ -97,6 +97,10 @@
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
       };
 
+      // ズーム倍率の範囲（25%〜200%）
+      const ZOOM_MIN = 0.25;
+      const ZOOM_MAX = 2;
+
       // AI用エクスポート設定（Markdown変換の空間解析しきい値と、エクスポートに埋め込む凡例）
       const AI_EXPORT = {
         NODE_W: 250,          // 仮定ノード幅（サイズは未保存のため）
@@ -187,6 +191,18 @@
         },
         hideAllTooltips: () => {
           document.querySelectorAll(".tooltip").forEach(t => t.parentNode && t.parentNode.removeChild(t));
+        },
+        // ズーム率を右下に一時表示する（1.5秒後にフェードアウト）
+        zoomDisplayTimeout: null,
+        updateZoomDisplay: (zoom) => {
+          const zoomDisplay = document.getElementById("zoomDisplay");
+          if (!zoomDisplay) return;
+          zoomDisplay.textContent = `${Math.round(zoom * 100)}%`;
+          zoomDisplay.classList.add("visible");
+          clearTimeout(Utils.zoomDisplayTimeout);
+          Utils.zoomDisplayTimeout = setTimeout(() => {
+            zoomDisplay.classList.remove("visible");
+          }, 1500);
         }
       };
 
@@ -792,41 +808,46 @@
           Logger.log("Connection created:", this.fromNode?.id, "->", this.toNode?.id);
         }
         update() {
+          // SVG はズームされるキャンバス内にあるため、画面座標（getBoundingClientRect）は
+          // globalZoom で割って論理座標に統一してから SVG に書く
+          const zoom = this.app.globalZoom;
           const canvasRect = this.app.canvas.getBoundingClientRect();
+          const toLocalRect = (rect) => ({
+            left: (rect.left - canvasRect.left) / zoom,
+            top: (rect.top - canvasRect.top) / zoom,
+            right: (rect.right - canvasRect.left) / zoom,
+            bottom: (rect.bottom - canvasRect.top) / zoom,
+            width: rect.width / zoom,
+            height: rect.height / zoom
+          });
           let fromPoint, toPoint;
           if (this.fromNode && document.body.contains(this.fromNode.element)) {
-            const rect = this.fromNode.element.getBoundingClientRect();
-            fromPoint = { x: rect.left + rect.width / 2 - canvasRect.left, y: rect.top + rect.height / 2 - canvasRect.top };
+            const rect = toLocalRect(this.fromNode.element.getBoundingClientRect());
+            fromPoint = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
           } else if (this.fromCoord && typeof this.fromCoord.x === "number") {
             fromPoint = this.fromCoord;
           } else return;
           if (this.toNode && document.body.contains(this.toNode.element)) {
-            const rect = this.toNode.element.getBoundingClientRect();
-            toPoint = { x: rect.left + rect.width / 2 - canvasRect.left, y: rect.top + rect.height / 2 - canvasRect.top };
+            const rect = toLocalRect(this.toNode.element.getBoundingClientRect());
+            toPoint = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
           } else if (this.toCoord && typeof this.toCoord.x === "number") {
             toPoint = this.toCoord;
           } else return;
           const origFrom = Object.assign({}, fromPoint);
           const origTo = Object.assign({}, toPoint);
           if (this.toNode && document.body.contains(this.toNode.element)) {
-            const endpoint = Utils.computeEndpoint(origTo.x, origTo.y, origFrom.x, origFrom.y, this.toNode.element.getBoundingClientRect());
+            const endpoint = Utils.computeEndpoint(origTo.x, origTo.y, origFrom.x, origFrom.y, toLocalRect(this.toNode.element.getBoundingClientRect()));
             toPoint.x = endpoint.arrowX;
             toPoint.y = endpoint.arrowY;
           }
           if ((this.lineType === "reverse-arrow" || this.lineType === "both-arrow") &&
             this.fromNode && document.body.contains(this.fromNode.element)) {
-            const startpoint = Utils.computeEndpoint(origFrom.x, origFrom.y, origTo.x, origTo.y, this.fromNode.element.getBoundingClientRect());
+            const startpoint = Utils.computeEndpoint(origFrom.x, origFrom.y, origTo.x, origTo.y, toLocalRect(this.fromNode.element.getBoundingClientRect()));
             fromPoint.x = startpoint.arrowX;
             fromPoint.y = startpoint.arrowY;
           }
           if (this.fromNode && this.fromNode.nodeType === "text-only") {
-            const nodeRect = this.fromNode.element.getBoundingClientRect();
-            const localRect = {
-              left: nodeRect.left - canvasRect.left,
-              top: nodeRect.top - canvasRect.top,
-              right: nodeRect.right - canvasRect.left,
-              bottom: nodeRect.bottom - canvasRect.top
-            };
+            const localRect = toLocalRect(this.fromNode.element.getBoundingClientRect());
             const cx = (localRect.left + localRect.right) / 2;
             const cy = (localRect.top + localRect.bottom) / 2;
             const dirX = toPoint.x - fromPoint.x;
@@ -840,18 +861,12 @@
             if (ndy > 0) tCandidates.push((localRect.bottom - cy) / ndy);
             else if (ndy < 0) tCandidates.push((localRect.top - cy) / ndy);
             const t = Math.min(...tCandidates.filter(v => v > 0));
-            const offset = 2 + (nodeRect.width / 50);
+            const offset = 2 + (localRect.width / 50);
             fromPoint.x = cx + ndx * (t + offset);
             fromPoint.y = cy + ndy * (t + offset);
           }
           if (this.toNode && this.toNode.nodeType === "text-only") {
-            const nodeRect = this.toNode.element.getBoundingClientRect();
-            const localRect = {
-              left: nodeRect.left - canvasRect.left,
-              top: nodeRect.top - canvasRect.top,
-              right: nodeRect.right - canvasRect.left,
-              bottom: nodeRect.bottom - canvasRect.top
-            };
+            const localRect = toLocalRect(this.toNode.element.getBoundingClientRect());
             const cx = (localRect.left + localRect.right) / 2;
             const cy = (localRect.top + localRect.bottom) / 2;
             const dirX = fromPoint.x - toPoint.x;
@@ -865,7 +880,7 @@
             if (ndy > 0) tCandidates.push((localRect.bottom - cy) / ndy);
             else if (ndy < 0) tCandidates.push((localRect.top - cy) / ndy);
             const t = Math.min(...tCandidates.filter(v => v > 0));
-            const offset = 2 + (nodeRect.width / 50);
+            const offset = 2 + (localRect.width / 50);
             toPoint.x = cx + ndx * (t + offset);
             toPoint.y = cy + ndy * (t + offset);
           }
@@ -907,7 +922,9 @@
           const initFrom = Object.assign({}, this.fromCoord);
           const initTo = Object.assign({}, this.toCoord);
           const onMove = e => {
-            const dx = e.clientX - startX, dy = e.clientY - startY;
+            // fromCoord/toCoord は論理座標のため、画面上の移動量をズームで換算する
+            const dx = (e.clientX - startX) / this.app.globalZoom;
+            const dy = (e.clientY - startY) / this.app.globalZoom;
             this.fromCoord = { x: initFrom.x + dx, y: initFrom.y + dy };
             this.toCoord = { x: initTo.x + dx, y: initTo.y + dy };
             this.update();
@@ -1163,6 +1180,24 @@
         updateGlobalTransform() {
           this.canvas.style.transform = `translate(-5000px, -5000px) translate(${this.globalPan.x}px, ${this.globalPan.y}px) scale(${this.globalZoom})`;
         }
+        // アンカー（画面座標）直下の点を固定したままズーム倍率を変更する
+        setZoom(newZoom, anchorClientX, anchorClientY) {
+          newZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, newZoom));
+          if (newZoom === this.globalZoom) {
+            Utils.updateZoomDisplay(this.globalZoom);
+            return;
+          }
+          const rect = this.canvas.getBoundingClientRect();
+          // transform-origin 0 0 のため rect.left/top はズーム非依存（基準位置＋パン）
+          const px = (anchorClientX - rect.left) / this.globalZoom;
+          const py = (anchorClientY - rect.top) / this.globalZoom;
+          this.globalPan.x += px * (this.globalZoom - newZoom);
+          this.globalPan.y += py * (this.globalZoom - newZoom);
+          this.globalZoom = newZoom;
+          this.updateGlobalTransform();
+          this.updateAllConnections();
+          Utils.updateZoomDisplay(this.globalZoom);
+        }
         recalcCenter() {
           let center = this.nodes.find(n => n.element.textContent.trim() === "中心ノード") || this.nodes[0];
           if (center) {
@@ -1277,6 +1312,10 @@
               } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
                 e.preventDefault();
                 this.redo();
+              } else if ((e.ctrlKey || e.metaKey) && e.key === "0") {
+                // ブラウザのページズームリセットを抑止して yaNote のズームを100%に戻す
+                e.preventDefault();
+                this.setZoom(1, window.innerWidth / 2, window.innerHeight / 2);
               } else if (["Backspace", "Delete"].includes(e.key)) {
                 e.preventDefault();
                 this.deleteSelection();
@@ -1286,7 +1325,14 @@
           });
           window.addEventListener("storage", e => { if (e.key === "yaNoteData") location.reload(); });
           this.canvas.addEventListener("wheel", e => {
-            if (e.ctrlKey || e.metaKey) return;
+            if (e.ctrlKey || e.metaKey) {
+              // Ctrl/⌘＋ホイール（トラックパッドのピンチ含む）でカーソル位置を中心にズーム
+              e.preventDefault();
+              // deltaMode=1（行単位、Firefox）はピクセル相当に換算して速度差を吸収
+              const deltaY = e.deltaMode === 1 ? e.deltaY * 20 : e.deltaY;
+              this.setZoom(this.globalZoom * Math.exp(-deltaY * 0.01), e.clientX, e.clientY);
+              return;
+            }
             e.preventDefault();
             if (e.shiftKey) {
               const dx = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
@@ -1298,13 +1344,31 @@
             this.updateGlobalTransform();
             this.updateAllConnections();
           }, { passive: false });
+
+          // macOS Safari のトラックパッドピンチは wheel ではなく gesture イベント（非標準）で届く
+          if ("ongesturestart" in window) {
+            let gestureStartZoom = 1;
+            this.canvas.addEventListener("gesturestart", e => {
+              e.preventDefault();
+              gestureStartZoom = this.globalZoom;
+            });
+            this.canvas.addEventListener("gesturechange", e => {
+              e.preventDefault();
+              this.setZoom(gestureStartZoom * e.scale, e.clientX, e.clientY);
+            });
+            this.canvas.addEventListener("gestureend", e => e.preventDefault());
+          }
           this.initControlPanel();
 
           // タッチ操作のサポート（ダブルタップ＋ドラッグで線を引く対応含む）
           let lastTapTime = 0;
           let tapPosition = { x: 0, y: 0 };
           this.canvas.addEventListener("touchstart", e => {
-            if (e.touches.length >= 2) return;
+            if (e.touches.length >= 2) {
+              // 2本指はピンチズーム（3本以上は無視）
+              if (e.touches.length === 2) this.startPinchZoom(e);
+              return;
+            }
             if (e.target.closest(".node")) return;
             if (this.editingNode) this.finishEditingNode(this.editingNode);
             const touch = e.touches[0];
@@ -1328,28 +1392,33 @@
               e.preventDefault();
               lastTapTime = now;
               const startX = touch.clientX, startY = touch.clientY;
-              const initPan = Object.assign({}, this.globalPan);
               this.canvas.style.cursor = "grabbing";
               let moved = false;
+              // 増分方式のパン。途中でピンチ（2本指）を挟んでも、1本指に戻った時に
+              // prev を再アンカーすることでパンがジャンプしない
+              let prev = { x: touch.clientX, y: touch.clientY };
 
               const onTouchMove = e => {
-                if (e.touches.length === 1) {
-                  e.preventDefault();
-                  const touch = e.touches[0];
-                  const dx = touch.clientX - startX, dy = touch.clientY - startY;
-                  if (!moved && Math.sqrt(dx * dx + dy * dy) > 5) moved = true;
-                  if (moved) {
-                    this.globalPan.x = initPan.x + dx;
-                    this.globalPan.y = initPan.y + dy;
-                    requestAnimationFrame(() => {
-                      this.updateGlobalTransform();
-                      this.updateAllConnections();
-                    });
-                  }
+                if (e.touches.length !== 1) { prev = null; return; }
+                e.preventDefault();
+                const touch = e.touches[0];
+                if (!prev) { prev = { x: touch.clientX, y: touch.clientY }; return; }
+                const totalDx = touch.clientX - startX, totalDy = touch.clientY - startY;
+                if (!moved && Math.sqrt(totalDx * totalDx + totalDy * totalDy) > 5) moved = true;
+                if (moved) {
+                  this.globalPan.x += touch.clientX - prev.x;
+                  this.globalPan.y += touch.clientY - prev.y;
+                  requestAnimationFrame(() => {
+                    this.updateGlobalTransform();
+                    this.updateAllConnections();
+                  });
                 }
+                prev = { x: touch.clientX, y: touch.clientY };
               };
 
               const onTouchEnd = e => {
+                // ピンチの2本目の指が離れただけならパンを継続（全指が離れた時だけ解除）
+                if (e.touches.length > 0) return;
                 this.canvas.removeEventListener("touchmove", onTouchMove, { passive: false });
                 this.canvas.removeEventListener("touchend", onTouchEnd);
                 this.canvas.removeEventListener("touchcancel", onTouchEnd);
@@ -1695,6 +1764,47 @@
           document.addEventListener("mousemove", onMove);
           document.addEventListener("mouseup", onUp);
         }
+        // 2本指ピンチでズーム（2点間距離の比）＋中点の移動でパン
+        startPinchZoom(e) {
+          e.preventDefault();
+          // ノード側の長押しタイマー等が残っているとピンチ中にノード移動が発動するためキャンセル
+          this.nodes.forEach(n => {
+            if (n._longPressTimer) clearTimeout(n._longPressTimer);
+            n._isTouching = false;
+          });
+          const getPinch = e => {
+            const t0 = e.touches[0], t1 = e.touches[1];
+            return {
+              dist: Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY),
+              cx: (t0.clientX + t1.clientX) / 2,
+              cy: (t0.clientY + t1.clientY) / 2
+            };
+          };
+          let prev = getPinch(e);
+          const onTouchMove = e => {
+            if (e.touches.length !== 2) return;
+            e.preventDefault();
+            const cur = getPinch(e);
+            if (prev.dist > 0 && cur.dist > 0) {
+              this.setZoom(this.globalZoom * (cur.dist / prev.dist), cur.cx, cur.cy);
+            }
+            // 中点の移動分はパン（ピンチしながらのスクロール）
+            this.globalPan.x += cur.cx - prev.cx;
+            this.globalPan.y += cur.cy - prev.cy;
+            this.updateGlobalTransform();
+            this.updateAllConnections();
+            prev = cur;
+          };
+          const onTouchEnd = e => {
+            if (e.touches.length >= 2) return;
+            this.canvas.removeEventListener("touchmove", onTouchMove, { passive: false });
+            this.canvas.removeEventListener("touchend", onTouchEnd);
+            this.canvas.removeEventListener("touchcancel", onTouchEnd);
+          };
+          this.canvas.addEventListener("touchmove", onTouchMove, { passive: false });
+          this.canvas.addEventListener("touchend", onTouchEnd);
+          this.canvas.addEventListener("touchcancel", onTouchEnd);
+        }
         // YaNoteApp クラス内にメソッドを追加
         resetView() {
           Logger.log("表示位置をリセットします");
@@ -1951,6 +2061,7 @@
           };
           const initialNodePos = { x: node.x, y: node.y };
           const onTouchMove = (e) => {
+            if (e.touches.length !== 1) return; // 2本指（ピンチ）中はノード移動しない
             e.preventDefault();
             const touch = e.touches[0];
             const currentPos = {
@@ -2158,11 +2269,13 @@
           document.addEventListener("mouseup", onUp);
         }
         startBranchCreation(e, node) {
+          // 仮線は SVG（論理座標）に描くため、画面座標はズームで換算する
+          const zoom = this.globalZoom;
           const cRect = this.canvas.getBoundingClientRect();
           const nRect = node.element.getBoundingClientRect();
-          const cx = nRect.left + nRect.width / 2 - cRect.left;
-          const cy = nRect.top + nRect.height / 2 - cRect.top;
-          const mx = e.clientX - cRect.left, my = e.clientY - cRect.top;
+          const cx = (nRect.left + nRect.width / 2 - cRect.left) / zoom;
+          const cy = (nRect.top + nRect.height / 2 - cRect.top) / zoom;
+          const mx = (e.clientX - cRect.left) / zoom, my = (e.clientY - cRect.top) / zoom;
           const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
           tempLine.setAttribute("stroke", "#007bff");
           tempLine.setAttribute("stroke-width", "2");
@@ -2173,7 +2286,7 @@
           tempLine.setAttribute("y2", my);
           this.svg.appendChild(tempLine);
           const onMove = e => {
-            const nx = e.clientX - cRect.left, ny = e.clientY - cRect.top;
+            const nx = (e.clientX - cRect.left) / zoom, ny = (e.clientY - cRect.top) / zoom;
             tempLine.setAttribute("x2", nx);
             tempLine.setAttribute("y2", ny);
           };
@@ -2220,12 +2333,14 @@
           document.addEventListener("mouseup", onUp);
         }
         startBranchCreationTouch(node, touchEvent) {
+          // 仮線は SVG（論理座標）に描くため、画面座標はズームで換算する
+          const zoom = this.globalZoom;
           const cRect = this.canvas.getBoundingClientRect();
           const nRect = node.element.getBoundingClientRect();
-          const cx = nRect.left + nRect.width / 2 - cRect.left;
-          const cy = nRect.top + nRect.height / 2 - cRect.top;
+          const cx = (nRect.left + nRect.width / 2 - cRect.left) / zoom;
+          const cy = (nRect.top + nRect.height / 2 - cRect.top) / zoom;
           const t0 = touchEvent.touches[0];
-          const mx = t0.clientX - cRect.left, my = t0.clientY - cRect.top;
+          const mx = (t0.clientX - cRect.left) / zoom, my = (t0.clientY - cRect.top) / zoom;
           const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
           tempLine.setAttribute("stroke", "#007bff");
           tempLine.setAttribute("stroke-width", "2");
@@ -2239,7 +2354,7 @@
           const onTouchMove = (e) => {
             const t = Array.from(e.touches).find(touch => touch.identifier === touchId);
             if (!t) return;
-            const nx = t.clientX - cRect.left, ny = t.clientY - cRect.top;
+            const nx = (t.clientX - cRect.left) / zoom, ny = (t.clientY - cRect.top) / zoom;
             tempLine.setAttribute("x2", nx);
             tempLine.setAttribute("y2", ny);
           };
@@ -2326,8 +2441,10 @@
           document.addEventListener("touchcancel", onTouchEnd, { capture: true });
         }
         startBlankLineTouch(initialTouch, touchMoveEvent) {
+          // 仮線は SVG（論理座標）に描くため、画面座標はズームで換算する
+          const zoom = this.globalZoom;
           const cRect = this.canvas.getBoundingClientRect();
-          const sx = initialTouch.clientX - cRect.left, sy = initialTouch.clientY - cRect.top;
+          const sx = (initialTouch.clientX - cRect.left) / zoom, sy = (initialTouch.clientY - cRect.top) / zoom;
           const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
           tempLine.setAttribute("stroke", "#007bff");
           tempLine.setAttribute("stroke-width", "2");
@@ -2335,15 +2452,15 @@
           tempLine.setAttribute("x1", sx);
           tempLine.setAttribute("y1", sy);
           const t0 = Array.from(touchMoveEvent.touches).find(t => t.identifier === initialTouch.identifier) || touchMoveEvent.touches[0];
-          tempLine.setAttribute("x2", t0.clientX - cRect.left);
-          tempLine.setAttribute("y2", t0.clientY - cRect.top);
+          tempLine.setAttribute("x2", (t0.clientX - cRect.left) / zoom);
+          tempLine.setAttribute("y2", (t0.clientY - cRect.top) / zoom);
           this.svg.appendChild(tempLine);
           const touchId = initialTouch.identifier;
           const fromCoord = this.eventToLogical({ clientX: initialTouch.clientX, clientY: initialTouch.clientY });
           const onTouchMove = (e) => {
             const t = Array.from(e.touches).find(touch => touch.identifier === touchId);
             if (!t) return;
-            const nx = t.clientX - cRect.left, ny = t.clientY - cRect.top;
+            const nx = (t.clientX - cRect.left) / zoom, ny = (t.clientY - cRect.top) / zoom;
             tempLine.setAttribute("x2", nx);
             tempLine.setAttribute("y2", ny);
           };
@@ -2378,8 +2495,10 @@
           document.addEventListener("touchcancel", onTouchEnd, { capture: true });
         }
         startBlankDoubleClick(e) {
+          // 仮線は SVG（論理座標）に描くため、画面座標はズームで換算する
+          const zoom = this.globalZoom;
           const cRect = this.canvas.getBoundingClientRect();
-          const sx = e.clientX - cRect.left, sy = e.clientY - cRect.top;
+          const sx = (e.clientX - cRect.left) / zoom, sy = (e.clientY - cRect.top) / zoom;
           const tempLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
           tempLine.setAttribute("stroke", "#007bff");
           tempLine.setAttribute("stroke-width", "2");
@@ -2399,7 +2518,7 @@
               this.svg.appendChild(tempLine);
             }
             if (lineMode) {
-              const nx = e.clientX - cRect.left, ny = e.clientY - cRect.top;
+              const nx = (e.clientX - cRect.left) / zoom, ny = (e.clientY - cRect.top) / zoom;
               tempLine.setAttribute("x2", nx);
               tempLine.setAttribute("y2", ny);
             }
@@ -2454,7 +2573,9 @@
             const initLeft = parseFloat(handle.style.left);
             const initTop = parseFloat(handle.style.top);
             const onMove = e => {
-              const dx = e.clientX - startX, dy = e.clientY - startY;
+              // ハンドル位置と fromCoord/toCoord は論理座標のため、画面上の移動量をズームで換算する
+              const dx = (e.clientX - startX) / this.globalZoom;
+              const dy = (e.clientY - startY) / this.globalZoom;
               handle.style.left = (initLeft + dx) + "px";
               handle.style.top = (initTop + dy) + "px";
               if (which === "from") {
@@ -2544,8 +2665,9 @@
           if (state.defaultNodeType) this.defaultNodeType = state.defaultNodeType;
           if (state.defaultLineType) this.defaultLineType = state.defaultLineType;
           if (state.defaultDashType) this.defaultDashType = state.defaultDashType;
-          this.globalPan = state.globalPan;
-          this.globalZoom = state.globalZoom;
+          // 旧形式データ（globalPan/globalZoom を持たない外部 JSON）でも transform が壊れないようフォールバック
+          this.globalPan = state.globalPan || { x: 0, y: 0 };
+          this.globalZoom = state.globalZoom || 1;
           if (state.title) {
             this.titleField.value = state.title;
             adjustTitleFieldWidth();
