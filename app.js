@@ -97,6 +97,35 @@
         log: (...args) => { if (DEBUG) console.log("[yaNote]", ...args); }
       };
 
+      // AI用エクスポート設定（Markdown変換の空間解析しきい値と、エクスポートに埋め込む凡例）
+      const AI_EXPORT = {
+        NODE_W: 250,          // 仮定ノード幅（サイズは未保存のため）
+        NODE_H: 60,           // 仮定ノード高
+        ISLAND_GAP: 400,      // px: bbox間距離がこれ未満なら同一トピックに併合
+        COL_X_TOL: 40,        // px: 列検出のx揃え許容差
+        COL_MAX_DY: 1200,     // px: カラム見出しの効力が及ぶ下方向範囲
+        COL_MIN_MEMBERS: 2,   // 列と認定する最小ノード数
+        TITLE_BAND: 300,      // px: 島タイトル候補を探す最上部の帯
+        TITLE_MAX: 30,        // トピック見出しに使う先頭行の最大文字数
+        LEGEND: `このノートは yaNote（ジグザグ型ノートアプリ）で書かれたものです。書き手の使い分けの傾向：
+
+【ノード種別】
+- text-only（枠なし）: 通常の記述。カラム見出しや図中のラベルにも使われる
+- standard（白枠）: 強調。grey ノードのサブ項目（配下の項目）として使われることが多い
+- grey（グレー）: 強めの強調。複数ノードの集約・グルーピングの起点に使われることが多い
+- red（赤枠）: 強い問題意識・未達・注意点に使われることが多い。太字ならセクション見出しのことも多い
+- dotted（点線枠）: 補足・つぶやき・注釈的なメモ
+
+【接続線】
+- 実線・矢印あり: 論理の展開・流れ（親→子）
+- 破線・矢印なし: 近くのノードへの注釈・補足の紐付け
+
+【空間配置】
+- 思考の展開方向は矢印が示す（配置方向に固定の意味はない）
+- x座標が揃ったノード群は同じカラム。text-only太字のラベルがカラム見出しになっていることがある
+- 座標的に大きく離れたまとまりは別トピック`
+      };
+
       let titleAutoUpdated = false;
 
       /* ===== 2. ユーティリティ関数 ===== */
@@ -160,6 +189,268 @@
           document.querySelectorAll(".tooltip").forEach(t => t.parentNode && t.parentNode.removeChild(t));
         }
       };
+
+      /* ===== AI用エクスポート ===== */
+      // ノート状態（captureState 形式）を、AIが書き手の意図を読み取りやすい
+      // Markdownアウトラインに変換する。座標レイアウトが暗黙に担う意味
+      // （トピックの島・カラム対応）と接続トポロジーを明示化する。
+      {
+        const aiFirstLine = (node) => ((node.text || "").split("\n")[0].trim()) || "（空）";
+        const aiByPosition = (a, b) => (a.y - b.y) || (a.x - b.x) || (a.id - b.id);
+
+        // 接続を分類する。戻り値:
+        //   childrenOf: 親id → [{ node, dashed }]（実線/逆矢印のツリーエッジ）
+        //   hasTreeEdge: ツリーエッジに参加するノードidの Set
+        //   notesOf: ホストid → [注釈ノード]、consumedNotes: 注釈として吸収されたid
+        //   crossRefsOf / mutualOf: ノードid → [相手ノード]
+        //   skippedFree: ノードに接続していない自由線の本数
+        function aiClassifyEdges(state, nodeById) {
+          const nodeConns = [];
+          let skippedFree = 0;
+          for (const c of (state.connections || [])) {
+            const from = nodeById.get(c.fromId);
+            const to = nodeById.get(c.toId);
+            if (!from || !to || from === to) { skippedFree++; continue; }
+            nodeConns.push({ from, to, lineType: c.lineType, dashType: c.dashType });
+          }
+
+          const childrenOf = new Map();
+          const hasTreeEdge = new Set();
+          for (const c of nodeConns) {
+            if (c.lineType !== "standard" && c.lineType !== "reverse-arrow") continue;
+            const parent = c.lineType === "standard" ? c.from : c.to;
+            const child = c.lineType === "standard" ? c.to : c.from;
+            if (!childrenOf.has(parent.id)) childrenOf.set(parent.id, []);
+            childrenOf.get(parent.id).push({ node: child, dashed: c.dashType === "dashed" });
+            hasTreeEdge.add(parent.id);
+            hasTreeEdge.add(child.id);
+          }
+
+          const notesOf = new Map();
+          const crossRefsOf = new Map();
+          const mutualOf = new Map();
+          const consumedNotes = new Set();
+          const addTo = (map, id, value) => {
+            if (!map.has(id)) map.set(id, []);
+            map.get(id).push(value);
+          };
+          for (const c of nodeConns) {
+            if (c.lineType === "both-arrow") {
+              addTo(mutualOf, c.from.id, c.to);
+              addTo(mutualOf, c.to.id, c.from);
+            } else if (c.lineType === "no-arrow") {
+              const fromFree = !hasTreeEdge.has(c.from.id);
+              const toFree = !hasTreeEdge.has(c.to.id);
+              if (fromFree === toFree) {
+                // 両方ツリー参加（または両方フリー）: 位置が後ろの方を注釈とみなすが、
+                // 両方ツリー参加なら消費せず相互参照にとどめる
+                const [a, b] = [c.from, c.to].sort(aiByPosition);
+                if (fromFree) { addTo(notesOf, a.id, b); consumedNotes.add(b.id); }
+                else { addTo(crossRefsOf, a.id, b); }
+              } else {
+                const note = fromFree ? c.from : c.to;
+                const host = fromFree ? c.to : c.from;
+                addTo(notesOf, host.id, note);
+                consumedNotes.add(note.id);
+              }
+            }
+          }
+          // 決定的な出力順に整列
+          for (const list of [...notesOf.values(), ...crossRefsOf.values(), ...mutualOf.values()]) {
+            list.sort(aiByPosition);
+          }
+          return { childrenOf, hasTreeEdge, notesOf, crossRefsOf, mutualOf, consumedNotes, skippedFree };
+        }
+
+        // トピックの島を検出する。接続で結ばれたノード同士（明示的なリンクは距離より優先）と、
+        // ノード矩形間の距離が ISLAND_GAP 未満のノード同士を同じ島に併合する。
+        function aiDetectIslands(nodes, state, nodeById) {
+          const parent = new Map(nodes.map(n => [n.id, n.id]));
+          const find = (id) => {
+            while (parent.get(id) !== id) {
+              parent.set(id, parent.get(parent.get(id)));
+              id = parent.get(id);
+            }
+            return id;
+          };
+          const union = (a, b) => { parent.set(find(a), find(b)); };
+          for (const c of (state.connections || [])) {
+            if (nodeById.has(c.fromId) && nodeById.has(c.toId)) union(c.fromId, c.toId);
+          }
+          // ノード矩形（仮定サイズ）同士のギャップが ISLAND_GAP 未満なら同じ島
+          for (let i = 0; i < nodes.length; i++) {
+            for (let j = i + 1; j < nodes.length; j++) {
+              const a = nodes[i], b = nodes[j];
+              const gapX = Math.max(0, a.x - (b.x + AI_EXPORT.NODE_W), b.x - (a.x + AI_EXPORT.NODE_W));
+              const gapY = Math.max(0, a.y - (b.y + AI_EXPORT.NODE_H), b.y - (a.y + AI_EXPORT.NODE_H));
+              if (Math.hypot(gapX, gapY) < AI_EXPORT.ISLAND_GAP) union(a.id, b.id);
+            }
+          }
+
+          const byRoot = new Map();
+          for (const n of nodes) {
+            const root = find(n.id);
+            if (!byRoot.has(root)) byRoot.set(root, []);
+            byRoot.get(root).push(n);
+          }
+          const bboxOf = (members) => ({
+            minX: Math.min(...members.map(n => n.x)),
+            minY: Math.min(...members.map(n => n.y)),
+            maxX: Math.max(...members.map(n => n.x)) + AI_EXPORT.NODE_W,
+            maxY: Math.max(...members.map(n => n.y)) + AI_EXPORT.NODE_H
+          });
+          const islands = [...byRoot.values()].map(members => ({
+            members: members.sort(aiByPosition),
+            bbox: bboxOf(members)
+          }));
+          islands.sort((a, b) => (a.bbox.minY - b.bbox.minY) || (a.bbox.minX - b.bbox.minX));
+          return islands;
+        }
+
+        // 島タイトル: 最上部の帯にある太字ノード（なければredノード）を優先し、その先頭行を使う
+        function aiIslandTitle(island) {
+          const band = island.members.filter(n => n.y <= island.bbox.minY + AI_EXPORT.TITLE_BAND);
+          const candidates = band.filter(n => n.boldText).length ? band.filter(n => n.boldText)
+            : band.filter(n => n.nodeType === "red").length ? band.filter(n => n.nodeType === "red")
+            : band;
+          const titleNode = candidates.sort(aiByPosition)[0];
+          const line = aiFirstLine(titleNode)
+            .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")   // リンク記法はテキストだけ残す
+            .replace(/^[-#*・\s]+/, "");
+          return line.length > AI_EXPORT.TITLE_MAX ? line.slice(0, AI_EXPORT.TITLE_MAX) + "…" : line;
+        }
+
+        // カラム見出し検出: 接続を持たない text-only 太字ノードの直下に
+        // x座標の揃ったノードが並んでいれば、カラム見出しとみなす。
+        // 戻り値: columnOf（ノードid → 見出しラベル）と consumedHeaders（見出しノードidの Set）
+        function aiDetectColumns(islandNodes, hasAnyEdge) {
+          const columnOf = new Map();
+          const consumedHeaders = new Set();
+          const candidates = islandNodes
+            .filter(n => n.nodeType === "text-only" && n.boldText && !hasAnyEdge.has(n.id))
+            .sort(aiByPosition);
+          const headerAbove = new Map(); // メンバーid → 直上で最も近い見出し
+          for (const h of candidates) {
+            const members = islandNodes.filter(n =>
+              n !== h && !candidates.includes(n) &&
+              Math.abs(n.x - h.x) <= AI_EXPORT.COL_X_TOL &&
+              n.y > h.y && n.y <= h.y + AI_EXPORT.COL_MAX_DY
+            );
+            if (members.length < AI_EXPORT.COL_MIN_MEMBERS) continue;
+            consumedHeaders.add(h.id);
+            for (const m of members) {
+              const prev = headerAbove.get(m.id);
+              if (!prev || h.y > prev.y) headerAbove.set(m.id, h);
+            }
+          }
+          for (const [id, h] of headerAbove) columnOf.set(id, aiFirstLine(h));
+          return { columnOf, consumedHeaders };
+        }
+
+        // 1ノードを Markdown 行として出力（先頭行＋継続行＋注釈・相互リンク等のサブ項目）
+        function aiRenderNodeLines(node, ctx, depth, marks, lines) {
+          const indent = "  ".repeat(depth);
+          const textLines = (node.text || "").split("\n");
+          const col = ctx.columnOf.get(node.id);
+          let head = (col ? `【${col}】` : "") + (textLines[0].trim() || "（空）");
+          if (node.boldText) head = `**${head}**`;
+          if (node.nodeType !== "text-only") head += ` [${node.nodeType}]`;
+          if (marks.prefix) head = `${marks.prefix}${head}`;
+          if (marks.suffix) head += ` ${marks.suffix}`;
+          lines.push(`${indent}- ${head}`);
+          for (const cont of textLines.slice(1)) {
+            lines.push(`${indent}  ${cont}`);
+          }
+          for (const note of (ctx.notesOf.get(node.id) || [])) {
+            if (ctx.rendered.has(note.id)) continue;
+            ctx.rendered.add(note.id);
+            aiRenderNodeLines(note, ctx, depth + 1, { prefix: "（注釈）" }, lines);
+          }
+          for (const other of (ctx.crossRefsOf.get(node.id) || [])) {
+            lines.push(`${indent}  - （関連: ${aiFirstLine(other)}）`);
+          }
+          for (const other of (ctx.mutualOf.get(node.id) || [])) {
+            lines.push(`${indent}  - （相互リンク: ${aiFirstLine(other)}）`);
+          }
+        }
+
+        // ツリーエッジに沿った DFS。再訪ノードは1行参照にとどめ、循環でも停止する
+        function aiRenderTree(node, ctx, depth, dashed, lines) {
+          if (ctx.rendered.has(node.id)) {
+            lines.push(`${"  ".repeat(depth)}- →（既出）${aiFirstLine(node)}`);
+            return;
+          }
+          ctx.rendered.add(node.id);
+          aiRenderNodeLines(node, ctx, depth, dashed ? { suffix: "(点線接続)" } : {}, lines);
+          const children = (ctx.childrenOf.get(node.id) || [])
+            .filter(c => !ctx.excluded.has(c.node.id))
+            .sort((a, b) => aiByPosition(a.node, b.node));
+          for (const c of children) aiRenderTree(c.node, ctx, depth + 1, c.dashed, lines);
+        }
+
+        function aiRenderIsland(island, edges, lines) {
+          const { columnOf, consumedHeaders } = aiDetectColumns(island.members, edges.hasAnyEdge);
+          const excluded = new Set([...consumedHeaders, ...edges.consumedNotes]);
+          const renderable = island.members.filter(n => !excluded.has(n.id));
+          const ctx = { ...edges, columnOf, excluded, rendered: edges.rendered };
+
+          // ルート = 島内の描画対象から入ってくるツリーエッジを持たないノード
+          const hasIncoming = new Set();
+          for (const n of renderable) {
+            for (const c of (edges.childrenOf.get(n.id) || [])) hasIncoming.add(c.node.id);
+          }
+          const roots = renderable.filter(n => !hasIncoming.has(n.id));
+          // ルートのない循環が残った場合は、未出力ノードを順に追加ルートとして拾う
+          for (const n of [...roots, ...renderable]) {
+            if (!ctx.rendered.has(n.id)) aiRenderTree(n, ctx, 0, false, lines);
+          }
+        }
+
+        Utils.toAIMarkdown = (state, opts = {}) => {
+          const nodes = (state.nodes || []).slice();
+          const lines = [];
+          lines.push(`# ${(state.title || "").trim() || "無題"}`);
+          lines.push("");
+          if (opts.date) {
+            lines.push(`エクスポート日時: ${opts.date}`);
+            lines.push("");
+          }
+          lines.push("## 凡例");
+          lines.push("");
+          lines.push(AI_EXPORT.LEGEND);
+          lines.push("");
+          if (!nodes.length) {
+            lines.push("（ノートは空です）");
+            return lines.join("\n") + "\n";
+          }
+
+          const nodeById = new Map(nodes.map(n => [n.id, n]));
+          const edges = aiClassifyEdges(state, nodeById);
+          // カラム見出し候補の判定用: なんらかの接続に参加しているノードid
+          edges.hasAnyEdge = new Set();
+          for (const c of (state.connections || [])) {
+            if (nodeById.has(c.fromId) && nodeById.has(c.toId)) {
+              edges.hasAnyEdge.add(c.fromId);
+              edges.hasAnyEdge.add(c.toId);
+            }
+          }
+          edges.rendered = new Set();
+
+          const islands = aiDetectIslands(nodes, state, nodeById);
+          islands.forEach((island, i) => {
+            lines.push(`## トピック ${i + 1}: ${aiIslandTitle(island)}`);
+            lines.push("");
+            aiRenderIsland(island, edges, lines);
+            lines.push("");
+          });
+          if (edges.skippedFree > 0) {
+            lines.push("---");
+            lines.push(`（注）どのノードにも接続していない自由線 ${edges.skippedFree} 本は省略しました。`);
+            lines.push("");
+          }
+          return lines.join("\n");
+        };
+      }
 
       /* ===== URL共有のためのユーティリティ ===== */
       function generateShareUrl(jsonUrl) {
@@ -1297,6 +1588,7 @@
             "resetBtn": "新規ノートを作成",
             "importBtn": "保存したノートを開く",
             "exportBtn": "現在のノートを保存",
+            "aiExportBtn": "AI用Markdownで保存",
             "shareBtn": "URLで共有",
             "guideBtn": "ヘルプを表示",
             "alignBtn": "ノード整列メニュー",
@@ -2542,7 +2834,8 @@
         }
         exportState() {
           const state = this.undoStack[this.undoStack.length - 1];
-          return JSON.stringify({ version: VERSION, data: state }, null, 2);
+          // semantics はAI読者向けの凡例。インポート時は data しか読まれない（write-only）
+          return JSON.stringify({ version: VERSION, semantics: AI_EXPORT.LEGEND, data: state }, null, 2);
         }
         updateControlButtonsState() {
           const changeTypeBtn = document.getElementById("changeTypeBtn");
@@ -2700,22 +2993,35 @@
         }
       });
 
+      // エクスポート共通: タイトル＋日時のベースファイル名と、Blobダウンロードの実行
+      const exportBaseName = (now) => {
+        const pad = n => n.toString().padStart(2, "0");
+        const title = app.titleField.value.trim() || "無題";
+        return `${title}_yaNote_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+      };
+      const downloadFile = (content, mime, filename) => {
+        const blob = new Blob([content], { type: mime });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        // 即時 revoke するとダウンロード開始前に無効化されることがあるため遅延させる
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+      };
       document.getElementById("exportBtn").addEventListener("click", () => {
         try {
-          const json = app.exportState();
-          const blob = new Blob([json], { type: "application/json" });
-          const url = URL.createObjectURL(blob);
+          downloadFile(app.exportState(), "application/json", `${exportBaseName(new Date())}.json`);
+        } catch (e) { alert("エクスポートエラー: " + e.message); }
+      });
+      document.getElementById("aiExportBtn").addEventListener("click", () => {
+        try {
           const now = new Date();
           const pad = n => n.toString().padStart(2, "0");
-          const title = app.titleField.value.trim() || "無題";
-          const filename = `${title}_yaNote_${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.json`;
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
+          const dateLabel = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+          downloadFile(Utils.toAIMarkdown(app.captureState(), { date: dateLabel }), "text/markdown", `${exportBaseName(now)}.md`);
         } catch (e) { alert("エクスポートエラー: " + e.message); }
       });
       document.getElementById("importBtn").addEventListener("click", () => {

@@ -245,7 +245,8 @@
 
     #resetBtn,
     #importBtn,
-    #exportBtn {
+    #exportBtn,
+    #aiExportBtn {
       height: 30px;
       min-width: 40px;
       padding: 5px 10px;
