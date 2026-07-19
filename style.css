@@ -219,6 +219,32 @@
       z-index: 1100;
     }
 
+    /* ===== 囲み矩形 ===== */
+    /* pointer-events:none が前提（内部でのノード操作・範囲選択を阻害しない）。
+       選択・移動は app.js 側の枠線ヒットテストで行う */
+    .enclosure {
+      position: absolute;
+      border: 1px solid #3d5c43;
+      border-radius: 12px;
+      background-color: rgba(107, 143, 113, 0.10);
+      /* くすみ系の薄緑（セージ）。グレー基調のノード群と喧嘩しないトーン */
+      z-index: 50;
+      /* 接続線(#svg=100)・ノード(300)より下 = 常に最背面 */
+      pointer-events: none;
+      box-sizing: border-box;
+    }
+
+    /* 選択時。位置指定に transform を使っているため scale は使わない */
+    .enclosure.selected {
+      border: 2px solid #3d5c43;
+      box-shadow: 0 0 5px rgba(61, 92, 67, 0.5);
+    }
+
+    #enclosureBtn.active {
+      background-color: #007bff;
+      color: #fff;
+    }
+
     /* ===== コントロールパネル ===== */
     #controlPanel {
       position: fixed;

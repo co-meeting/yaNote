@@ -101,6 +101,10 @@
       const ZOOM_MIN = 0.25;
       const ZOOM_MAX = 2;
 
+      // 囲み矩形（論理px）
+      const ENCLOSURE_MIN_SIZE = 40;   // 作成・リサイズ時の最小幅/高。描画時これ未満なら破棄
+      const ENCLOSURE_HIT_MARGIN = 8;  // 枠線クリック判定の帯幅（外周±この値）
+
       // AI用エクスポート設定（Markdown変換の空間解析しきい値と、エクスポートに埋め込む凡例）
       const AI_EXPORT = {
         NODE_W: 250,          // 仮定ノード幅（サイズは未保存のため）
@@ -969,6 +973,128 @@
         }
       }
 
+      /* ===== 囲み矩形クラス ===== */
+      // ノードを視覚的にかこうための角丸・薄背景の矩形。所属関係は持たない純粋な描画要素。
+      // 本体は pointer-events:none（内部でのノード操作・矩形選択を阻害しない）ため、
+      // 選択・移動はキャンバス側のヒットテスト（枠線帯）で行う。
+      class EnclosureRect {
+        constructor(x, y, w, h, app, id) {
+          this.app = app;
+          this.element = document.createElement("div");
+          this.element.className = "enclosure";
+          this.app.canvas.appendChild(this.element);
+          this.handles = [];
+          this.setRect(x, y, w, h);
+          if (id !== undefined) {
+            this.id = id;
+            if (id >= EnclosureRect.nextId) EnclosureRect.nextId = id + 1;
+          } else {
+            this.id = EnclosureRect.nextId++;
+          }
+          Logger.log("EnclosureRect created:", this.id, x, y, w, h);
+        }
+        setRect(x, y, w, h) {
+          this.x = x;
+          this.y = y;
+          this.w = w;
+          this.h = h;
+          this.element.style.transform = `translate(${x}px, ${y}px)`;
+          this.element.style.width = w + "px";
+          this.element.style.height = h + "px";
+          this.updateHandles();
+        }
+        // 論理座標 (lx, ly) が枠線帯（外周±ENCLOSURE_HIT_MARGIN）上にあるか
+        hitTestBorder(lx, ly) {
+          const m = ENCLOSURE_HIT_MARGIN;
+          const inOuter = lx >= this.x - m && lx <= this.x + this.w + m &&
+            ly >= this.y - m && ly <= this.y + this.h + m;
+          const inInner = lx >= this.x + m && lx <= this.x + this.w - m &&
+            ly >= this.y + m && ly <= this.y + this.h - m;
+          return inOuter && !inInner;
+        }
+        showHandles() {
+          this.hideHandles();
+          // 四隅: 0=左上, 1=右上, 2=左下, 3=右下
+          for (let corner = 0; corner < 4; corner++) {
+            const handle = this.app.createHtmlHandle();
+            this.addResizeDrag(handle, corner);
+            this.handles.push(handle);
+          }
+          this.updateHandles();
+        }
+        hideHandles() {
+          this.handles.forEach(h => { if (h.parentNode) h.parentNode.removeChild(h); });
+          this.handles = [];
+        }
+        updateHandles() {
+          if (this.handles.length !== 4) return;
+          const xs = [this.x, this.x + this.w];
+          const ys = [this.y, this.y + this.h];
+          this.handles.forEach((h, corner) => {
+            h.style.left = (xs[corner % 2] - 4) + "px";
+            h.style.top = (ys[corner < 2 ? 0 : 1] - 4) + "px";
+          });
+        }
+        addResizeDrag(handle, corner) {
+          const startResize = (clientX, clientY) => {
+            const init = { x: this.x, y: this.y, w: this.w, h: this.h };
+            const onMove = (cx, cy) => {
+              // ハンドル位置は論理座標のため、画面上の移動量をズームで換算する
+              const dx = (cx - clientX) / this.app.globalZoom;
+              const dy = (cy - clientY) / this.app.globalZoom;
+              // 対角を固定し、ドラッグ中の角だけ動かす（最小サイズでクランプ）
+              let x = init.x, y = init.y, w = init.w, h = init.h;
+              if (corner % 2 === 0) { // 左辺
+                w = Math.max(ENCLOSURE_MIN_SIZE, init.w - dx);
+                x = init.x + init.w - w;
+              } else { // 右辺
+                w = Math.max(ENCLOSURE_MIN_SIZE, init.w + dx);
+              }
+              if (corner < 2) { // 上辺
+                h = Math.max(ENCLOSURE_MIN_SIZE, init.h - dy);
+                y = init.y + init.h - h;
+              } else { // 下辺
+                h = Math.max(ENCLOSURE_MIN_SIZE, init.h + dy);
+              }
+              this.setRect(x, y, w, h);
+            };
+            const onMouseMove = e => onMove(e.clientX, e.clientY);
+            const onTouchMove = e => {
+              e.preventDefault();
+              onMove(e.touches[0].clientX, e.touches[0].clientY);
+            };
+            const onEnd = () => {
+              document.removeEventListener("mousemove", onMouseMove);
+              document.removeEventListener("mouseup", onEnd);
+              document.removeEventListener("touchmove", onTouchMove);
+              document.removeEventListener("touchend", onEnd);
+              document.removeEventListener("touchcancel", onEnd);
+              this.app.saveState();
+            };
+            document.addEventListener("mousemove", onMouseMove);
+            document.addEventListener("mouseup", onEnd);
+            document.addEventListener("touchmove", onTouchMove, { passive: false });
+            document.addEventListener("touchend", onEnd);
+            document.addEventListener("touchcancel", onEnd);
+          };
+          handle.addEventListener("mousedown", e => {
+            e.stopPropagation();
+            e.preventDefault();
+            startResize(e.clientX, e.clientY);
+          });
+          handle.addEventListener("touchstart", e => {
+            e.stopPropagation();
+            e.preventDefault();
+            startResize(e.touches[0].clientX, e.touches[0].clientY);
+          }, { passive: false });
+        }
+        remove() {
+          this.hideHandles();
+          if (this.element.parentNode) this.element.parentNode.removeChild(this.element);
+        }
+      }
+      EnclosureRect.nextId = 1;
+
       /* ===== 6. 共有モーダルクラス ===== */
       class ShareModal {
         constructor() {
@@ -1072,6 +1198,10 @@
           this.selectedNodes = [];
           this.selectedConnection = null;
           this.selectedConnections = [];
+          this.enclosures = [];
+          this.selectedEnclosures = [];
+          this.enclosureMode = false;
+          this._enclosureTouchHandled = false;
           this.branchCreationJustHappened = false;
           this.moveTimer = null;
           this.undoStack = [];
@@ -1216,7 +1346,13 @@
         }
         initEventListeners() {
           this.canvas.addEventListener("mousedown", e => { if (e.button === 2) this.startPan(e); });
-          this.canvas.addEventListener("contextmenu", e => { if (this.canvas.style.cursor === "grabbing") e.preventDefault(); });
+          // パン開始時のみコンテキストメニューを抑止（カーソル状態での判定はカーソルの戻し忘れと連動するためフラグで判定）
+          this.canvas.addEventListener("contextmenu", e => {
+            if (this._panSuppressContextMenu) {
+              e.preventDefault();
+              this._panSuppressContextMenu = false;
+            }
+          });
 
           // キャンバス全体に対する contextmenu イベントの処理
           this.canvas.addEventListener("contextmenu", e => {
@@ -1252,6 +1388,7 @@
           document.addEventListener("keydown", e => {
             if (e.key === "Escape") {
               this.closeAlignMenu();
+              this.setEnclosureMode(false);
             }
 
             // タイトルフィールド編集中はキーイベントを処理しない
@@ -1390,6 +1527,19 @@
             }
             if (e.touches.length === 1) {
               e.preventDefault();
+              // 囲み矩形: モード中は描画、枠線タッチは選択・移動（パンより優先）
+              if (this.enclosureMode) {
+                this._enclosureTouchHandled = true;
+                this.startEnclosureDrawTouch(touch);
+                return;
+              }
+              const lpos = this.eventToLogical(touch);
+              const hitEnclosure = this.enclosures.find(r => r.hitTestBorder(lpos.x, lpos.y));
+              if (hitEnclosure) {
+                this._enclosureTouchHandled = true;
+                this.startEnclosureMoveTouch(touch, hitEnclosure);
+                return;
+              }
               lastTapTime = now;
               const startX = touch.clientX, startY = touch.clientY;
               this.canvas.style.cursor = "grabbing";
@@ -1432,6 +1582,8 @@
           }, { passive: false });
           this.canvas.addEventListener("touchend", e => {
             if (e.target.closest(".node")) return;
+            // 囲み矩形の描画・選択タッチ直後は空白タップ扱いの選択解除をしない
+            if (this._enclosureTouchHandled) { this._enclosureTouchHandled = false; return; }
             if (!e.changedTouches || !e.changedTouches[0]) return;
             const touch = e.changedTouches[0];
             const canvasRect = this.canvas.getBoundingClientRect();
@@ -1584,6 +1736,16 @@
               tip = `選択中: ${this.getDashTypeName(this.selectedConnection.dashType)}`;
             }
             Utils.showTooltip(changeDashTypeBtn, tip);
+          });
+
+          const enclosureBtn = document.getElementById("enclosureBtn");
+          enclosureBtn.addEventListener("click", () => {
+            const next = !this.enclosureMode;
+            this.setEnclosureMode(next);
+            Utils.showTooltip(enclosureBtn, next ? "囲み矩形: ドラッグで描画" : "囲み矩形: オフ");
+          });
+          enclosureBtn.addEventListener("mouseenter", () => {
+            Utils.showTooltip(enclosureBtn, this.enclosureMode ? "囲み矩形: ドラッグで描画" : "囲み矩形を描く（Shift+ドラッグでも可）");
           });
 
           boldTextBtn.addEventListener("click", () => {
@@ -1740,6 +1902,7 @@
           const startX = e.clientX, startY = e.clientY;
           const initPan = Object.assign({}, this.globalPan);
           this.canvas.style.cursor = "grabbing";
+          this._panSuppressContextMenu = true;
           let moved = false;
 
           const onMove = e => {
@@ -1758,7 +1921,8 @@
           const onUp = e => {
             document.removeEventListener("mousemove", onMove);
             document.removeEventListener("mouseup", onUp);
-            if (moved) this.canvas.style.cursor = "default";
+            // 動かさず離した場合もカーソルを戻す（grabbing が残るバグの修正）
+            this.canvas.style.cursor = "default";
           };
 
           document.addEventListener("mousemove", onMove);
@@ -2096,6 +2260,18 @@
           // ノード上でのシングルクリックの場合は何もしない（選択処理等はノード側で）
           if (e.target.closest(".node") && e.detail === 1) return;
           if (e.detail === 1) {
+            // 囲み矩形の描画（Shift+ドラッグ or モードボタン）
+            if (e.shiftKey || this.enclosureMode) {
+              this.startEnclosureDraw(e);
+              return;
+            }
+            // 囲み矩形の枠線上なら選択・移動へ
+            const pos = this.eventToLogical(e);
+            const hitEnclosure = this.enclosures.find(r => r.hitTestBorder(pos.x, pos.y));
+            if (hitEnclosure) {
+              this.startEnclosureMove(e, hitEnclosure);
+              return;
+            }
             this.clearSelection();
             const selRect = document.createElement("div");
             selRect.id = "selectionRect";
@@ -2130,7 +2306,16 @@
                   c.showHandles();
                 }
               });
-              const hasSelection = this.selectedNodes.length > 0 || this.selectedConnections.length > 0;
+              this.enclosures.forEach(r => {
+                // 囲み矩形は「完全に囲んだとき」だけ選択（交差判定だと内部での範囲選択に巻き込まれるため）
+                const rBox = r.element.getBoundingClientRect();
+                if (rBox.left >= selBox.left && rBox.right <= selBox.right && rBox.top >= selBox.top && rBox.bottom <= selBox.bottom) {
+                  this.selectedEnclosures.push(r);
+                  r.element.classList.add("selected");
+                  r.showHandles();
+                }
+              });
+              const hasSelection = this.selectedNodes.length > 0 || this.selectedConnections.length > 0 || this.selectedEnclosures.length > 0;
               if (this.editingNode && hasSelection) {
                 this.finishEditingNode(this.editingNode);
               }
@@ -2193,6 +2378,7 @@
               if (!this.selectedConnections.includes(c)) connected.add(c);
             }
           });
+          const enclosureInit = new Map(this.selectedEnclosures.map(r => [r, { x: r.x, y: r.y }]));
           const onMove = e => {
             const cur = this.eventToLogical(e);
             const dx = cur.x - start.x, dy = cur.y - start.y;
@@ -2209,6 +2395,10 @@
               c.update();
             });
             connected.forEach(c => c.update());
+            this.selectedEnclosures.forEach(r => {
+              const pos = enclosureInit.get(r);
+              r.setRect(pos.x + dx, pos.y + dy, r.w, r.h);
+            });
           };
           const onUp = e => {
             document.removeEventListener("mousemove", onMove);
@@ -2217,6 +2407,121 @@
           };
           document.addEventListener("mousemove", onMove);
           document.addEventListener("mouseup", onUp);
+        }
+        /* ===== 囲み矩形の操作（描画・選択・移動） ===== */
+        setEnclosureMode(on) {
+          this.enclosureMode = on;
+          const btn = document.getElementById("enclosureBtn");
+          if (btn) btn.classList.toggle("active", on);
+          Logger.log("enclosureMode:", on);
+        }
+        selectEnclosure(r) {
+          this.clearSelection();
+          this.selectedEnclosures = [r];
+          r.element.classList.add("selected");
+          r.showHandles();
+          this.updateControlButtonsState();
+        }
+        // ドラッグで新しい囲み矩形を描く（マウス）。タッチは startEnclosureDrawTouch
+        startEnclosureDraw(e) {
+          this.clearSelection();
+          const start = this.eventToLogical(e);
+          const rect = new EnclosureRect(start.x, start.y, 0, 0, this);
+          rect.element.classList.add("drawing");
+          const onMove = e => {
+            const cur = this.eventToLogical(e);
+            rect.setRect(Math.min(start.x, cur.x), Math.min(start.y, cur.y),
+              Math.abs(cur.x - start.x), Math.abs(cur.y - start.y));
+          };
+          const onUp = () => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            this.finishEnclosureDraw(rect);
+          };
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        }
+        // 描画確定（マウス・タッチ共通）。小さすぎる場合はクリック誤爆として破棄
+        finishEnclosureDraw(rect) {
+          rect.element.classList.remove("drawing");
+          if (rect.w < ENCLOSURE_MIN_SIZE || rect.h < ENCLOSURE_MIN_SIZE) {
+            rect.remove();
+          } else {
+            this.enclosures.push(rect);
+            this.selectEnclosure(rect);
+            this.saveState();
+          }
+          // モードボタン経由はワンショット（1回描いたら解除）
+          this.setEnclosureMode(false);
+        }
+        // 枠線ドラッグで移動。5px未満なら選択のみ
+        startEnclosureMove(e, rect) {
+          this.selectEnclosure(rect);
+          const start = this.eventToLogical(e);
+          const init = { x: rect.x, y: rect.y };
+          let dragging = false;
+          const onMove = e => {
+            const cur = this.eventToLogical(e);
+            const dx = cur.x - start.x, dy = cur.y - start.y;
+            if (!dragging && Math.sqrt(dx * dx + dy * dy) > 5) dragging = true;
+            if (dragging) rect.setRect(init.x + dx, init.y + dy, rect.w, rect.h);
+          };
+          const onUp = () => {
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+            if (dragging) this.saveState();
+          };
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+        }
+        // タッチでの描画（モードボタン経由）。touch は clientX/clientY を持つため eventToLogical をそのまま使える
+        startEnclosureDrawTouch(touch) {
+          this.clearSelection();
+          const start = this.eventToLogical(touch);
+          const rect = new EnclosureRect(start.x, start.y, 0, 0, this);
+          rect.element.classList.add("drawing");
+          const onMove = e => {
+            if (e.touches.length !== 1) return;
+            e.preventDefault();
+            const cur = this.eventToLogical(e.touches[0]);
+            rect.setRect(Math.min(start.x, cur.x), Math.min(start.y, cur.y),
+              Math.abs(cur.x - start.x), Math.abs(cur.y - start.y));
+          };
+          const onEnd = e => {
+            if (e.touches.length > 0) return;
+            document.removeEventListener("touchmove", onMove);
+            document.removeEventListener("touchend", onEnd);
+            document.removeEventListener("touchcancel", onEnd);
+            this.finishEnclosureDraw(rect);
+          };
+          document.addEventListener("touchmove", onMove, { passive: false });
+          document.addEventListener("touchend", onEnd);
+          document.addEventListener("touchcancel", onEnd);
+        }
+        // タッチでの枠線ドラッグ移動。5px未満なら選択のみ
+        startEnclosureMoveTouch(touch, rect) {
+          this.selectEnclosure(rect);
+          const start = this.eventToLogical(touch);
+          const init = { x: rect.x, y: rect.y };
+          let dragging = false;
+          const onMove = e => {
+            if (e.touches.length !== 1) return;
+            e.preventDefault();
+            const cur = this.eventToLogical(e.touches[0]);
+            const dx = cur.x - start.x, dy = cur.y - start.y;
+            if (!dragging && Math.sqrt(dx * dx + dy * dy) > 5) dragging = true;
+            if (dragging) rect.setRect(init.x + dx, init.y + dy, rect.w, rect.h);
+          };
+          const onEnd = e => {
+            if (e.touches.length > 0) return;
+            document.removeEventListener("touchmove", onMove);
+            document.removeEventListener("touchend", onEnd);
+            document.removeEventListener("touchcancel", onEnd);
+            if (dragging) this.saveState();
+          };
+          document.addEventListener("touchmove", onMove, { passive: false });
+          document.addEventListener("touchend", onEnd);
+          document.addEventListener("touchcancel", onEnd);
         }
         handleNodeMouseDown(e, node) {
           // 他のノード選択時、もし編集中のノードがあれば強制終了
@@ -2625,6 +2930,7 @@
               lineType: c.lineType,
               dashType: c.dashType
             })),
+            enclosures: this.enclosures.map(r => ({ id: r.id, x: r.x, y: r.y, w: r.w, h: r.h })),
             globalPan: Object.assign({}, this.globalPan),
             globalZoom: this.globalZoom,
             defaultNodeType: this.defaultNodeType,
@@ -2641,8 +2947,10 @@
         restoreState(state) {
           this.nodes.forEach(n => { if (n.element.parentNode) n.element.parentNode.removeChild(n.element); });
           this.connections.forEach(c => { if (c.line.parentNode) c.line.parentNode.removeChild(c.line); c.hideHandles(); });
+          this.enclosures.forEach(r => r.remove());
           this.nodes = [];
           this.connections = [];
+          this.enclosures = [];
           const map = {};
           state.nodes.forEach(nd => {
             const node = new NoteNode(nd.text, nd.x, nd.y, this, nd.id);
@@ -2661,6 +2969,10 @@
             conn.toCoord = cd.toCoord;
             conn.update();
             this.connections.push(conn);
+          });
+          // 囲み矩形（v1.7以前のデータには存在しないため空配列フォールバック）
+          (state.enclosures || []).forEach(rd => {
+            this.enclosures.push(new EnclosureRect(rd.x, rd.y, rd.w, rd.h, this, rd.id));
           });
           if (state.defaultNodeType) this.defaultNodeType = state.defaultNodeType;
           if (state.defaultLineType) this.defaultLineType = state.defaultLineType;
@@ -2756,6 +3068,8 @@
           this.selectedNodes = [];
           this.selectedConnections.forEach(c => { c.line.classList.remove("selected-line"); c.hideHandles(); });
           this.selectedConnections = [];
+          this.selectedEnclosures.forEach(r => { r.element.classList.remove("selected"); r.hideHandles(); });
+          this.selectedEnclosures = [];
           this.updateControlButtonsState();
         }
         selectAll() {
@@ -2771,6 +3085,12 @@
             this.selectedConnections.push(c);
             c.line.classList.add("selected-line");
             c.showHandles();
+          });
+          // 全囲み矩形を選択
+          this.enclosures.forEach(r => {
+            this.selectedEnclosures.push(r);
+            r.element.classList.add("selected");
+            r.showHandles();
           });
           this.updateControlButtonsState();
         }
@@ -2918,6 +3238,11 @@
         }
 
         deleteSelection() {
+          if (this.selectedEnclosures.length > 0) {
+            this.selectedEnclosures.forEach(r => r.remove());
+            this.enclosures = this.enclosures.filter(r => !this.selectedEnclosures.includes(r));
+            this.selectedEnclosures = [];
+          }
           if (this.selectedConnections.length > 0) {
             this.selectedConnections.forEach(c => {
               c.hideHandles();
