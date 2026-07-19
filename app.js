@@ -1214,6 +1214,8 @@
           this.defaultDashType = "solid";
           this.alignBtn = null;
           this.alignMenu = null;
+          this.fileMenuBtn = null;
+          this.fileMenu = null;
           this.clipboardSelection = null;
           this.clipboardPasteCount = 0;
           this.restored = false;
@@ -1366,6 +1368,7 @@
           this.canvas.addEventListener("mousedown", e => { if (e.button === 0) this.onCanvasMouseDown(e); });
           window.addEventListener("resize", () => {
             this.closeAlignMenu();
+            this.closeFileMenu();
             this.updateAllConnections();
           });
           document.addEventListener("mousedown", e => {
@@ -1373,6 +1376,11 @@
               const clickedInsideMenu = this.alignMenu.contains(e.target);
               const clickedAlignBtn = this.alignBtn && this.alignBtn.contains(e.target);
               if (!clickedInsideMenu && !clickedAlignBtn) this.closeAlignMenu();
+            }
+            if (this.fileMenu && this.fileMenu.style.display !== "none") {
+              const clickedInsideMenu = this.fileMenu.contains(e.target);
+              const clickedFileMenuBtn = this.fileMenuBtn && this.fileMenuBtn.contains(e.target);
+              if (!clickedInsideMenu && !clickedFileMenuBtn) this.closeFileMenu();
             }
             if (!e.target.closest(".node") && !e.target.closest(".html-handle") && e.target.tagName.toLowerCase() !== "line") {
               this.hideAllHandles();
@@ -1384,10 +1392,16 @@
               const touchedAlignBtn = this.alignBtn && this.alignBtn.contains(e.target);
               if (!touchedInsideMenu && !touchedAlignBtn) this.closeAlignMenu();
             }
+            if (this.fileMenu && this.fileMenu.style.display !== "none") {
+              const touchedInsideMenu = this.fileMenu.contains(e.target);
+              const touchedFileMenuBtn = this.fileMenuBtn && this.fileMenuBtn.contains(e.target);
+              if (!touchedInsideMenu && !touchedFileMenuBtn) this.closeFileMenu();
+            }
           });
           document.addEventListener("keydown", e => {
             if (e.key === "Escape") {
               this.closeAlignMenu();
+              this.closeFileMenu();
               this.setEnclosureMode(false);
             }
 
@@ -1797,6 +1811,22 @@
             });
           }
 
+          this.fileMenuBtn = document.getElementById("fileMenuBtn");
+          this.fileMenu = document.getElementById("fileMenu");
+          if (this.fileMenuBtn) {
+            this.fileMenuBtn.addEventListener("click", e => {
+              e.stopPropagation();
+              this.toggleFileMenu();
+            });
+          }
+          if (this.fileMenu) {
+            // 各項目のボタンは既存の id ベースのリスナーが処理する。ここでは閉じるだけ
+            this.fileMenu.addEventListener("click", e => {
+              if (e.target.closest("button")) this.closeFileMenu();
+            });
+            this.closeFileMenu();
+          }
+
           // 「？」ボタンのイベントリスナー追加
           document.getElementById("guideBtn").addEventListener("click", () => {
             const shouldProceed = confirm("利用ガイドを表示しますか？\n現在の作業内容は失われます。");
@@ -1816,11 +1846,7 @@
 
           // 追加のコントロールパネルボタンにツールチップを設定
           const additionalTooltips = {
-            "resetBtn": "新規ノートを作成",
-            "importBtn": "保存したノートを開く",
-            "exportBtn": "現在のノートを保存",
-            "aiExportBtn": "AI用Markdownで保存",
-            "shareBtn": "URLで共有",
+            "fileMenuBtn": "ファイルメニュー",
             "guideBtn": "ヘルプを表示",
             "alignBtn": "ノード整列メニュー",
             "resetViewBtn": "表示位置をリセット"
@@ -1832,7 +1858,7 @@
             if (btn) {
               btn.addEventListener("mouseenter", () => {
                 // 右端のボタンには特別な処理
-                if (btnId === "guideBtn" || btnId === "shareBtn") {
+                if (btnId === "guideBtn" || btnId === "fileMenuBtn") {
                   // 特別なツールチップ表示（右端用）
                   showRightAlignedTooltip(btn, additionalTooltips[btnId]);
                 } else {
@@ -2036,6 +2062,26 @@
           if (!this.alignMenu) return;
           this.alignMenu.style.display = "none";
           this.alignMenu.setAttribute("aria-hidden", "true");
+        }
+        toggleFileMenu() {
+          if (!this.fileMenuBtn || !this.fileMenu) return;
+          if (this.fileMenu.style.display !== "none") {
+            this.closeFileMenu();
+            return;
+          }
+          this.fileMenu.style.display = "inline-block";
+          this.fileMenu.setAttribute("aria-hidden", "false");
+          const btnRect = this.fileMenuBtn.getBoundingClientRect();
+          const menuRect = this.fileMenu.getBoundingClientRect();
+          const left = Math.min(Math.max(10, btnRect.right - menuRect.width), window.innerWidth - menuRect.width - 10);
+          const top = Math.min(btnRect.bottom + 6, window.innerHeight - menuRect.height - 10);
+          this.fileMenu.style.left = `${left}px`;
+          this.fileMenu.style.top = `${Math.max(10, top)}px`;
+        }
+        closeFileMenu() {
+          if (!this.fileMenu) return;
+          this.fileMenu.style.display = "none";
+          this.fileMenu.setAttribute("aria-hidden", "true");
         }
         alignSelectedNodes(mode) {
           const nodes = this.getAlignmentNodes();

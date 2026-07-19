@@ -277,28 +277,27 @@
       justify-content: center;
     }
 
+    /* グループ区切り */
+    .panel-separator {
+      width: 1px;
+      height: 22px;
+      background: #c0c0c0;
+      flex-shrink: 0;
+    }
+
     /* ボタンサイズ */
     #boldTextBtn,
     #alignBtn,
     #changeTypeBtn,
     #changeLineTypeBtn,
     #changeDashTypeBtn,
+    #fileMenuBtn,
     #guideBtn {
       width: 30px;
       height: 30px;
       padding: 0;
       font-size: 16px;
       font-weight: 500;
-    }
-
-    #resetBtn,
-    #importBtn,
-    #exportBtn,
-    #aiExportBtn {
-      height: 30px;
-      min-width: 40px;
-      padding: 5px 10px;
-      font-size: 14px;
     }
 
     #resetViewBtn {
@@ -499,7 +498,8 @@
       cursor: not-allowed;
     }
 
-    #alignMenu {
+    #alignMenu,
+    #fileMenu {
       position: fixed;
       display: none;
       z-index: 25000;
@@ -514,7 +514,8 @@
       -webkit-user-select: none;
     }
 
-    #alignMenu button {
+    #alignMenu button,
+    #fileMenu button {
       display: block;
       width: 100%;
       box-sizing: border-box;
@@ -531,11 +532,13 @@
       -webkit-user-select: none;
     }
 
-    #alignMenu button:hover {
+    #alignMenu button:hover,
+    #fileMenu button:hover {
       background-color: #f0f0f0;
     }
 
-    #alignMenu button:active {
+    #alignMenu button:active,
+    #fileMenu button:active {
       background-color: #e5e5e5;
     }
 
