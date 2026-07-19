@@ -28,7 +28,7 @@
       "use strict";
 
       /* ===== 1. 定数・グローバル設定 ===== */
-      const VERSION = "v1.6";
+      const VERSION = "v1.7";
       
       // バージョン更新検知と通知機能
       function checkForAppUpdates() {
