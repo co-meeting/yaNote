@@ -72,6 +72,21 @@ node scripts/release-publish.mjs 1.5
 
 実行前に確認プロンプトが出ます。main への push と同時に GitHub Pages のデモも更新されます。
 
+### 4. 公開後の反映確認
+
+push 成功＝デモ公開ではありません。GitHub Pages のビルドが自動発火しないことがあるため（v1.6 で発生）、publish 後は必ずデモの反映を確認します:
+
+```bash
+curl -s https://co-meeting.github.io/yaNote/app.js | grep -o 'VERSION = "[^"]*"'
+```
+
+5分待っても古いバージョンのままの場合は、ビルド状況を確認して手動でビルドをリクエストします:
+
+```bash
+gh api repos/co-meeting/yaNote/pages/builds/latest --jq '{status, commit, error: .error.message}'
+gh api -X POST repos/co-meeting/yaNote/pages/builds
+```
+
 ## ロールバック
 
 ### publish 前

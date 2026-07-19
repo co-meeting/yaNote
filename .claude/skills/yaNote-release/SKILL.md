@@ -86,6 +86,20 @@ node scripts/release-publish.mjs X.Y
 コミットメッセージ・Release タイトルは既存の運用（例: `v1.4.2（2026-03-13）`、全角括弧）に自動で揃う。
 途中で確認プロンプトが出るので、`y` を入力して進める（`--yes` で省略可能だが、Skill からは原則使わない）。
 
+## 5. 公開後の反映確認（必須）
+
+push 成功＝デモ公開ではない。GitHub Pages のビルドが自動発火しないことがある（v1.6 で実際に発生。丸一日 v1.5 のまま配信されていた）。publish 後は必ず以下でデモへの反映を確認する:
+
+```
+curl -s https://co-meeting.github.io/yaNote/app.js | grep -o 'VERSION = "[^"]*"'
+```
+
+`vX.Y` になるまで確認する（通常は push から1〜2分）。5分待っても古いバージョンのままの場合:
+
+1. ビルド状況を確認: `gh api repos/co-meeting/yaNote/pages/builds/latest --jq '{status, commit, error: .error.message}'`
+2. ビルド対象の commit がリリースコミットより古い場合、手動でビルドをリクエスト: `gh api -X POST repos/co-meeting/yaNote/pages/builds`
+3. 再度 curl で `VERSION` が `vX.Y` になるまで確認し、ユーザーに反映完了を報告する
+
 ## ロールバック
 
 - publish 前: `node scripts/bump-version.mjs <前のバージョン>` で番号を戻し、`rm release-notes/vX.Y.md`、README のプレースホルダエントリを手で削除
